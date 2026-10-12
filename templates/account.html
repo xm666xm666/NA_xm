@@ -1,7 +1,26 @@
 {% extends "auth_base.html" %}
 {% block content %}
-  <p class="auth-kicker">账户设置</p><h1>{{ user.username }}</h1><p class="auth-desc">角色：{{ user.role }}{% if user.must_change_password %} · 请立即修改初始密码{% endif %}</p>
-  {% if error %}<p class="auth-alert error">{{ error }}</p>{% endif %}{% if success %}<p class="auth-alert success">{{ success }}</p>{% endif %}
-  <form method="post" class="auth-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>当前密码<input type="password" name="current_password" autocomplete="current-password" required></label><label>新密码 <small>至少 12 位</small><input type="password" name="new_password" minlength="12" autocomplete="new-password" required></label><label>确认新密码<input type="password" name="new_password_confirm" minlength="12" autocomplete="new-password" required></label><button class="auth-primary" type="submit">更新密码</button></form>
-  <div class="auth-links"><a href="/">返回控制台</a></div>
+  <header class="auth-heading">
+    <p class="auth-kicker">账户设置</p>
+    <h1 id="auth-page-title">{{ user.username }}</h1>
+    <p class="auth-desc">角色：{{ user.role }}{% if user.must_change_password %} · 请立即修改初始密码{% endif %}</p>
+  </header>
+  {% if error %}<p class="auth-alert error" role="alert">{{ error }}</p>{% endif %}
+  {% if success %}<p class="auth-alert success" role="status">{{ success }}</p>{% endif %}
+  {% if recovery_code %}{% include "_recovery_code.html" %}{% endif %}
+  <form method="post" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label><span>当前密码</span><span class="auth-input-action"><input type="password" name="current_password" autocomplete="current-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
+    <div class="auth-two-fields">
+      <label><span>新密码 <small>至少 12 位</small></span><span class="auth-input-action"><input type="password" name="new_password" minlength="12" autocomplete="new-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
+      <label><span>确认新密码</span><span class="auth-input-action"><input type="password" name="new_password_confirm" minlength="12" autocomplete="new-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
+    </div>
+    <button class="auth-primary" type="submit">更新密码并换发恢复码</button>
+  </form>
+  <form method="post" class="auth-form auth-recovery-rotate">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="rotate_recovery_code">
+    <label><span>当前密码</span><span class="auth-input-action"><input type="password" name="current_password" autocomplete="current-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
+    <button class="auth-secondary" type="submit">仅换发恢复验证码</button>
+  </form>
+  <div class="auth-links auth-links-center"><a href="/">返回控制台</a></div>
 {% endblock %}

@@ -5,7 +5,3 @@ metadata:
   namespace: na-xm
 data:
   APP_ENV: production
-  REQUIRE_EMAIL_VERIFICATION: "true"
-  WEB_PUBLIC_URL: https://na.example.com
-  SMTP_PORT: "587"
-  SMTP_STARTTLS: "true"

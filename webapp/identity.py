@@ -11,9 +11,7 @@ import json
 import logging
 import os
 import secrets
-import smtplib
 from datetime import UTC, datetime, timedelta
-from email.message import EmailMessage
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, ParamSpec, TypeVar
@@ -34,7 +32,7 @@ from flask import (
     session,
     url_for,
 )
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, select
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, scoped_session, sessionmaker
 
@@ -48,6 +46,12 @@ ROLE_SUPERADMIN = "superadmin"
 ROLE_ADMIN = "admin"
 ROLE_USER = "user"
 ROLES = (ROLE_SUPERADMIN, ROLE_ADMIN, ROLE_USER)
+
+# 去掉容易混淆的字符，恢复码可在手机上准确抄录；12 位约有 60 bit 熵。
+RECOVERY_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+RECOVERY_CODE_LENGTH = 12
+RECOVERY_CODE_MAX_FAILURES = 5
+RECOVERY_CODE_LOCK_MINUTES = 15
 
 FEATURE_WORKSPACE = "workspace"
 FEATURE_BATCH = "batch"
@@ -127,6 +131,23 @@ class AccountToken(Base):
     request_ip: Mapped[str] = mapped_column(String(128), default="", nullable=False)
 
     user: Mapped[User] = relationship(back_populates="tokens")
+
+
+class PasswordRecoveryCode(Base):
+    """每个网站账户的一份恢复验证码；明文绝不落库。"""
+
+    __tablename__ = "web_password_recovery_codes"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_web_password_recovery_codes_user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    failed_attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    rotated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False
+    )
 
 
 class AuditLog(Base):
@@ -293,8 +314,6 @@ class IdentityStore:
                 user.failed_login_count = 0
             db.commit()
             return None, generic
-        if current_app.config["REQUIRE_EMAIL_VERIFICATION"] and not user.email_verified:
-            return None, "请先完成邮箱验证"
         user.failed_login_count = 0
         user.locked_until = None
         user.last_login_at = now
@@ -341,6 +360,94 @@ class IdentityStore:
         db.commit()
         return db.get(User, token.user_id)
 
+    @staticmethod
+    def _normalize_recovery_code(raw: str) -> str:
+        return "".join(char for char in str(raw or "").upper() if char.isalnum())
+
+    @staticmethod
+    def _display_recovery_code(raw: str) -> str:
+        return "-".join(raw[index : index + 4] for index in range(0, len(raw), 4))
+
+    @staticmethod
+    def _normalize_utc(value: datetime | None) -> datetime | None:
+        if value and value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+
+    def issue_password_recovery_code(self, user: User) -> str:
+        """轮换恢复验证码，调用方只能在当前响应中展示一次明文。"""
+        raw = "".join(secrets.choice(RECOVERY_CODE_ALPHABET) for _ in range(RECOVERY_CODE_LENGTH))
+        db = self.session()
+        record = db.scalar(select(PasswordRecoveryCode).where(PasswordRecoveryCode.user_id == user.id))
+        if record:
+            record.code_hash = self.passwords.hash(raw)
+            record.failed_attempt_count = 0
+            record.locked_until = None
+        else:
+            db.add(PasswordRecoveryCode(user_id=user.id, code_hash=self.passwords.hash(raw)))
+        db.commit()
+        return self._display_recovery_code(raw)
+
+    def reset_password_with_recovery_code(
+        self,
+        *,
+        identity: str,
+        recovery_code: str,
+        new_password: str,
+    ) -> tuple[User | None, str, str]:
+        """以账户与恢复码重置密码，并在成功后轮换恢复码。
+
+        返回 ``(user, error, next_recovery_code)``。错误始终使用泛化消息，
+        避免通过此接口枚举邮箱或用户名。
+        """
+        key = str(identity or "").strip().lower()
+        normalized_code = self._normalize_recovery_code(recovery_code)
+        generic_error = "账号或恢复验证码不正确"
+        if not key or len(normalized_code) != RECOVERY_CODE_LENGTH:
+            return None, generic_error, ""
+
+        db = self.session()
+        user = db.scalar(
+            select(User).where(
+                (User.username == key) | (User.email == key),
+                User.is_active.is_(True),
+                User.is_deleted.is_(False),
+            )
+        )
+        if not user:
+            return None, generic_error, ""
+        record = db.scalar(select(PasswordRecoveryCode).where(PasswordRecoveryCode.user_id == user.id))
+        if not record:
+            return None, generic_error, ""
+
+        now = _utcnow()
+        locked_until = self._normalize_utc(record.locked_until)
+        if locked_until and locked_until > now:
+            return None, "恢复验证码已临时锁定，请 15 分钟后再试", ""
+
+        try:
+            valid = self.passwords.verify(record.code_hash, normalized_code)
+            if valid and self.passwords.check_needs_rehash(record.code_hash):
+                record.code_hash = self.passwords.hash(normalized_code)
+        except (VerifyMismatchError, InvalidHashError):
+            valid = False
+
+        if not valid:
+            record.failed_attempt_count += 1
+            if record.failed_attempt_count >= RECOVERY_CODE_MAX_FAILURES:
+                record.locked_until = now + timedelta(minutes=RECOVERY_CODE_LOCK_MINUTES)
+                record.failed_attempt_count = 0
+            db.commit()
+            return None, generic_error, ""
+
+        user.password_hash = self.passwords.hash(new_password)
+        user.must_change_password = False
+        record.failed_attempt_count = 0
+        record.locked_until = None
+        db.commit()
+        next_code = self.issue_password_recovery_code(user)
+        return user, "", next_code
+
     def audit(self, action: str, *, resource: str = "", outcome: str = "success", detail: dict[str, Any] | None = None) -> None:
         db = self.session()
         actor = getattr(g, "current_user", None)
@@ -379,8 +486,6 @@ class IdentityManager:
             SESSION_COOKIE_SAMESITE="Lax",
             SESSION_COOKIE_SECURE=production,
             PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
-            REQUIRE_EMAIL_VERIFICATION=os.getenv("REQUIRE_EMAIL_VERIFICATION", "true" if production else "false").lower() == "true",
-            WEB_PUBLIC_URL=os.getenv("WEB_PUBLIC_URL", "").rstrip("/"),
         )
         self._configure_server_sessions(production, root_dir)
         self.store = IdentityStore(database_url, auto_create_schema=os.getenv("WEB_AUTO_CREATE_SCHEMA", "true" if not production else "false").lower() == "true")
@@ -488,31 +593,6 @@ class IdentityManager:
             session["csrf_token"] = token
         return token
 
-    def _send_mail(self, recipient: str, subject: str, text: str) -> None:
-        host = os.getenv("SMTP_HOST", "").strip()
-        if not host:
-            _LOG.warning("SMTP 未配置，未发送账户邮件：subject=%s recipient=%s", subject, recipient)
-            return
-        message = EmailMessage()
-        message["Subject"] = subject
-        message["From"] = os.getenv("SMTP_FROM", "no-reply@localhost")
-        message["To"] = recipient
-        message.set_content(text)
-        port = int(os.getenv("SMTP_PORT", "587"))
-        with smtplib.SMTP(host, port, timeout=20) as smtp:
-            if os.getenv("SMTP_STARTTLS", "true").lower() == "true":
-                smtp.starttls()
-            username = os.getenv("SMTP_USERNAME", "")
-            password = os.getenv("SMTP_PASSWORD", "")
-            if username:
-                smtp.login(username, password)
-            smtp.send_message(message)
-
-    def _absolute_url(self, endpoint: str, **values: Any) -> str:
-        relative = url_for(endpoint, _external=False, **values)
-        base = str(self.app.config.get("WEB_PUBLIC_URL") or "")
-        return f"{base}{relative}" if base else request.url_root.rstrip("/") + relative
-
     def _build_blueprint(self) -> Blueprint:
         bp = Blueprint("identity", __name__)
 
@@ -545,6 +625,7 @@ class IdentityManager:
                 return redirect("/")
             error = ""
             success = ""
+            recovery_code = ""
             if request.method == "POST":
                 if not self._verify_form_csrf():
                     error = "页面校验已失效，请刷新后重试"
@@ -552,73 +633,73 @@ class IdentityManager:
                     error = "两次输入的密码不一致"
                 else:
                     try:
-                        verified = not self.app.config["REQUIRE_EMAIL_VERIFICATION"]
                         user = self.store.create_user(
                             username=request.form.get("username", ""),
                             email=request.form.get("email", ""),
                             password=request.form.get("password", ""),
-                            email_verified=verified,
+                            # 网站账户不再经 SMTP 发送验证链接；邮箱只作登录标识与唯一性字段。
+                            email_verified=True,
                         )
-                        if verified:
-                            success = "注册成功，请登录。"
-                        else:
-                            token = self.store.create_token(user, "verify_email", 30)
-                            self._send_mail(user.email, "验证 NA 自动配置网站账号", f"请在 30 分钟内访问：{self._absolute_url('identity.verify_email', token=token)}")
-                            success = "注册成功，验证邮件已发送。"
+                        recovery_code = self.store.issue_password_recovery_code(user)
+                        success = "注册成功。请立即保存下方恢复验证码；它只会显示这一次。"
                         self.store.audit("auth.register", resource=f"user:{user.id}")
                     except ValueError as exc:
                         error = str(exc)
-            return render_template("register.html", csrf_token=self.csrf_token(), error=error, success=success)
+            return render_template(
+                "register.html",
+                csrf_token=self.csrf_token(),
+                error=error,
+                success=success,
+                recovery_code=recovery_code,
+            )
 
         @bp.get("/verify-email/<token>")
         def verify_email(token: str):
-            user = self.store.consume_token(token, "verify_email")
-            if not user:
-                return render_template("message.html", title="验证链接无效", message="该验证链接已失效或已使用，请重新注册或联系超管。", level="error"), 400
-            user.email_verified = True
-            self.store.session().commit()
-            self.store.audit("auth.verify_email", resource=f"user:{user.id}")
-            return render_template("message.html", title="邮箱已验证", message="账号已启用，现在可以登录。", level="success")
+            # 兼容历史邮件链接：不再消费令牌或发送新的邮件。
+            return render_template(
+                "message.html",
+                title="邮箱验证已下线",
+                message="网站账户现使用恢复验证码找回密码，请使用已有账户直接登录。",
+                level="success",
+            )
 
         @bp.get("/forgot-password")
         @bp.post("/forgot-password")
         def forgot_password():
-            notice = ""
-            if request.method == "POST":
-                if not self._verify_form_csrf():
-                    notice = "页面校验已失效，请刷新后重试"
-                else:
-                    email = request.form.get("email", "").strip().lower()
-                    user = self.store.session().scalar(select(User).where(User.email == email, User.is_active.is_(True), User.is_deleted.is_(False)))
-                    if user:
-                        token = self.store.create_token(user, "password_reset", 30)
-                        self._send_mail(user.email, "重置 NA 自动配置网站密码", f"请在 30 分钟内访问：{self._absolute_url('identity.reset_password', token=token)}")
-                        self.store.audit("auth.password_reset_requested", resource=f"user:{user.id}")
-                    notice = "若该邮箱已注册，重置链接已发送。请检查收件箱和垃圾邮件。"
-            return render_template("forgot_password.html", csrf_token=self.csrf_token(), notice=notice)
-
-        @bp.get("/reset-password/<token>")
-        @bp.post("/reset-password/<token>")
-        def reset_password(token: str):
             error = ""
+            notice = ""
+            recovery_code = ""
             if request.method == "POST":
                 if not self._verify_form_csrf():
                     error = "页面校验已失效，请刷新后重试"
                 elif request.form.get("password", "") != request.form.get("password_confirm", ""):
-                    error = "两次输入的密码不一致"
+                    error = "两次输入的新密码不一致"
                 elif len(request.form.get("password", "")) < 12:
-                    error = "密码至少需要 12 位"
+                    error = "新密码至少需要 12 位"
                 else:
-                    user = self.store.consume_token(token, "password_reset")
-                    if not user:
-                        error = "重置链接已失效或已使用"
-                    else:
-                        user.password_hash = self.store.passwords.hash(request.form["password"])
-                        user.must_change_password = False
-                        self.store.session().commit()
+                    user, error, recovery_code = self.store.reset_password_with_recovery_code(
+                        identity=request.form.get("identity", ""),
+                        recovery_code=request.form.get("recovery_code", ""),
+                        new_password=request.form.get("password", ""),
+                    )
+                    if user:
                         self.store.audit("auth.password_reset", resource=f"user:{user.id}")
-                        return render_template("message.html", title="密码已更新", message="请使用新密码登录。", level="success")
-            return render_template("reset_password.html", csrf_token=self.csrf_token(), error=error)
+                        notice = "密码已更新。请保存新的恢复验证码；旧验证码已立即失效。"
+                    else:
+                        self.store.audit("auth.password_reset", outcome="denied")
+            return render_template(
+                "forgot_password.html",
+                csrf_token=self.csrf_token(),
+                error=error,
+                notice=notice,
+                recovery_code=recovery_code,
+            )
+
+        @bp.get("/reset-password/<token>")
+        @bp.post("/reset-password/<token>")
+        def reset_password(token: str):
+            # 历史邮件链接不再是凭据，统一进入验证码重置页。
+            return redirect(url_for("identity.forgot_password"))
 
         @bp.post("/logout")
         def logout():
@@ -653,11 +734,16 @@ class IdentityManager:
             user = self.current_user()
             error = ""
             success = ""
+            recovery_code = ""
             if request.method == "POST":
                 if not self._verify_form_csrf():
                     error = "页面校验已失效，请刷新后重试"
                 elif not self.store.verify_password(user, request.form.get("current_password", "")):
                     error = "当前密码不正确"
+                elif request.form.get("action") == "rotate_recovery_code":
+                    recovery_code = self.store.issue_password_recovery_code(user)
+                    success = "已生成新的恢复验证码，旧验证码已立即失效。请保存下方内容。"
+                    self.store.audit("auth.recovery_code_rotated", resource=f"user:{user.id}")
                 elif request.form.get("new_password", "") != request.form.get("new_password_confirm", ""):
                     error = "两次输入的新密码不一致"
                 elif len(request.form.get("new_password", "")) < 12:
@@ -666,9 +752,17 @@ class IdentityManager:
                     user.password_hash = self.store.passwords.hash(request.form["new_password"])
                     user.must_change_password = False
                     self.store.session().commit()
+                    recovery_code = self.store.issue_password_recovery_code(user)
                     self.store.audit("auth.password_changed", resource=f"user:{user.id}")
-                    success = "密码已更新"
-            return render_template("account.html", user=user, csrf_token=self.csrf_token(), error=error, success=success)
+                    success = "密码已更新。请保存下方新的恢复验证码；旧验证码已立即失效。"
+            return render_template(
+                "account.html",
+                user=user,
+                csrf_token=self.csrf_token(),
+                error=error,
+                success=success,
+                recovery_code=recovery_code,
+            )
 
         @bp.get("/admin/users")
         def admin_users():

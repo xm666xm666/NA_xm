@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -130,6 +131,76 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/data-summary/anything").status_code, 403)
         self.assertEqual(self.client.post("/api/mutation").status_code, 400)
         self.assertEqual(self.client.post("/api/mutation", headers={"X-CSRF-Token": csrf}).status_code, 200)
+
+    def test_registration_and_password_recovery_code_flow(self) -> None:
+        self.assertEqual(self.client.get("/register").status_code, 200)
+        registration = self.client.post(
+            "/register",
+            data={
+                "username": "recovery-user",
+                "email": "recovery@example.com",
+                "password": "registration-password-2026",
+                "password_confirm": "registration-password-2026",
+                "csrf_token": self._csrf(),
+            },
+        )
+        self.assertEqual(registration.status_code, 200)
+        initial_code_match = re.search(r'data-recovery-code>([A-Z0-9-]+)<', registration.get_data(as_text=True))
+        self.assertIsNotNone(initial_code_match)
+        initial_code = str(initial_code_match.group(1))
+        self.assertRegex(initial_code, r"^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$")
+
+        reset = self.client.post(
+            "/forgot-password",
+            data={
+                "identity": "recovery@example.com",
+                "recovery_code": initial_code,
+                "password": "replacement-password-2026",
+                "password_confirm": "replacement-password-2026",
+                "csrf_token": self._csrf(),
+            },
+        )
+        self.assertEqual(reset.status_code, 200)
+        self.assertIn("密码已更新", reset.get_data(as_text=True))
+        next_code_match = re.search(r'data-recovery-code>([A-Z0-9-]+)<', reset.get_data(as_text=True))
+        self.assertIsNotNone(next_code_match)
+        self.assertNotEqual(initial_code, str(next_code_match.group(1)))
+
+        with self.app.app_context():
+            user, error = self.identity.store.authenticate("recovery-user", "replacement-password-2026")
+        self.assertIsNotNone(user, error)
+
+        old_code = self.client.post(
+            "/forgot-password",
+            data={
+                "identity": "recovery-user",
+                "recovery_code": initial_code,
+                "password": "another-password-2026",
+                "password_confirm": "another-password-2026",
+                "csrf_token": self._csrf(),
+            },
+        )
+        self.assertIn("账号或恢复验证码不正确", old_code.get_data(as_text=True))
+
+    def test_recovery_code_locks_after_five_failed_attempts(self) -> None:
+        user = self.identity.store.create_user(
+            username="locked-recovery", email="locked-recovery@example.com", password="test-password-2026", email_verified=True
+        )
+        self.identity.store.issue_password_recovery_code(user)
+        with self.app.app_context():
+            for _ in range(5):
+                _, error, _ = self.identity.store.reset_password_with_recovery_code(
+                    identity="locked-recovery",
+                    recovery_code="2222-2222-2222",
+                    new_password="replacement-password-2026",
+                )
+                self.assertEqual(error, "账号或恢复验证码不正确")
+            _, error, _ = self.identity.store.reset_password_with_recovery_code(
+                identity="locked-recovery",
+                recovery_code="2222-2222-2222",
+                new_password="replacement-password-2026",
+            )
+        self.assertEqual(error, "恢复验证码已临时锁定，请 15 分钟后再试")
 
 
 if __name__ == "__main__":

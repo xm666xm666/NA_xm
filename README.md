@@ -290,7 +290,7 @@ python app.py --no-browser     # 不自动打开浏览器
 
 ### Docker / Podman（Rocky Linux 8/9）
 
-生产部署使用三项容器服务：Web、**PostgreSQL 18**（`postgres:18`）和 **Redis 8**（`redis:8`）。数据库保存账户、密码重置令牌、审计记录及后续任务/产物元数据；Redis 只保存服务端会话。渠道、令牌及上游凭据仍按原有 `env/` 文件挂载，不会迁入账户数据库。
+生产部署使用三项容器服务：Web、**PostgreSQL 18**（`postgres:18`）和 **Redis 8**（`redis:8`）。数据库保存账户、恢复验证码哈希、审计记录及后续任务/产物元数据；Redis 只保存服务端会话。渠道、令牌及上游凭据仍按原有 `env/` 文件挂载，不会迁入账户数据库。
 
 1. 在 Rocky Linux 8 或 9 安装并启动 Docker Compose v2，或使用兼容 Compose 的 Podman 4+；主机无需安装 Python、PostgreSQL 或 Redis。
 2. 复制 `.env.example` 为 `.env`，逐项替换密码和密钥。`APP_SECRET_KEY`、`POSTGRES_PASSWORD`、`BOOTSTRAP_ADMIN_PASSWORD` 必填，且不能保留示例值。
@@ -303,7 +303,7 @@ docker compose up -d --build
 docker compose logs -f web
 ```
 
-Podman 环境可将最后两行替换为 `podman compose up -d --build`、`podman compose logs -f web`。服务就绪后访问 `http://服务器地址:8000/`；反向代理终止 TLS 时应把 `WEB_PUBLIC_URL` 设置为真实 `https://` 地址。数据库迁移由 Web 容器启动时执行。生产环境禁止使用 `docker compose down -v` / `podman compose down -v`，否则会删除 PostgreSQL 与 Redis 持久卷。
+Podman 环境可将最后两行替换为 `podman compose up -d --build`、`podman compose logs -f web`。服务就绪后访问 `http://服务器地址:8000/`；请由反向代理统一终止 TLS。数据库迁移由 Web 容器启动时执行。生产环境禁止使用 `docker compose down -v` / `podman compose down -v`，否则会删除 PostgreSQL 与 Redis 持久卷。
 
 ### Kubernetes
 
@@ -352,10 +352,17 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 
 - 密码使用 **Argon2id** 哈希；连续 5 次失败会锁定账户 15 分钟。
 - 生产环境仅接受 PostgreSQL `DATABASE_URL` 与 Redis `REDIS_URL`；Redis 保存服务端会话，Cookie 为 `HttpOnly`、`SameSite=Lax`、`Secure`。
-- `alembic.ini` 仅保留无凭据的 SQLite 本地开发回退；容器与 Kubernetes 必须通过环境变量或 Secret 注入真实 `DATABASE_URL`，真实连接串不可写入 Git。
+- `alembic.ini` 仅保留无凭据的 SQLite 本地开发回退，并使用 ASCII 配置注释以兼容 Windows 的系统区域编码；恢复码迁移同时兼容已存在的网站数据库和全新部署。容器与 Kubernetes 必须通过环境变量或 Secret 注入真实 `DATABASE_URL`，真实连接串不可写入 Git。
 - 所有写 API 需要会话和 `X-CSRF-Token`；页面表单使用同源 CSRF 令牌。前端脚本会自动附带该头。
-- 注册在生产环境默认需要邮箱验证；忘记密码与邮箱验证令牌 30 分钟一次性有效。配置 `SMTP_*` 后才会真正投递邮件；未配置 SMTP 时只会记录安全告警，不会在页面回显链接。
+- 注册成功、修改密码成功或忘记密码成功时，系统会生成一份**12 位恢复验证码**（格式如 `ABCD-EFGH-JKLM`），明文仅在当次页面显示；数据库只保存 Argon2id 哈希。忘记密码必须同时提交账户与恢复码，连续 5 次失败会锁定该恢复码 15 分钟；成功后旧码立即失效并换发新码。
+- 网站账户不再发送注册验证或密码重置邮件，也不需要配置 `SMTP_*`、`WEB_PUBLIC_URL` 或 `REQUIRE_EMAIL_VERIFICATION`。历史邮件链接只会跳转到恢复验证码页面，不能作为重置凭据。
 - 角色变更、启停和删除均写入 `web_audit_logs`。默认网站数据库在开发模式位于 `.cache/website.db`，生产必须执行 Alembic 迁移到 PostgreSQL。
+
+### 登录、注册与恢复验证码
+
+- 登录页支持用户名或邮箱、显示/隐藏密码、错误提示及恢复入口；注册页在桌面、移动端与低高度窗口都使用完整可滚动视口，关键按钮不会被页面底部裁切。
+- 注册完成后先保存屏幕上展示的恢复验证码，再进入登录。恢复码不是邮件验证码、不会发到邮箱，也不能通过管理员日志找回；遗失时需使用仍可登录的账户在「账户设置」中重新生成，或由超管按组织流程处理。
+- 忘记密码页一次完成账户识别、恢复码验证和新密码设置。验证码可含或不含连字符，大小写不敏感；更新密码、或仅在账户设置中换发恢复码，都会立即作废旧码。
 
 ---
 
@@ -472,7 +479,7 @@ NA_xm_auto_configuration_new/
 ├── requirements.txt
 ├── Dockerfile / compose.yaml        # Web + PostgreSQL 18 + Redis 8 容器部署
 ├── .env.example                     # 生产环境变量模板（不含真实凭据）
-├── alembic.ini / migrations/        # 网站账户数据库迁移
+├── alembic.ini / migrations/        # 网站账户与恢复验证码数据库迁移
 ├── README.md
 │
 ├── env/                            # 多环境快捷连接 + 上游凭证（可选）
@@ -493,11 +500,12 @@ NA_xm_auto_configuration_new/
 │   ├── na-legacy-bridge.css        # 批量页 embed 样式桥接
 │   ├── na-theme.js                 # 主题切换与 iframe 同步
 │   ├── auth-shell.js               # 会话感知、导航授权与 API CSRF 头
-│   └── auth-pages.css              # 登录 / 注册 / 账户页面样式
+│   ├── auth-pages.css              # 自适应登录 / 注册 / 恢复码页面样式
+│   ├── auth-pages.js               # 密码显隐与恢复码复制交互
 │   └── favicon.svg                 # 浏览器图标（N Logo）
 │
-├── templates/                      # 登录、注册、忘记密码、账户、超管用户管理
-├── webapp/identity.py              # 账户模型、Argon2、RBAC、审计与 CSRF
+├── templates/                      # 登录、注册、恢复码重置、账户、超管用户管理
+├── webapp/identity.py              # 账户、Argon2 恢复码、RBAC、审计与 CSRF
 ├── deploy/k8s/                     # K8s StatefulSet / Deployment / Ingress 模板
 ├── tests/test_web_identity.py      # 网站账户与权限回归测试
 │
@@ -2602,7 +2610,7 @@ python agent/tests/test_pipeline_runner.py
 
 ## 架构说明
 
-网站化部分仍为一个 Flask 进程：`webapp/identity.py` 在应用创建时注册认证 Blueprint、加载账户会话与全局 API 守卫；业务模块保持原有 `app.py` 路由。生产时 Web 使用 PostgreSQL 18 存储账户/令牌/审计/任务元数据，Redis 8 存储会话，Alembic 管理表结构。`/healthz` 是存活探针，`/readyz` 会验证账户数据库连接。容器镜像基于 Linux Python 3.12，因而可在 Rocky Linux 8/9 的 Docker 或 Podman 主机上运行。
+网站化部分仍为一个 Flask 进程：`webapp/identity.py` 在应用创建时注册认证 Blueprint、加载账户会话与全局 API 守卫；业务模块保持原有 `app.py` 路由。生产时 Web 使用 PostgreSQL 18 存储账户、恢复验证码哈希、审计/任务/产物元数据，Redis 8 存储会话，Alembic 管理表结构。`/healthz` 是存活探针，`/readyz` 会验证账户数据库连接。容器镜像基于 Linux Python 3.12，因而可在 Rocky Linux 8/9 的 Docker 或 Podman 主机上运行。
 
 `agent` 与 `batch` 共用 Python 包名 `lib`。`app.py` 通过 `_pin_lib_root()` 在加载前清空 `lib.*` 缓存并从 `sys.path` 移除另一侧目录，确保每次仅有一侧 `lib` 在 `[0]` 位置；并用 `threading.RLock` 串行化加载，避免多 Tab 并发请求（如 `/api/llm-presets` 与 `/api/data-summary/info` 同时发起）导致 `ModuleNotFoundError`。
 
@@ -3206,5 +3214,5 @@ batch 与 agent 共用包名 `lib`。首页加载 LLM 预设会切到 agent。�
 - [x] **渠道更新原配置**（预更新 / 确认更新；不改密钥；已有备注弹窗确认后才覆盖为本行 `base_url`；`POST /api/batch-update-channels`）
 - [x] **全量同步渠道 Base URL 到备注**（预览 / 确认；Azure 只取 `AZURE_OPENAI_ENDPOINT`；已有备注换行追加；255 字符超限按渠道报错）
 - [x] **智能提取「更新」模式**（先点更新再提取；火山自动升级示例；`for_update`）
-- [x] **完整网站账户与 RBAC**（登录 / 注册 / 邮箱验证 / 忘记密码；超管、管理员、用户三角色；超管用户管理；Argon2id、Redis 会话、CSRF、审计）
+- [x] **完整网站账户与 RBAC**（自适应登录 / 注册 / 恢复验证码重置；超管、管理员、用户三角色；超管用户管理；Argon2id、Redis 会话、CSRF、审计）
 - [x] **PostgreSQL 18 + Redis 8 容器化部署**（Docker / Podman Rocky Linux 8/9 兼容；Alembic；Kubernetes StatefulSet / Deployment / Ingress 模板）
