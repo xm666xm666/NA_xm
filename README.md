@@ -7,6 +7,7 @@
 > | **`master`** | 仓库入口、完整功能文档与 [LICENSE](LICENSE)。为保持发布入口干净，仓库树只保留 README 和许可证，**不含可执行源码、配置示例或部署清单**。 | 只需了解产品、阅读许可和确定采用哪种部署路径。 | 不能直接运行；请切换到下方两个可执行分支之一。 |
 > | **`stand-alone`** | 传统独立部署版本：完整应用源码、`run.bat`、`run.sh`、Python 依赖及配置模板。 | Windows 开发/运维机，或仅有一台 Linux / Rocky Linux 主机、希望直接通过 Python 运行。 | Windows 使用 `run.bat`；Linux / Rocky 使用 `./run.sh`。需由主机自行安装 Python。 |
 > | **`container`** | 网站化与容器化版本：包含完整应用、登录/注册/忘记密码、超管/管理员/用户三角色权限，以及 Dockerfile、Compose、PostgreSQL 18、Redis 8、Kubernetes 清单。 | 多人协作、需要网站账户与权限控制，或需要 Docker/Podman、Rocky Linux 8/9、Kubernetes 部署。 | Docker/Podman 使用 `docker compose up -d --build`；Kubernetes 使用 `deploy/k8s/` 清单与 `kubectl apply`。 |
+> | **local_bak** | 本地备份内容分支：保留迁移自旧工作区的 .cursor、ai-cloud-master 和 docs，并已按公开仓库规则脱敏。 | 需要查阅或恢复旧的本地辅助配置、上游源码快照和演示文档。 | 不作为应用部署分支；请使用 stand-alone 或 container 部署。 |
 >
 > **选择规则：**
 >

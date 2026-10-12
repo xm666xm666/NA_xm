@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>13 · 推荐工作流</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@400;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/motion.css">
+<link rel="stylesheet" href="../shared/perf.css">
+<style>
+.timeline-wrap { position: relative; margin-top: 24px; padding: 0 20px; }
+.timeline-line {
+  position: absolute;
+  top: 36px; left: 10%; right: 10%;
+  height: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.timeline-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: revealLineX 1.4s var(--motion-ease) forwards 0.3s;
+}
+.timeline {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+.tl-item { text-align: center; padding: 0 8px; }
+.tl-dot {
+  width: 56px; height: 56px;
+  margin: 0 auto 16px;
+  background: var(--paper);
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 18px; font-weight: 600;
+  color: var(--accent-deep);
+  box-shadow: 0 4px 16px rgba(14,116,144,0.15);
+}
+.tl-title { font-family: var(--serif); font-size: 19px; font-weight: 700; margin-bottom: 6px; color: var(--ink); }
+.tl-desc { font-size: 14px; color: var(--ink-muted); line-height: 1.5; }
+.scenario-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 28px; }
+.scenario {
+  padding: 22px 26px;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.scenario h4 { font-size: 16px; color: var(--accent-deep); margin-bottom: 8px; }
+.scenario p { font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<header class="masthead reveal-fade">
+  <div class="masthead-brand"><img src="../shared/logo.svg" alt="" width="26" height="26"> NA Auto Configuration</div>
+  <div class="masthead-meta">13 / 18 · 推荐工作流</div>
+</header>
+<main class="content dense">
+  <div class="kicker reveal-up d1">典型场景 · 对齐 README</div>
+  <h1 class="reveal-up d2">从文档到<span class="hl">上线</span>的完整路径</h1>
+  <div class="flow-cards reveal-up d3">
+    <div class="flow-card card-lift">
+      <div class="fc-num">A / A2</div>
+      <h4>渠道 / 令牌提取</h4>
+      <p>渠道模式提取→填入渠道管理；令牌模式拼接→填入令牌管理 → 测试连接 → 批量创建</p>
+    </div>
+    <div class="flow-card card-lift">
+      <div class="fc-num">B / D</div>
+      <h4>直接批量 · 日志</h4>
+      <p>跳过提取，载入示例/导入文件创建；或使用日志按时间导出 CSV/Excel</p>
+    </div>
+    <div class="flow-card card-lift">
+      <div class="fc-num">C / E2</div>
+      <h4>汇总 · 余额</h4>
+      <p>多站采集时间戳 Excel；同页查已用/剩余余额并按环境分表导出</p>
+    </div>
+    <div class="flow-card card-lift">
+      <div class="fc-num">E</div>
+      <h4>渠道启停</h4>
+      <p>按上游模型 / 类型全部 / 勾选 ID 启用禁用；可视化清单 · 全选反选</p>
+    </div>
+    <div class="flow-card card-lift" style="border-color:rgba(14,116,144,0.35);background:var(--accent-glow);">
+      <div class="fc-num">F</div>
+      <h4>智能体一键</h4>
+      <p>Jobs + SSE：LLM 规划 → 门禁确认 → 提取→批量→令牌→汇总；可 dry_run</p>
+    </div>
+  </div>
+  <div class="timeline-wrap reveal-up d4" style="margin-top:18px;">
+    <div class="timeline-line"></div>
+    <div class="timeline">
+      <div class="tl-item reveal-up d3">
+        <div class="tl-dot">1</div>
+        <div class="tl-title">粘贴原文</div>
+        <div class="tl-desc">项目文档或聊天记录粘贴至智能提取</div>
+      </div>
+      <div class="tl-item reveal-up d4">
+        <div class="tl-dot">2</div>
+        <div class="tl-title">提取校对</div>
+        <div class="tl-desc">规则或 LLM 解析后人工确认</div>
+      </div>
+      <div class="tl-item reveal-up d5">
+        <div class="tl-dot">3</div>
+        <div class="tl-title">填入配置</div>
+        <div class="tl-desc">一键同步至批量配置 Tab</div>
+      </div>
+      <div class="tl-item reveal-up d6">
+        <div class="tl-dot">4</div>
+        <div class="tl-title">批量创建</div>
+        <div class="tl-desc">连接 NA，创建渠道与令牌</div>
+      </div>
+      <div class="tl-item reveal-up d7">
+        <div class="tl-dot">5</div>
+        <div class="tl-title">汇总导出</div>
+        <div class="tl-desc">多环境采集，生成 Excel</div>
+      </div>
+    </div>
+  </div>
+  <div class="scenario-row">
+    <div class="scenario reveal-left d8">
+      <h4>新环境上线</h4>
+      <p>完整走通五步：提取 → 校对 → 填入 → 批量创建 → 汇总对照，确保配置与文档一致。</p>
+    </div>
+    <div class="scenario reveal-left d9">
+      <h4>CI / 脚本集成</h4>
+      <p>流程 F：<code>POST /api/agent/jobs</code>（SSE）或兼容 <code>/api/agent/run</code>；dry_run 仅规划+提取。</p>
+    </div>
+  </div>
+  <div class="bottom-bar reveal-fade d10">
+    <span>提取结果可编辑</span>
+    <span>连接配置同步</span>
+    <span>采集日志可追溯</span>
+  </div>
+  <div class="case-section reveal-up d11">
+    <div class="case-section-head">
+      <span class="label">案例 · 流程 A 完整走通</span>
+      <span class="path">新环境上线 · 约 15 分钟</span>
+    </div>
+    <div class="case-grid-2">
+      <div class="case-card">
+        <h4>Step 1–3 · 提取并校对</h4>
+        <div class="case-pre">粘贴 examples/agent/multi/input.txt 全文
+→ 规则引擎输出 2 条渠道行
+→ 人工确认分组名、模型映射无误
+→ 点击「填入批量配置」</div>
+      </div>
+      <div class="case-card">
+        <h4>Step 4–5 · 创建并汇总</h4>
+        <div class="case-pre">连接 uat NA 站点 → 批量创建渠道
+→ 令牌 Tab 载入 example_batch_tokens.txt
+→ 数据汇总采集 test/uat/prod → 下载 Excel
+→ 对照「重复模型」表确认跨环境一致</div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="footer reveal-fade d12"><span>推荐工作流</span><span>13 / 18</span></footer>
+<script src="../shared/slide-boot.js"></script>
+</body>
+</html>

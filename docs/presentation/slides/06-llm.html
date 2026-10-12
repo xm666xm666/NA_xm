@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>08 · LLM 增强</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@400;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/motion.css">
+<link rel="stylesheet" href="../shared/perf.css">
+<style>
+.llm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.config-panel {
+  padding: 28px;
+  background: rgba(255,255,255,0.58);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+}
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 0; border-bottom: 1px solid var(--line);
+  font-size: 17px;
+}
+.toggle-pill {
+  width: 52px; height: 28px; background: var(--accent);
+  border-radius: 999px; position: relative;
+  animation: toggleGlow 3s ease-in-out infinite;
+}
+.toggle-pill::after {
+  content: ""; position: absolute; right: 4px; top: 4px;
+  width: 20px; height: 20px; background: #fff; border-radius: 50%;
+  animation: knobPulse 2s ease-in-out infinite;
+}
+.config-field {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+.config-field label { display: block; font-size: 12px; color: var(--ink-muted); margin-bottom: 4px; letter-spacing: 0.06em; }
+.config-field code { font-family: var(--mono); color: var(--accent-deep); font-size: 14px; }
+.strategy-box {
+  margin-top: 20px;
+  padding: 20px 24px;
+  background: var(--accent-glow);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+@keyframes toggleGlow { 0%,100% { box-shadow: 0 0 0 rgba(14,116,144,0); } 50% { box-shadow: 0 0 16px rgba(14,116,144,0.35); } }
+@keyframes knobPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+</style>
+</head>
+<body>
+<header class="masthead reveal-fade">
+  <div class="masthead-brand"><img src="../shared/logo.svg" alt="" width="26" height="26"> NA Auto Configuration</div>
+  <div class="masthead-meta">08 / 18 · LLM 增强</div>
+</header>
+<main class="content dense">
+  <div class="kicker reveal-up d1">可选增强</div>
+  <h1 class="reveal-up d2">规则不够时，<span class="hl">开启 LLM</span></h1>
+  <div class="llm-grid">
+    <div>
+      <p class="body-text reveal-up d3">仅<strong>渠道模式</strong>可开 LLM（令牌模式始终纯规则）。格式极度非标准、字段缺失或混排严重时启用。OpenAI 兼容接口：API Base / 模型 / Key。</p>
+      <div class="table-wrap reveal-up d4" style="margin-top:16px;">
+        <table class="compact-table">
+          <tr><th>厂商</th><th>llm_provider</th></tr>
+          <tr><td>OpenAI</td><td>openai</td></tr>
+          <tr><td>DeepSeek</td><td>deepseek</td></tr>
+          <tr><td>阿里云百炼</td><td>dashscope</td></tr>
+          <tr><td>火山方舟</td><td>volcengine</td></tr>
+          <tr><td>智谱 AI</td><td>zhipu</td></tr>
+          <tr><td>小米 MiMo</td><td>mimo</td></tr>
+          <tr><td>Ollama 等</td><td>ollama / custom …</td></tr>
+        </table>
+      </div>
+      <div class="strategy-box reveal-up d5">
+        <strong style="color:var(--ink);">建议策略：</strong>优先规则引擎 → 格式无法识别再开 LLM → 人工校对后填入；智能体规划/提取会强制走 LLM。
+      </div>
+    </div>
+    <div class="config-panel reveal-scale d4">
+      <div class="toggle-row">
+        <span>启用 LLM 增强</span>
+        <div class="toggle-pill"></div>
+      </div>
+      <div class="config-field reveal-up d5"><label>API BASE</label><code>https://api.openai.com/v1</code></div>
+      <div class="config-field reveal-up d6"><label>MODEL</label><code>gpt-4o-mini</code></div>
+      <div class="config-field reveal-up d7"><label>API KEY</label><code>sk-••••••••••••</code></div>
+      <div class="stat-row reveal-up d8" style="margin-top:20px;grid-template-columns:1fr 1fr;">
+        <div class="stat-item"><div class="stat-val">OFF</div><div class="stat-label">默认状态</div></div>
+        <div class="stat-item"><div class="stat-val">本地</div><div class="stat-label">Key 存储</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-bar reveal-fade d9">
+    <span>仅渠道模式</span>
+    <span>含 MiMo 预设</span>
+    <span>结果可校对</span>
+  </div>
+  <div class="case-section reveal-up d10">
+    <div class="case-section-head">
+      <span class="label">案例 · 何时启用 LLM</span>
+      <span class="path">examples/agent/custom/input.txt</span>
+    </div>
+    <div class="case-grid-2">
+      <div class="case-flow">
+        <div class="case-box">
+          <div class="case-tag">非标准输入（规则难匹配）</div>
+          <div class="case-pre">demo-product-test-model-x
+model-x
+自定义渠道
+EXAMPLE_API_KEY
+https://your-api.example.com/glm/v1/chat/completions</div>
+        </div>
+        <div class="case-arrow">→</div>
+        <div class="case-box dark">
+          <div class="case-tag">LLM 解析后 · 仍需人工校对</div>
+          <div class="case-pre">demo-product-test-model-x	demo-product-test	自定义渠道	demo-product-test-model-x	demo-product-test-model-x->model-x	https://your-api.example.com/glm/v1/chat/completions	EXAMPLE_API_KEY…</div>
+        </div>
+      </div>
+      <div class="case-box">
+        <div class="case-tag">multi/input.txt · 多条批量</div>
+        <div class="case-pre">demo-alpha-test-model-a … ep-20260101000000-demo1 …
+demo-beta-test-model-b … ep-20260102000000-demo2 …
+
+一次粘贴 → 逐条输出 → 全部填入批量配置</div>
+        <div class="pill-grid" style="margin-top:10px;">
+          <span class="pill">规则优先</span>
+          <span class="pill accent">LLM 兜底</span>
+          <span class="pill">localStorage 存 Key</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="footer reveal-fade d11"><span>LLM 增强</span><span>08 / 18</span></footer>
+<script src="../shared/slide-boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>16 · API 与 CLI</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@400;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/motion.css">
+<link rel="stylesheet" href="../shared/perf.css">
+<style>
+.api-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 12px; }
+.api-col {
+  padding: 18px 20px;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-height: 280px;
+}
+.api-col h3 { font-size: 16px; font-weight: 700; color: var(--accent-deep); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--accent-glow); }
+.api-row {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.api-row:last-child { border-bottom: none; }
+.api-row code { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+.cli-block { font-size: 12px; line-height: 1.65; margin-top: 10px; }
+</style>
+</head>
+<body>
+<header class="masthead reveal-fade">
+  <div class="masthead-brand"><img src="../shared/logo.svg" alt="" width="26" height="26"> NA Auto Configuration</div>
+  <div class="masthead-meta">16 / 18 · API 与 CLI</div>
+</header>
+<main class="content dense">
+  <div class="kicker reveal-up d1">扩展能力</div>
+  <h1 class="reveal-up d2">HTTP <span class="hl">API</span> 与命令行</h1>
+  <p class="subtitle reveal-up d3" style="margin-bottom:12px;">Web 四 Tab 均可通过 REST API 集成；智能体提供一键流水线；亦支持 CLI 批处理</p>
+  <div class="api-grid">
+    <div class="api-col reveal-up d3">
+      <h3>智能提取</h3>
+      <div class="api-row"><span class="api-method get">GET</span><code>/api/llm-presets</code><br>LLM 厂商预设（含 mimo）</div>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/extract</code><br>渠道提取；extract_mode=token</div>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/extract-token</code><br>令牌规则拼接</div>
+      <div class="api-row"><span class="api-method get">GET</span><code>/api/env-sites</code><br>test/uat/prod 快捷站点</div>
+    </div>
+    <div class="api-col reveal-up d4">
+      <h3>批量配置</h3>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/batch-create</code><br>批量创建渠道</div>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/batch-channel-status</code><br>按上游/类型/ID 启停</div>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/token-batch-create</code><br>批量创建令牌</div>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/channel-balance-query</code><br>多站已用/剩余余额</div>
+    </div>
+    <div class="api-col reveal-up d5">
+      <h3>汇总 · 智能体</h3>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/data-summary/collect</code><br>采集新时间戳 Excel</div>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/agent/jobs</code><br>异步任务 + SSE events</div>
+      <div class="api-row"><span class="api-method post">POST</span><code>/api/agent/run</code><br>兼容同步等到终态</div>
+      <div class="note-box" style="margin-top:12px;font-size:12px;padding:12px 14px;">
+        Jobs：confirm / cancel / retry；任务进程内存储，重启清空
+      </div>
+    </div>
+  </div>
+  <div class="split-60-40" style="margin-top:18px;">
+    <div class="code-block cli-block reveal-scale d6"># Web 服务
+python app.py
+python app.py --port 9000 --no-browser
+
+# 智能提取（渠道 / 令牌）
+python app.py extract -f examples/agent/multi/input.txt
+python app.py extract-token -f examples/batch/tokens/input.txt
+
+# 批量创建
+python app.py batch -c batch/config.json -f batch/static/example_batch.tsv
+python app.py token-batch … · group-batch …</div>
+    <div>
+      <div class="kv-grid reveal-up d7">
+        <div class="kv-item"><strong>模块重载</strong>/api/extract 重载 agent；/api/data-summary 重载 batch</div>
+        <div class="kv-item"><strong>代码更新</strong>修改后须重启 run.bat，非仅刷新浏览器</div>
+        <div class="kv-item"><strong>单端口</strong>四 Tab 共用 8765 同进程</div>
+        <div class="kv-item"><strong>测试</strong>agent/tests · batch/tests · pipeline_llm</div>
+      </div>
+      <div class="pill-grid reveal-up d8">
+        <span class="pill accent">Flask REST</span>
+        <span class="pill">JSON 响应</span>
+        <span class="pill">CLI 子命令</span>
+        <span class="pill">独立 main.py</span>
+      </div>
+    </div>
+  </div>
+  <div class="case-section reveal-up d9">
+    <div class="case-section-head">
+      <span class="label">案例 · API 调用示例</span>
+      <span class="path">curl · 127.0.0.1:8765</span>
+    </div>
+    <div class="case-grid-2">
+      <div class="case-box dark">
+        <div class="case-tag">POST /api/extract</div>
+        <div class="case-pre">curl -X POST http://127.0.0.1:8765/api/extract \
+  -H "Content-Type: application/json" \
+  -d '{"text":"demo-volcano-test-model-x\n00000000-…","use_llm":false}'</div>
+      </div>
+      <div class="case-box dark">
+        <div class="case-tag">POST /api/agent/run</div>
+        <div class="case-pre">curl -X POST http://127.0.0.1:8765/api/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"goal":"提取并写入uat","raw_text":"…","llm_api_base":"https://…","options":{"dry_run":true}}'
+→ 返回 steps[] · channel_lines · plan</div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="footer reveal-fade d10"><span>API 与 CLI</span><span>16 / 18</span></footer>
+<script src="../shared/slide-boot.js"></script>
+</body>
+</html>

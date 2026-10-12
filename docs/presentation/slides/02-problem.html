@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>03 · 背景与痛点</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@400;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/motion.css">
+<link rel="stylesheet" href="../shared/perf.css">
+<style>
+.problem-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px; margin-top: 4px; }
+.pain-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pain-card {
+  padding: 16px 18px;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  border-top: 3px solid var(--accent);
+}
+.pain-card h4 { font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+.pain-card p { font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
+.quote-block {
+  padding: 32px 36px;
+  background: var(--ink);
+  color: #e8edf2;
+  border-radius: 12px;
+  font-family: var(--serif);
+  font-size: 24px;
+  line-height: 1.55;
+  font-weight: 700;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-break: strict;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.quote-block em { color: #5eead4; font-style: normal; }
+.quote-block .keep { white-space: nowrap; }
+.quote-meta { font-family: var(--sans); font-size: 14px; font-weight: 400; color: #94a3b8; margin-top: 20px; }
+</style>
+</head>
+<body>
+<header class="masthead reveal-fade">
+  <div class="masthead-brand"><img src="../shared/logo.svg" alt="" width="26" height="26"> NA Auto Configuration</div>
+  <div class="masthead-meta">03 / 18 · 背景与痛点</div>
+</header>
+<main class="content dense">
+  <div class="kicker reveal-up d1">背景与痛点</div>
+  <h1 class="reveal-up d2">运维 New API，<span class="hl">不该</span>靠手工复制</h1>
+  <p class="subtitle reveal-up d3">多环境、多渠道、多令牌——信息来源分散，控制台操作重复且易错。</p>
+  <div class="divider reveal-line d3"></div>
+  <div class="problem-grid">
+    <div class="pain-cards">
+      <div class="pain-card card-lift reveal-up d4">
+        <h4>格式混乱</h4>
+        <p>文档、聊天、表格混着密钥与模型列表，无法直接导入控制台</p>
+      </div>
+      <div class="pain-card card-lift reveal-up d5">
+        <h4>多环境重复</h4>
+        <p>test / uat / prod 需分别登录，逐条创建渠道与令牌</p>
+      </div>
+      <div class="pain-card card-lift reveal-up d6">
+        <h4>对照困难</h4>
+        <p>跨环境同名渠道难以梳理，手工 Excel 易漏项、难审计</p>
+      </div>
+      <div class="pain-card card-lift reveal-up d7">
+        <h4>误操作风险</h4>
+        <p>删除缺乏预检，示例数据误触创建，回滚成本高</p>
+      </div>
+    </div>
+    <div class="quote-block reveal-scale d5">
+      本工具将「提取 → 配置 → 启停/余额 → 汇总」串成<span class="keep"><em>一条流水线</em>，</span>亦可交智能体异步编排，全程可审计。
+      <div class="quote-meta">— 设计目标 · 可控 · 可审计 · 可复现</div>
+    </div>
+  </div>
+  <div class="stat-row reveal-up d8">
+    <div class="stat-item"><div class="stat-val">3+</div><div class="stat-label">典型环境</div></div>
+    <div class="stat-item"><div class="stat-val">85+</div><div class="stat-label">单环境渠道量级</div></div>
+    <div class="stat-item"><div class="stat-val">8</div><div class="stat-label">渠道导出列</div></div>
+    <div class="stat-item"><div class="stat-val">10</div><div class="stat-label">令牌导出列</div></div>
+  </div>
+  <div class="case-section reveal-up d9">
+    <div class="case-section-head">
+      <span class="label">案例 · 运维一天的真实场景</span>
+      <span class="path">从混乱到可审计</span>
+    </div>
+    <div class="case-grid-2">
+      <div class="case-flow">
+        <div class="case-box">
+          <div class="case-tag">Before · 项目群聊天记录</div>
+          <div class="case-pre">【演示环境】model-x 部署好了
+endpoint: https://sample-azure.example.com/…
+key: sk-xxxx… 分组 sample-azure-test
+还有 model-y 那条 ep-20260101…</div>
+        </div>
+        <div class="case-arrow">→</div>
+        <div class="case-box dark">
+          <div class="case-tag">After · 一条标准渠道行</div>
+          <div class="case-pre">sample-azure-test-model-x	sample-azure-test	Azure OpenAI	…
+→ 批量创建 → 汇总导出 Excel 对照</div>
+        </div>
+      </div>
+      <div class="case-box">
+        <div class="case-tag">跨环境对照 · 数据汇总</div>
+        <div class="case-pre">test  渠道 90 条 · 令牌 52 条
+uat   渠道 85 条 · 令牌 40 条
+prod  渠道 16 条 · 令牌 12 条
+→ ai网关令牌及渠道列表_20260101120000.xlsx
+→「重复模型」表标记跨环境同名渠道</div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="footer reveal-fade d11"><span>背景与痛点</span><span>03 / 18</span></footer>
+<script src="../shared/slide-boot.js"></script>
+</body>
+</html>
