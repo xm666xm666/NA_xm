@@ -6,38 +6,40 @@
   <meta name="theme-color" content="#071521">
   <title>{{ title or 'NA 自动配置 · 账户中心' }}</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/auth-pages.css?v=web-2">
+  <link rel="stylesheet" href="/static/auth-pages.css?v=web-3">
   <script src="/static/auth-pages.js?v=web-2" defer></script>
 </head>
-<body class="auth-page">
+<body class="{% block body_class %}auth-page{% endblock %}">
   <div class="auth-aurora auth-aurora-one" aria-hidden="true"></div>
   <div class="auth-aurora auth-aurora-two" aria-hidden="true"></div>
-  <main class="auth-shell">
-    <aside class="auth-aside" aria-label="产品说明">
-      <a class="auth-brand" href="/" aria-label="NA 自动配置首页">
-        <span class="auth-mark">N</span><span>NA 自动配置</span>
-      </a>
-      <div class="auth-aside-copy">
-        <p class="auth-eyebrow">CONTROL PLANE</p>
-        <h2>把权限、配置与账户安全放在同一个工作台。</h2>
-        <p>网站账户仅用于本平台访问控制，不会替代或读取 New API 的渠道密钥。</p>
-      </div>
-      <ul class="auth-promises">
-        <li><span aria-hidden="true">01</span>三角色权限边界</li>
-        <li><span aria-hidden="true">02</span>服务端会话与 CSRF 防护</li>
-        <li><span aria-hidden="true">03</span>无邮件的恢复验证码</li>
-      </ul>
-      <p class="auth-aside-foot">NA XM · Secure operations</p>
-    </aside>
-    <section class="auth-stage">
-      <a class="auth-brand auth-brand-mobile" href="/" aria-label="NA 自动配置首页">
-        <span class="auth-mark">N</span><span>NA 自动配置</span>
-      </a>
-      <section class="auth-card" aria-labelledby="auth-page-title">
-        {% block content %}{% endblock %}
+  {% block page_layout %}
+    <main class="auth-shell">
+      <aside class="auth-aside" aria-label="产品说明">
+        <a class="auth-brand" href="/" aria-label="NA 自动配置首页">
+          <span class="auth-mark">N</span><span>NA 自动配置</span>
+        </a>
+        <div class="auth-aside-copy">
+          <p class="auth-eyebrow">CONTROL PLANE</p>
+          <h2>把权限、配置与账户安全放在同一个工作台。</h2>
+          <p>网站账户仅用于本平台访问控制，不会替代或读取 New API 的渠道密钥。</p>
+        </div>
+        <ul class="auth-promises">
+          <li><span aria-hidden="true">01</span>三角色权限边界</li>
+          <li><span aria-hidden="true">02</span>服务端会话与 CSRF 防护</li>
+          <li><span aria-hidden="true">03</span>无邮件的恢复验证码</li>
+        </ul>
+        <p class="auth-aside-foot">NA XM · Secure operations</p>
+      </aside>
+      <section class="auth-stage">
+        <a class="auth-brand auth-brand-mobile" href="/" aria-label="NA 自动配置首页">
+          <span class="auth-mark">N</span><span>NA 自动配置</span>
+        </a>
+        <section class="auth-card" aria-labelledby="auth-page-title">
+          {% block content %}{% endblock %}
+        </section>
+        <p class="auth-foot">请勿共享密码或恢复验证码。恢复码仅在生成当次显示。</p>
       </section>
-      <p class="auth-foot">请勿共享密码或恢复验证码。恢复码仅在生成当次显示。</p>
-    </section>
-  </main>
+    </main>
+  {% endblock %}
 </body>
 </html>

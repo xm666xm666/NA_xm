@@ -103,6 +103,9 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.client.get("/").status_code, 200)
         self.assertEqual(self.client.get("/agent-view").status_code, 200)
+        admin_page = self.client.get("/admin/users")
+        self.assertEqual(admin_page.status_code, 200)
+        self.assertIn("用户目录", admin_page.get_data(as_text=True))
 
         target = self.identity.store.create_user(
             username="operator", email="operator@example.com", password="test-password-2026", role=ROLE_USER, email_verified=True

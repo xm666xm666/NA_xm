@@ -1,6 +1,77 @@
 {% extends "auth_base.html" %}
-{% block content %}
-  <p class="auth-kicker">超管控制面</p><h1>管理用户</h1><p class="auth-desc">调整角色、启用 / 停用或软删除账户。默认超管 <code>admin</code> 受保护。</p>
-  <div class="users-table-wrap"><table class="users-table"><thead><tr><th>用户</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead><tbody>{% for user in users %}<tr><td><strong>{{ user.username }}</strong><small>{{ user.email }}</small></td><td><form method="post" action="/admin/users/{{ user.id }}/role" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><select name="role" {% if user.id == current_user.id or user.is_bootstrap_superadmin %}disabled{% endif %}>{% for role in roles %}<option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role }}</option>{% endfor %}</select>{% if user.id != current_user.id and not user.is_bootstrap_superadmin %}<button type="submit">更新权限</button>{% endif %}</form></td><td><span class="status {{ 'on' if user.is_active else 'off' }}">{{ '启用' if user.is_active else '停用' }}</span></td><td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{% if user.id != current_user.id and not user.is_bootstrap_superadmin %}<form method="post" action="/admin/users/{{ user.id }}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="is_active" value="{{ 'false' if user.is_active else 'true' }}"><button type="submit">{{ '停用' if user.is_active else '启用' }}</button></form><form method="post" action="/admin/users/{{ user.id }}/delete" class="inline-form" onsubmit="return confirm('确定软删除 {{ user.username }} 吗？该用户将无法登录。')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger" type="submit">删除</button></form>{% else %}<span class="protected">受保护</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
-  <div class="auth-links"><a href="/">返回控制台</a></div>
+{% block body_class %}auth-page admin-page{% endblock %}
+{% block page_layout %}
+  <main class="admin-shell">
+    <header class="admin-topbar">
+      <a class="auth-brand" href="/" aria-label="返回 NA 自动配置控制台">
+        <span class="auth-mark">N</span><span>NA 自动配置</span>
+      </a>
+      <nav aria-label="页面操作"><a class="admin-back-link" href="/">返回控制台 <span aria-hidden="true">↗</span></a></nav>
+    </header>
+
+    <section class="admin-workspace" aria-labelledby="auth-page-title">
+      <header class="admin-workspace-head">
+        <div>
+          <p class="admin-section-label">账户与权限</p>
+          <h1 id="auth-page-title">用户目录</h1>
+          <p>管理角色、访问状态与账户生命周期。系统保留的 <code>admin</code> 超管始终受保护。</p>
+        </div>
+        <div class="admin-count" aria-label="当前用户数量"><strong>{{ users|length }}</strong><span>个有效账户</span></div>
+      </header>
+
+      <div class="admin-table-wrap" tabindex="0" aria-label="用户列表，窄屏可横向查看">
+        <table class="admin-users-table">
+          <thead>
+            <tr><th scope="col">用户</th><th scope="col">角色与权限</th><th scope="col">访问状态</th><th scope="col">创建时间</th><th scope="col">账户操作</th></tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+              {% set protected = user.id == current_user.id or user.is_bootstrap_superadmin %}
+              <tr>
+                <td data-label="用户">
+                  <div class="admin-user-cell">
+                    <span class="admin-avatar" aria-hidden="true">{{ user.username[:1]|upper }}</span>
+                    <div><strong>{{ user.username }}</strong><small>{{ user.email }}</small></div>
+                  </div>
+                </td>
+                <td data-label="角色与权限">
+                  {% if protected %}
+                    <span class="admin-role-chip admin-role-{{ user.role }}">{{ '超管' if user.role == 'superadmin' else ('管理员' if user.role == 'admin' else '普通用户') }}</span>
+                    <small class="admin-cell-note">{{ '系统保留账户' if user.is_bootstrap_superadmin else '当前登录账户' }}</small>
+                  {% else %}
+                    <form method="post" action="/admin/users/{{ user.id }}/role" class="admin-role-form">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <label class="sr-only" for="role-{{ user.id }}">{{ user.username }} 的角色</label>
+                      <select id="role-{{ user.id }}" name="role">
+                        {% for role in roles %}<option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ '超管' if role == 'superadmin' else ('管理员' if role == 'admin' else '普通用户') }}</option>{% endfor %}
+                      </select>
+                      <button class="admin-button admin-button-quiet" type="submit">保存</button>
+                    </form>
+                  {% endif %}
+                </td>
+                <td data-label="访问状态"><span class="admin-status {{ 'is-active' if user.is_active else 'is-inactive' }}"><i aria-hidden="true"></i>{{ '已启用' if user.is_active else '已停用' }}</span></td>
+                <td data-label="创建时间"><time class="admin-created-at">{{ user.created_at.strftime('%Y-%m-%d') }}<small>{{ user.created_at.strftime('%H:%M') }}</small></time></td>
+                <td data-label="账户操作">
+                  {% if protected %}
+                    <span class="admin-protected">{{ '默认超管不可修改' if user.is_bootstrap_superadmin else '不能修改当前账户' }}</span>
+                  {% else %}
+                    <div class="admin-actions">
+                      <form method="post" action="/admin/users/{{ user.id }}/status">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="is_active" value="{{ 'false' if user.is_active else 'true' }}">
+                        <button class="admin-button {{ 'admin-button-warning' if user.is_active else 'admin-button-positive' }}" type="submit">{{ '停用账户' if user.is_active else '重新启用' }}</button>
+                      </form>
+                      <form method="post" action="/admin/users/{{ user.id }}/delete" onsubmit="return confirm('确定软删除 {{ user.username }} 吗？该用户将无法登录。')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="admin-button admin-button-danger" type="submit">删除</button>
+                      </form>
+                    </div>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <footer class="admin-workspace-foot"><p>角色变更、启停和删除均会写入安全审计日志。</p><a href="/">返回控制台 <span aria-hidden="true">→</span></a></footer>
+    </section>
+  </main>
 {% endblock %}
