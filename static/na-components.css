@@ -53,6 +53,12 @@ html.na-bg-simple .bg-layer::before {
   align-items: center;
   gap: 0.4rem;
 }
+/* 权限脚本使用 hidden 标记栏目；此规则必须胜过上面的 inline-flex。 */
+.na-nav-tabs[role="tablist"] button[hidden],
+.na-ws-card[hidden],
+.na-view[hidden] {
+  display: none !important;
+}
 .na-nav-tabs button:focus-visible {
   outline: 2px solid var(--na-accent);
   outline-offset: 2px;

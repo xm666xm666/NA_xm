@@ -7,10 +7,10 @@
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/static/favicon.svg" />
   <link rel="stylesheet" href="/static/na-theme.css?v=auth-1" />
-  <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=auth-2" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=auth-1"></script>
-  <script src="/static/auth-shell.js?v=web-3"></script>
+  <script src="/static/auth-shell.js?v=web-4"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <style>
     .na-llm-panel h3 { margin: 0 0 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--na-accent-2); font-family: var(--na-font-display); }
@@ -539,6 +539,11 @@
       pipeline: "pipelineFrame",
     };
 
+    function firstPermittedView() {
+      return Array.from(document.querySelectorAll(".na-nav-tabs button[data-view]"))
+        .find((button) => !button.hidden)?.dataset.view || "workspace";
+    }
+
     function tellFrameArtifacts(name) {
       const frame = VIEW_FRAME[name] && $(VIEW_FRAME[name]);
       if (!frame) return;
@@ -558,7 +563,9 @@
         overview: $("viewOverview"),
         pipeline: $("viewPipeline"),
       };
-      if (!views[name]) name = "workspace";
+      const requestedTab = Array.from(document.querySelectorAll(".na-nav-tabs button[data-view]"))
+        .find((button) => button.dataset.view === name);
+      if (!views[name] || requestedTab?.hidden) name = firstPermittedView();
       document.querySelectorAll(".na-nav-tabs button[data-view]").forEach((btn) => {
         const on = btn.dataset.view === name;
         btn.classList.toggle("active", on);
@@ -970,6 +977,10 @@
       switchView(HASH_VIEW[parsed.view] || "workspace", { analysis: parsed.params.get("analysis") || "" });
     });
     window.addEventListener("resize", updateNavIndicator);
+    window.addEventListener("na-permissions-ready", () => {
+      const active = document.querySelector(".na-nav-tabs button.active[data-view]");
+      if (active?.hidden) switchView(firstPermittedView());
+    });
 
     const bootHash = parseLocationHash();
     switchView(HASH_VIEW[bootHash.view] || "workspace", { analysis: bootHash.params.get("analysis") || "" });

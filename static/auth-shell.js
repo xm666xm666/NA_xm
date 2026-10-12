@@ -64,6 +64,7 @@
       window.NAIdentity = { user:info.user, features:info.features || [], csrfToken };
       applyPermissions(info.features || []); mountUser(info.user || {});
       document.documentElement.dataset.naRole = info.user?.role || "";
+      window.dispatchEvent(new CustomEvent("na-permissions-ready", { detail: { features: info.features || [] } }));
     } catch (_) {
       if (!authPaths.has(window.location.pathname) && !window.location.pathname.startsWith("/reset-password/") && !window.location.pathname.startsWith("/verify-email/")) {
         window.location.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
