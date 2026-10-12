@@ -1,9 +1,0 @@
-demo-azure-test-gpt-x
-sample-azure-deploy-uat
-https://your-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview
-yourAzureApiKeyReplaceMe00000000000000000000000000
-部署信息
-名称
-gpt-x
-Sweden Central
-2,006,000 2010

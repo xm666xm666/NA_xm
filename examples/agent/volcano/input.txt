@@ -1,6 +1,0 @@
-demo-volcano-test-model-x
-00000000-0000-4000-8000-000000000001
-model-x-demo
-ep-20260101000000-demo1
-500 RPM1,000,000 TPM
-Model-X｜260101

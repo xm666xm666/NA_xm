@@ -1,2 +1,0 @@
-名称	分组	类型	模型	模型重定向	base_url	默认API版本	秘钥
-sample-azure-test-gpt-x	sample-azure-test	Azure OpenAI	sample-azure-test-gpt-x	sample-azure-test-gpt-x->gpt-x	https://sample-azure.example.com	2025-04-01-preview	YOUR_API_KEY_HERE

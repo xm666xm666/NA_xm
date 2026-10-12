@@ -1,2 +1,0 @@
-legacy-token-a team-a 500000
-legacy-token-b team-b 1000000

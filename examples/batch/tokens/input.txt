@@ -1,3 +1,0 @@
-sample-azure-test-gpt-x-样例甲	sample-azure-test	sample-azure-test-gpt-x	500000
-demo-alpha-test-Gx&Gy&Qz-样例乙	demo-alpha-test	demo-alpha-test-glm-x、demo-alpha-test-glm-y、demo-alpha-test-qwen-z
-demo-beta-test-ds-v3-样例丙	demo-beta-test	demo-beta-test-ds-v3	1000000

@@ -1,3 +1,0 @@
-demo-alpha-test
-sample-azure-test
-# 每行一个分组名，# 开头为注释
