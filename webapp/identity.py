@@ -84,7 +84,6 @@ ROLE_FEATURES = {
     },
     ROLE_USER: {
         FEATURE_BATCH,
-        FEATURE_UPSTREAM,
         FEATURE_EXTRACTION,
     },
 }

@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from webapp.identity import FEATURE_AGENT, FEATURE_BATCH, FEATURE_DATA_SUMMARY, ROLE_ADMIN, ROLE_USER, User, init_identity
+from webapp.identity import FEATURE_AGENT, FEATURE_BATCH, FEATURE_DATA_SUMMARY, FEATURE_UPSTREAM, ROLE_ADMIN, ROLE_USER, User, init_identity
 
 
 class WebsiteIdentityTests(unittest.TestCase):
@@ -132,6 +132,8 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertEqual(self.client.get("/summary-view").status_code, 403)
         self.assertEqual(self.client.get("/agent-view").status_code, 403)
         self.assertEqual(self.client.get("/api/data-summary/anything").status_code, 403)
+        self.assertNotIn(FEATURE_UPSTREAM, self.client.get("/auth/me").get_json()["features"])
+        self.assertFalse(self.identity.has_feature(FEATURE_UPSTREAM, user))
         self.assertEqual(self.client.post("/api/mutation").status_code, 400)
         self.assertEqual(self.client.post("/api/mutation", headers={"X-CSRF-Token": csrf}).status_code, 200)
 

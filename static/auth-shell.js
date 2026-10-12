@@ -41,7 +41,15 @@
   }
   function applyPermissions(features) {
     const allowed = new Set(features);
-    document.querySelectorAll("[data-permission]").forEach((node) => { node.hidden = !allowed.has(node.dataset.permission); });
+    document.querySelectorAll("[data-permission]").forEach((node) => {
+      const permitted = allowed.has(node.dataset.permission);
+      node.hidden = !permitted;
+      const viewId = node.getAttribute("aria-controls");
+      const view = viewId && document.getElementById(viewId);
+      if (!view || permitted) return;
+      view.hidden = true;
+      view.querySelectorAll("iframe[src]").forEach((frame) => frame.removeAttribute("src"));
+    });
     const active = document.querySelector("[role=tab].active[hidden]");
     if (active) document.querySelector("[role=tab]:not([hidden])")?.click();
   }

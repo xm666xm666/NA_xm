@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=auth-1"></script>
-  <script src="/static/auth-shell.js?v=web-2"></script>
+  <script src="/static/auth-shell.js?v=web-3"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <style>
     .na-llm-panel h3 { margin: 0 0 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--na-accent-2); font-family: var(--na-font-display); }
@@ -105,12 +105,12 @@
       <div class="na-ws-pulse" id="wsPulse"></div>
       <h2 class="na-panel-title" style="font-size:0.92rem;margin:0 0 0.7rem">开始一项任务</h2>
       <div class="na-ws-tasks">
-        <button type="button" class="na-ws-card" data-task="onboard"><strong>新项目接入</strong><span>粘贴项目信息 → 智能提取 → 写入已配置站点（生产 / 非生产）</span></button>
-        <button type="button" class="na-ws-card" data-task="inventory"><strong>例行盘点</strong><span>到数据汇总采集渠道 / 令牌与余额，下载所选产物</span></button>
-        <button type="button" class="na-ws-card" data-task="upstream"><strong>上游采集</strong><span>一键采集火山云与 Azure 资源，对照下游是否已接入</span></button>
-        <button type="button" class="na-ws-card" data-task="bill"><strong>上游账单</strong><span>按账期采集费用，跨月则每月一份 Excel</span></button>
-        <button type="button" class="na-ws-card" data-task="hygiene"><strong>卫生清理</strong><span>到一表总览对照建议表勾选预禁用，宽限期内默认暂缓</span></button>
-        <button type="button" class="na-ws-card" data-task="pipeline"><strong>智能体跑通</strong><span>异步跑提取 → 写入 → 盘点，门禁确认后再落网关</span></button>
+        <button type="button" class="na-ws-card" data-task="onboard" data-permission="extraction"><strong>新项目接入</strong><span>粘贴项目信息 → 智能提取 → 写入已配置站点（生产 / 非生产）</span></button>
+        <button type="button" class="na-ws-card" data-task="inventory" data-permission="data_summary"><strong>例行盘点</strong><span>到数据汇总采集渠道 / 令牌与余额，下载所选产物</span></button>
+        <button type="button" class="na-ws-card" data-task="upstream" data-permission="upstream"><strong>上游采集</strong><span>一键采集火山云与 Azure 资源，对照下游是否已接入</span></button>
+        <button type="button" class="na-ws-card" data-task="bill" data-permission="upstream_bill"><strong>上游账单</strong><span>按账期采集费用，跨月则每月一份 Excel</span></button>
+        <button type="button" class="na-ws-card" data-task="hygiene" data-permission="overview"><strong>卫生清理</strong><span>到一表总览对照建议表勾选预禁用，宽限期内默认暂缓</span></button>
+        <button type="button" class="na-ws-card" data-task="pipeline" data-permission="agent"><strong>智能体跑通</strong><span>异步跑提取 → 写入 → 盘点，门禁确认后再落网关</span></button>
       </div>
       <div class="na-ws-split">
         <section class="na-panel na-panel-static">
