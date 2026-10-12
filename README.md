@@ -354,6 +354,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 - 生产环境仅接受 PostgreSQL `DATABASE_URL` 与 Redis `REDIS_URL`；Redis 保存服务端会话，Cookie 为 `HttpOnly`、`SameSite=Lax`、`Secure`。
 - `alembic.ini` 仅保留无凭据的 SQLite 本地开发回退，并使用 ASCII 配置注释以兼容 Windows 的系统区域编码；恢复码迁移同时兼容已存在的网站数据库和全新部署。容器与 Kubernetes 必须通过环境变量或 Secret 注入真实 `DATABASE_URL`，真实连接串不可写入 Git。
 - 所有写 API 需要会话和 `X-CSRF-Token`；页面表单使用同源 CSRF 令牌。前端脚本会自动附带该头。
+- 工作台的“退出登录”使用同源 `POST /logout` 及 CSRF 令牌清除会话；仅在服务端确认退出成功后跳转至 `/login`，不会返回仍受会话保护的工作台。
 - 注册成功、修改密码成功或忘记密码成功时，系统会生成一份**12 位恢复验证码**（格式如 `ABCD-EFGH-JKLM`），明文仅在当次页面显示；数据库只保存 Argon2id 哈希。忘记密码必须同时提交账户与恢复码，连续 5 次失败会锁定该恢复码 15 分钟；成功后旧码立即失效并换发新码。
 - 网站账户不再发送注册验证或密码重置邮件，也不需要配置 `SMTP_*`、`WEB_PUBLIC_URL` 或 `REQUIRE_EMAIL_VERIFICATION`。历史邮件链接只会跳转到恢复验证码页面，不能作为重置凭据。
 - 角色变更、启停和删除均写入 `web_audit_logs`。默认网站数据库在开发模式位于 `.cache/website.db`，生产必须执行 Alembic 迁移到 PostgreSQL。

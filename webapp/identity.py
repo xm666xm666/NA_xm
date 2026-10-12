@@ -703,7 +703,8 @@ class IdentityManager:
 
         @bp.post("/logout")
         def logout():
-            if not self._verify_form_csrf():
+            # 工作台通过 X-CSRF-Token 发起退出；普通页面表单仍可使用 csrf_token 字段。
+            if not self._verify_logout_csrf():
                 abort(400)
             user = self.current_user()
             if user:
@@ -789,6 +790,12 @@ class IdentityManager:
     def _verify_form_csrf(self) -> bool:
         expected = str(session.get("csrf_token") or "")
         supplied = str(request.form.get("csrf_token") or "")
+        return bool(expected and supplied and secrets.compare_digest(expected, supplied))
+
+    def _verify_logout_csrf(self) -> bool:
+        """验证退出请求的同源令牌，兼容工作台 Fetch 与传统表单提交。"""
+        expected = str(session.get("csrf_token") or "")
+        supplied = str(request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", ""))
         return bool(expected and supplied and secrets.compare_digest(expected, supplied))
 
     def _admin_user_action(self, user_id: int, action: str) -> Response:

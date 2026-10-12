@@ -135,6 +135,18 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/mutation").status_code, 400)
         self.assertEqual(self.client.post("/api/mutation", headers={"X-CSRF-Token": csrf}).status_code, 200)
 
+    def test_logout_clears_the_session_and_returns_to_login(self) -> None:
+        user = self.identity.store.create_user(
+            username="logout-user", email="logout@example.com", password="test-password-2026", role=ROLE_USER, email_verified=True
+        )
+        csrf = self._assume_user(user)
+
+        response = self.client.post("/logout", headers={"X-CSRF-Token": csrf}, follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/login")
+        self.assertEqual(self.client.get("/auth/me").status_code, 401)
+        self.assertEqual(self.client.get("/").status_code, 302)
+
     def test_registration_and_password_recovery_code_flow(self) -> None:
         self.assertEqual(self.client.get("/register").status_code, 200)
         registration = self.client.post(

@@ -24,7 +24,20 @@
     const menu = document.getElementById("authUserMenu");
     if (!menu) return;
     menu.innerHTML = `<details class="na-auth-menu"><summary title="账户菜单">${esc(user.username)} <span>${esc(user.role)}</span></summary><div><a href="/account">账户设置</a>${user.role === "superadmin" ? '<a href="/admin/users">管理用户</a>' : ""}<button type="button" data-na-logout>退出登录</button></div></details>`;
-    menu.querySelector("[data-na-logout]")?.addEventListener("click", async () => { await originalFetch("/logout", { method:"POST", headers:{"X-CSRF-Token":csrfToken} }); window.location.assign("/login"); });
+    menu.querySelector("[data-na-logout]")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const response = await originalFetch("/logout", { method:"POST", headers:{"X-CSRF-Token":csrfToken} });
+        if (!response.ok) throw new Error(`logout failed: ${response.status}`);
+        csrfToken = "";
+        window.NAIdentity = undefined;
+        window.location.replace("/login");
+      } catch (_) {
+        button.disabled = false;
+        window.alert("退出登录失败，请刷新页面后重试。");
+      }
+    });
   }
   function applyPermissions(features) {
     const allowed = new Set(features);
