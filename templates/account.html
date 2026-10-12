@@ -10,7 +10,7 @@
   {% if recovery_code %}{% include "_recovery_code.html" %}{% endif %}
   <form method="post" class="auth-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label><span>当前密码</span><span class="auth-input-action"><input type="password" name="current_password" autocomplete="current-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
+    <label><span>当前登录密码</span><span class="auth-input-action"><input type="password" name="current_password" autocomplete="current-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
     <div class="auth-two-fields">
       <label><span>新密码 <small>至少 12 位</small></span><span class="auth-input-action"><input type="password" name="new_password" minlength="12" autocomplete="new-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
       <label><span>确认新密码</span><span class="auth-input-action"><input type="password" name="new_password_confirm" minlength="12" autocomplete="new-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
@@ -19,8 +19,8 @@
   </form>
   <form method="post" class="auth-form auth-recovery-rotate">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="rotate_recovery_code">
-    <label><span>当前密码</span><span class="auth-input-action"><input type="password" name="current_password" autocomplete="current-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
-    <button class="auth-secondary" type="submit">仅换发恢复验证码</button>
+    <label><span>验证当前登录密码 <small>用于确认是本人操作</small></span><span class="auth-input-action"><input type="password" name="current_password" autocomplete="current-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
+    <button class="auth-secondary" type="submit">验证后生成新恢复验证码</button>
   </form>
   <div class="auth-links auth-links-center"><a href="/">返回控制台</a></div>
 {% endblock %}
