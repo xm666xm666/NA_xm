@@ -38,6 +38,8 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, cre
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, scoped_session, sessionmaker
 
+from .local_bootstrap import load_project_env
+
 _LOG = logging.getLogger(__name__)
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -360,6 +362,7 @@ class IdentityStore:
 
 class IdentityManager:
     def __init__(self, app: Flask, root_dir: Path) -> None:
+        load_project_env(root_dir)
         self.app = app
         default_db = f"sqlite:///{(root_dir / '.cache' / 'website.db').as_posix()}"
         database_url = os.getenv("DATABASE_URL", default_db)

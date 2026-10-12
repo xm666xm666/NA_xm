@@ -41,6 +41,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo [INFO] Checking local website administrator...
+"%VENV_PY%" -m webapp.local_bootstrap --ensure
+if errorlevel 1 (
+    echo [ERROR] Failed to prepare local administrator configuration.
+    echo.
+    pause
+    exit /b 1
+)
+
 echo [INFO] Starting server...
 echo [INFO] Open: http://127.0.0.1:8765/
 echo [INFO] Press Ctrl+C to stop

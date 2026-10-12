@@ -286,7 +286,7 @@ python app.py --no-browser     # 不自动打开浏览器
 
 ### 独立部署
 
-复制整个项目目录到目标机器，执行 `run.bat` 或 `run.sh` 即可，无需额外构建步骤。真实凭据请在目标机单独填写 `env/sites.json`（不要把含密钥的文件拷进共享盘）；各字段从哪抄见 [配置说明](#配置说明)。
+复制整个项目目录到目标机器，执行 run.bat 或 run.sh 即可，无需额外构建步骤。首次执行 Windows run.bat 时，会在本机生成被 Git 忽略的 .env、随机初始超管密码与 SQLite 网站数据库配置；控制台会显示一次 admin 的初始密码，并将其保存到 .env。请立即保存该密码，首次登录后按页面提示修改；若遗失，请在停止程序后删除本机 .cache/website.db 与 .env，再运行 run.bat 重新初始化。真实凭据请在目标机单独填写 env/sites.json（不要把含密钥的文件拷进共享盘）；各字段从哪抄见 [配置说明](#配置说明)。
 
 ### Docker / Podman（Rocky Linux 8/9）
 
@@ -344,7 +344,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 
 ### 首个超管与用户管理
 
-首次生产部署时，将 `BOOTSTRAP_ADMIN_PASSWORD` 与可选 `BOOTSTRAP_ADMIN_EMAIL` 写入 `.env` 或 Kubernetes Secret。首次迁移后系统只会创建一次保留账户 **`admin`**，角色为 `superadmin`；它不可通过注册页面创建，也不可被降权、停用或删除。初始超管首次登录后会被强制跳转到账户设置页修改初始密码，修改前无法调用业务 API。
+首次生产部署时，将 BOOTSTRAP_ADMIN_PASSWORD 与可选 BOOTSTRAP_ADMIN_EMAIL 写入 .env 或 Kubernetes Secret。首次迁移后系统只会创建一次保留账户 admin，角色为 superadmin；它不可通过注册页面创建，也不可被降权、停用或删除。本机 Windows 的 run.bat 会在没有该配置时自动生成随机初始密码并在控制台显示一次；Docker 或 Kubernetes 生产部署不会自动生成密码，仍必须显式注入 Secret。初始超管首次登录后会被强制跳转到账户设置页修改初始密码，修改前无法调用业务 API。
 
 注册页只能创建 `user` 角色。超管在右上角账户菜单的“管理用户”页面可把用户升为管理员/超管、降级、启用、停用或软删除。软删除会立即使会话失效并保留审计痕迹；超管不能修改自己。测试或重置部署环境时，只有在删除网站数据库后才会重新触发引导超管创建。
 
