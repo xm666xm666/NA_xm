@@ -12,6 +12,14 @@ __pycache__/
 *.log
 .cache/
 
+# 仅在本机保留：上游参考源码、文档与编辑器配置，不提交到公开仓库
+ai-cloud*/
+ai-could*/
+docs/
+.cursor/
+# Git 自身不会跟踪 .git；保留该规则以明确公开仓库边界
+.git/
+
 # 多环境站点凭据（保留示例，勿提交真实账号）
 env/sites.json
 env/upstream.json
