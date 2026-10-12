@@ -10,7 +10,19 @@ __pycache__/
 .Python
 .env
 *.log
+
+# 本地缓存与 Python 运行环境（项目的 env/ 配置目录除外）
 .cache/
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
 
 # 仅在本机保留：上游参考源码、文档与编辑器配置，不提交到公开仓库
 ai-cloud*/
