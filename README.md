@@ -21,6 +21,8 @@
 >
 > 不要混用分支部署文件：`run.bat` / `run.sh` 属于 `stand-alone`；`Dockerfile`、`compose.yaml`、`deploy/k8s/` 属于 `container`。切换分支后，请继续阅读下方完整项目说明与该分支内的部署章节。
 
+> **安全说明：** 示例密钥、验证码和令牌均使用低熵、不可用占位符；仅验证格式的测试数据使用固定的短前缀，绝不构成可用凭据。真实凭据只能通过本地环境变量或部署 Secret 注入，严禁提交到 Git。
+
 ---
 
 # NA 自动配置工具
@@ -350,6 +352,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 
 - 密码使用 **Argon2id** 哈希；连续 5 次失败会锁定账户 15 分钟。
 - 生产环境仅接受 PostgreSQL `DATABASE_URL` 与 Redis `REDIS_URL`；Redis 保存服务端会话，Cookie 为 `HttpOnly`、`SameSite=Lax`、`Secure`。
+- `alembic.ini` 仅保留无凭据的 SQLite 本地开发回退；容器与 Kubernetes 必须通过环境变量或 Secret 注入真实 `DATABASE_URL`，真实连接串不可写入 Git。
 - 所有写 API 需要会话和 `X-CSRF-Token`；页面表单使用同源 CSRF 令牌。前端脚本会自动附带该头。
 - 注册在生产环境默认需要邮箱验证；忘记密码与邮箱验证令牌 30 分钟一次性有效。配置 `SMTP_*` 后才会真正投递邮件；未配置 SMTP 时只会记录安全告警，不会在页面回显链接。
 - 角色变更、启停和删除均写入 `web_audit_logs`。默认网站数据库在开发模式位于 `.cache/website.db`，生产必须执行 Alembic 迁移到 PostgreSQL。
@@ -1032,7 +1035,7 @@ demo-gamma-uat-agent-gpt-x        → 分组 demo-gamma-uat
 ```text
 demo-alpha-test-model-a
 Model-A｜260101
-ark-REDACTED-EXAMPLE-KEY
+EXAMPLE_ARK_KEY
 ep-20260101000000-demo1
         15,000 RPM1,500,000 TPM
 

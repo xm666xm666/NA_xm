@@ -38,7 +38,7 @@ SAMPLE = (
 COMPACT_CUSTOM = (
     "pv-agent-uat-glm-5.1 自定义渠道 glm-5.1 "
     "https://ai-model.r2ai.com.cn/glm/v1/chat/completions "
-    "sk-glm51c19d4a73e60c1f9a2d8e7b6c4f1"
+    "sk-test"
 )
 
 
@@ -85,7 +85,7 @@ def test_parse_compact_custom_line():
     assert row["模型"] == "pv-agent-uat-glm-5.1"
     assert row["模型重定向"] == "pv-agent-uat-glm-5.1->glm-5.1"
     assert row["base_url"] == "https://ai-model.r2ai.com.cn/glm/v1/chat/completions"
-    assert row["秘钥"] == "sk-glm51c19d4a73e60c1f9a2d8e7b6c4f1"
+    assert row["秘钥"] == "sk-test"
 
 
 def test_extract_compact_custom_line():
@@ -96,7 +96,7 @@ def test_extract_compact_custom_line():
         "pv-agent-uat-glm-5.1 pv-agent-uat 自定义渠道 pv-agent-uat-glm-5.1 "
         "pv-agent-uat-glm-5.1->glm-5.1 "
         "https://ai-model.r2ai.com.cn/glm/v1/chat/completions "
-        "sk-glm51c19d4a73e60c1f9a2d8e7b6c4f1"
+        "sk-test"
     )
     assert result.channel_line == expected
 
@@ -104,7 +104,7 @@ def test_extract_compact_custom_line():
 def test_parse_compact_with_explicit_group():
     line = (
         "demo-alpha-test-glm-x demo-alpha-test 自定义渠道 glm-x "
-        "https://example.com/v1 sk-abcdefghijklmnop"
+        "https://example.com/v1 EXAMPLE_API_KEY"
     )
     row = parse_channel_line(line)
     assert row["名称"] == "demo-alpha-test-glm-x"

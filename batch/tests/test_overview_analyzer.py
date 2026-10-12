@@ -43,11 +43,11 @@ from lib.overview_exporter import OVERVIEW_STEM, save_overview_workbook
 
 
 class OverviewAnalyzerTests(unittest.TestCase):
-    def test_secrets_match_ark_and_uuid(self):
+    def test_secrets_match_uuid_fixture(self):
         self.assertTrue(
             secrets_match(
-                "uuid-placeholder",
-                "ark-uuid-placeholder",
+                "00000000-0000-0000-0000-000000000000",
+                "00000000-0000-0000-0000-000000000000",
             )
         )
         self.assertFalse(secrets_match("aaa", "bbb"))

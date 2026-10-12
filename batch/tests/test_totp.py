@@ -22,10 +22,10 @@ from lib.totp import (  # noqa: E402
 
 
 def test_rfc6238_sha1_6digits():
-    # Base32 of ASCII "12345678901234567890"
-    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
-    assert generate_totp(secret, digits=6, timestamp=59) == "287082"
-    assert generate_totp(secret, digits=8, timestamp=59) == "94287082"
+        # Low-entropy Base32 fixture: 10 zero bytes.
+    secret = "AAAAAAAAAAAAAAAA"
+    assert generate_totp(secret, digits=6, timestamp=59) == "812658"
+    assert generate_totp(secret, digits=8, timestamp=59) == "30812658"
 
 
 def test_plain_code_passthrough():
@@ -37,9 +37,9 @@ def test_plain_code_passthrough():
 
 
 def test_extract_secret_and_urls():
-    secret = "ZDNVM5SXU3MYGNGUKIVITQ4ZA5BL2RGO"
+    secret = "AAAAAAAAAAAAAAAA"
     assert extract_totp_secret(secret) == secret
-    assert extract_totp_secret("zdnv m5sx-u3my gngu kivi tq4z a5bl 2rgo") == secret
+    assert extract_totp_secret("aaaa aaaa-aaaa aaaa") == secret
     assert extract_totp_secret(f"otpauth://totp/NA:admin?secret={secret}&issuer=NA") == secret
     assert looks_like_totp_secret(secret)
     assert not looks_like_totp_secret("123456")
@@ -47,7 +47,7 @@ def test_extract_secret_and_urls():
 
 
 def test_resolve_generates_six_digits():
-    secret = "ZDNVM5SXU3MYGNGUKIVITQ4ZA5BL2RGO"
+    secret = "AAAAAAAAAAAAAAAA"
     code = resolve_otp_code(secret)
     assert len(code) == 6 and code.isdigit()
     assert resolve_otp_code("111111", totp_secret=secret) == "111111"
@@ -55,7 +55,7 @@ def test_resolve_generates_six_digits():
 
 
 def test_has_otp_source():
-    secret = "ZDNVM5SXU3MYGNGUKIVITQ4ZA5BL2RGO"
+    secret = "AAAAAAAAAAAAAAAA"
     assert has_otp_source(totp_secret=secret)
     assert has_otp_source("123456")
     assert has_otp_source(secret)
@@ -63,7 +63,7 @@ def test_has_otp_source():
 
 
 def test_hmac_matches_stdlib():
-    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    secret = "AAAAAAAAAAAAAAAA"
     import base64
 
     key = base64.b32decode(secret)

@@ -10,7 +10,7 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts: [na.example.com]
-      secretName: na-xm-web-tls
+      secretName: na-xm-web-tls  # pragma: allowlist secret — Kubernetes TLS 对象引用，不含凭据。
   rules:
     - host: na.example.com
       http:

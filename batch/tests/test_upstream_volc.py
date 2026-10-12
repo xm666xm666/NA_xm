@@ -206,7 +206,7 @@ class UpstreamVolcFormatTests(unittest.TestCase):
                     endpoint_to_row(
                         {"Name": "glm-4.7-clinai-dev", "Id": "ep-20260302095255-vxrqq"},
                         project_name="clinai",
-                        token="9ef24e14-8543-4ad8-bfff-a806f6017d85",
+                        token="EXAMPLE_UPSTREAM_TOKEN",
                     )
                 ],
             )
@@ -279,7 +279,7 @@ class UpstreamVolcFormatTests(unittest.TestCase):
                 },
             },
             project_name="phivb",
-            token="apikey-demo",
+            token="EXAMPLE_UPSTREAM_TOKEN",
             model_rate_map={"glm-4-7": {"Rpm": 15000, "Tpm": 1500000}},
         )
         self.assertEqual(list(row.keys()), UPSTREAM_HEADERS)

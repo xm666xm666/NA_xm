@@ -15,7 +15,7 @@ from lib.rule_extractor import extract_by_rules  # noqa: E402
 SAMPLE = """
 biz-agent-platform-uat-glm-5.2
 openai
-sk-glm52-9b5c75078f084756b6100a83689ca80a
+sk-testkey1
 /models/GLM-5.2-FP8
 http://111.127.53.163:8000
 """
@@ -28,7 +28,7 @@ def test_path_model_openai_block():
     assert fields.type_label == "OpenAI"
     assert fields.upstream_model == "/models/GLM-5.2-FP8"
     assert fields.base_url == "http://111.127.53.163:8000"
-    assert fields.api_key.startswith("sk-glm52-")
+    assert fields.api_key == "sk-testkey1"
     assert fields.model == "biz-agent-platform-uat-glm-5.2"
 
 

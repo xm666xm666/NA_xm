@@ -26,7 +26,7 @@ class WebsiteIdentityTests(unittest.TestCase):
                 "DATABASE_URL": f"sqlite:///{Path(self.tempdir.name, 'identity.db').as_posix()}",
                 "APP_ENV": "development",
                 "WEB_AUTO_CREATE_SCHEMA": "true",
-                "BOOTSTRAP_ADMIN_PASSWORD": "Bootstrap-Password-2026",
+                "BOOTSTRAP_ADMIN_PASSWORD": "test-password-2026",
             }
         )
         self.app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"))
@@ -85,7 +85,7 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertEqual(login_page.status_code, 200)
         response = self.client.post(
             "/login",
-            data={"identity": "admin", "password": "Bootstrap-Password-2026", "csrf_token": self._csrf()},
+            data={"identity": "admin", "password": "test-password-2026", "csrf_token": self._csrf()},
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.client.get("/auth/me").get_json()["user"]["role"], "superadmin")
@@ -93,9 +93,9 @@ class WebsiteIdentityTests(unittest.TestCase):
         response = self.client.post(
             "/account",
             data={
-                "current_password": "Bootstrap-Password-2026",
-                "new_password": "A-new-safe-password-2026",
-                "new_password_confirm": "A-new-safe-password-2026",
+                "current_password": "test-password-2026",
+                "new_password": "test-password-2026",
+                "new_password_confirm": "test-password-2026",
                 "csrf_token": self._csrf(),
             },
         )
@@ -104,7 +104,7 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertEqual(self.client.get("/agent-view").status_code, 200)
 
         target = self.identity.store.create_user(
-            username="operator", email="operator@example.com", password="A-safe-password-2026", role=ROLE_USER, email_verified=True
+            username="operator", email="operator@example.com", password="test-password-2026", role=ROLE_USER, email_verified=True
         )
         response = self.client.post(
             f"/admin/users/{target.id}/role", data={"role": ROLE_ADMIN, "csrf_token": self._csrf()}
@@ -120,7 +120,7 @@ class WebsiteIdentityTests(unittest.TestCase):
 
     def test_user_permission_boundary_and_csrf(self) -> None:
         user = self.identity.store.create_user(
-            username="basic-user", email="basic@example.com", password="A-safe-password-2026", role=ROLE_USER, email_verified=True
+            username="basic-user", email="basic@example.com", password="test-password-2026", role=ROLE_USER, email_verified=True
         )
         csrf = self._assume_user(user)
         self.assertEqual(self.client.get("/").status_code, 200)

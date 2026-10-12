@@ -1377,9 +1377,9 @@
           <div class="textarea-meta">
             <span class="line-count">共 <strong id="lineCount">0</strong> 行数据</span>
           </div>
-          <textarea id="batchText">demo-alpha-test-qwen-z demo-alpha-test OpenAI demo-alpha-test-qwen-z demo-alpha-test-qwen-z->qwen-z https://llm.example.com/compatible-mode sk-demo-key-replace-me
-demo-beta-test-ds-v3 demo-beta-test 自定义渠道 demo-beta-test-ds-v3 demo-beta-test-ds-v3->ds-v3 https://gateway.example.com/v1/chat/completions sk-demo-key-replace-me
-sample-azure-test-gpt-x sample-azure-test Azure OpenAI sample-azure-test-gpt-x sample-azure-test-gpt-x->gpt-x https://sample-azure.example.com 2025-04-01-preview sk-demo-key-replace-me
+          <textarea id="batchText">demo-alpha-test-qwen-z demo-alpha-test OpenAI demo-alpha-test-qwen-z demo-alpha-test-qwen-z->qwen-z https://llm.example.com/compatible-mode EXAMPLE_API_KEY
+demo-beta-test-ds-v3 demo-beta-test 自定义渠道 demo-beta-test-ds-v3 demo-beta-test-ds-v3->ds-v3 https://gateway.example.com/v1/chat/completions EXAMPLE_API_KEY
+sample-azure-test-gpt-x sample-azure-test Azure OpenAI sample-azure-test-gpt-x sample-azure-test-gpt-x->gpt-x https://sample-azure.example.com 2025-04-01-preview EXAMPLE_API_KEY
 </textarea>
 
           <div class="example-guard-hint visible" id="channelExampleGuard">
@@ -1559,7 +1559,7 @@ demo-beta-test-ds-v3-样例丙	demo-beta-test	demo-beta-test-ds-v3	1000000
           </div>
           <label for="tokenKeysPaste" style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:6px;">从网页粘贴「名称+密钥」（新版 test 环境列表已脱敏时可选手动补充）</label>
           <div class="hint" style="margin-bottom:8px;">新版 New API 列表只显示掩码；网页点「复制密钥」与工具调用 <code>/api/token/batch/keys</code> 等价。若自动获取失败再粘贴。</div>
-          <textarea id="tokenKeysPaste" class="export-output" style="min-height:96px;margin-bottom:10px;" placeholder="demo-alpha-test-glm-x-样例甲    sk-xxxxxxxxxxxxxxxx&#10;demo-beta-test-ds-v3-样例丙    sk-xxxxxxxxxxxxxxxx"></textarea>
+          <textarea id="tokenKeysPaste" class="export-output" style="min-height:96px;margin-bottom:10px;" placeholder="demo-alpha-test-glm-x-样例甲    EXAMPLE_API_KEY&#10;demo-beta-test-ds-v3-样例丙    EXAMPLE_API_KEY"></textarea>
           <div class="actions" style="margin-bottom:8px;">
             <button class="btn-ghost" id="btnPasteKeysFromClipboard" type="button">从剪贴板粘贴密钥</button>
           </div>
