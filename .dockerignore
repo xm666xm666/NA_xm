@@ -1,0 +1,14 @@
+.git
+.cache
+.venv
+venv
+__pycache__
+*.py[cod]
+.env
+env/*.json
+log
+excel
+ai-cloud-master
+ai-cloud*
+*.xlsx
+*.xlsm

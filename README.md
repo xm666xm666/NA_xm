@@ -38,6 +38,12 @@
   - [一键启动](#一键启动)
   - [手动启动](#手动启动)
   - [独立部署](#独立部署)
+  - [Docker / Podman（Rocky Linux 8/9）](#docker--podmanrocky-linux-89)
+  - [Kubernetes](#kubernetes)
+- [网站账户、权限与安全](#网站账户权限与安全)
+  - [角色矩阵](#角色矩阵)
+  - [首个超管与用户管理](#首个超管与用户管理)
+  - [认证与安全边界](#认证与安全边界)
 - [界面说明](#界面说明)
   - [浏览器本地缓存（localStorage）](#浏览器本地缓存localstorage)
 - [工作台](#工作台)
@@ -204,8 +210,8 @@
 
 ### 环境要求
 
-- Python **3.8+**
-- 依赖见 `requirements.txt`：`flask`、`requests`、`openpyxl`
+- Python **3.10+**（容器镜像固定 Python 3.12）
+- 依赖见 `requirements.txt`：原有 `flask`、`requests`、`openpyxl`，以及网站化所需的 `SQLAlchemy`、`psycopg`、`redis`、`Flask-Session`、`argon2-cffi`、`alembic`、`gunicorn`
 
 
 
@@ -254,6 +260,74 @@ python app.py --no-browser     # 不自动打开浏览器
 ### 独立部署
 
 复制整个项目目录到目标机器，执行 `run.bat` 或 `run.sh` 即可，无需额外构建步骤。真实凭据请在目标机单独填写 `env/sites.json`（不要把含密钥的文件拷进共享盘）；各字段从哪抄见 [配置说明](#配置说明)。
+
+### Docker / Podman（Rocky Linux 8/9）
+
+生产部署使用三项容器服务：Web、**PostgreSQL 18**（`postgres:18`）和 **Redis 8**（`redis:8`）。数据库保存账户、密码重置令牌、审计记录及后续任务/产物元数据；Redis 只保存服务端会话。渠道、令牌及上游凭据仍按原有 `env/` 文件挂载，不会迁入账户数据库。
+
+1. 在 Rocky Linux 8 或 9 安装并启动 Docker Compose v2，或使用兼容 Compose 的 Podman 4+；主机无需安装 Python、PostgreSQL 或 Redis。
+2. 复制 `.env.example` 为 `.env`，逐项替换密码和密钥。`APP_SECRET_KEY`、`POSTGRES_PASSWORD`、`BOOTSTRAP_ADMIN_PASSWORD` 必填，且不能保留示例值。
+3. 确认 `env/sites.json` / `env/upstream.json` 已在服务器本地创建；这些文件不会进入镜像或 Git。
+
+```bash
+cp .env.example .env
+# 编辑 .env 后启动；Compose 文件已为 SELinux 主机的 bind mount 加 :Z 标签。
+docker compose up -d --build
+docker compose logs -f web
+```
+
+Podman 环境可将最后两行替换为 `podman compose up -d --build`、`podman compose logs -f web`。服务就绪后访问 `http://服务器地址:8000/`；反向代理终止 TLS 时应把 `WEB_PUBLIC_URL` 设置为真实 `https://` 地址。数据库迁移由 Web 容器启动时执行。生产环境禁止使用 `docker compose down -v` / `podman compose down -v`，否则会删除 PostgreSQL 与 Redis 持久卷。
+
+### Kubernetes
+
+`deploy/k8s/` 提供 PostgreSQL 18 / Redis 8 StatefulSet、Web Deployment、PVC、就绪/存活探针、Ingress 和 Kustomize 清单。先将两个 `ghcr.io/replace-me/na-xm:container` 镜像占位符换成实际镜像，并确认集群已有默认 StorageClass 和 NGINX Ingress Controller。
+
+```bash
+# 机密文件只在部署机生成，绝不提交。
+cp deploy/k8s/secret.example.yaml deploy/k8s/secret.yaml
+# 编辑 secret.yaml：POSTGRES_PASSWORD 与 DATABASE_URL 中的密码必须一致。
+kubectl apply -f deploy/k8s/namespace.yaml
+kubectl apply -f deploy/k8s/configmap.yaml
+kubectl apply -f deploy/k8s/secret.yaml
+kubectl apply -f deploy/k8s/postgres.yaml
+kubectl apply -f deploy/k8s/redis.yaml
+kubectl apply -f deploy/k8s/web.yaml
+kubectl apply -f deploy/k8s/ingress.yaml
+```
+
+Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据库可用后应用才会启动。生产集群请额外配置 PostgreSQL 备份、镜像仓库拉取凭据、TLS 证书和资源配额；示例 PVC 并不等同于备份策略。
+
+---
+
+## 网站账户、权限与安全
+
+网站层保留原有 Flask 单体与业务 API，但新增了本地网站账户。New API / 云厂商凭据与网站登录账户相互独立，密码不会写入日志或审计详情。
+
+### 角色矩阵
+
+| 入口 / 能力 | 超管 | 管理员 | 用户 |
+| --- | --- | --- | --- |
+| 工作台 | 是 | 是 | 否 |
+| 智能提取、批量配置、上游信息 | 是 | 是 | 是 |
+| 数据汇总 | 是 | 是 | 否 |
+| 上游账单、一表总览、智能体 | 是 | 否 | 否 |
+| 用户管理（升降权限、启用/停用、删除） | 是 | 否 | 否 |
+
+前端会隐藏无权限入口；后端还会为页面、iframe 和全部 `/api/*` 请求进行独立验证，不能通过直接访问 URL 绕过。
+
+### 首个超管与用户管理
+
+首次生产部署时，将 `BOOTSTRAP_ADMIN_PASSWORD` 与可选 `BOOTSTRAP_ADMIN_EMAIL` 写入 `.env` 或 Kubernetes Secret。首次迁移后系统只会创建一次保留账户 **`admin`**，角色为 `superadmin`；它不可通过注册页面创建，也不可被降权、停用或删除。初始超管首次登录后会被强制跳转到账户设置页修改初始密码，修改前无法调用业务 API。
+
+注册页只能创建 `user` 角色。超管在右上角账户菜单的“管理用户”页面可把用户升为管理员/超管、降级、启用、停用或软删除。软删除会立即使会话失效并保留审计痕迹；超管不能修改自己。测试或重置部署环境时，只有在删除网站数据库后才会重新触发引导超管创建。
+
+### 认证与安全边界
+
+- 密码使用 **Argon2id** 哈希；连续 5 次失败会锁定账户 15 分钟。
+- 生产环境仅接受 PostgreSQL `DATABASE_URL` 与 Redis `REDIS_URL`；Redis 保存服务端会话，Cookie 为 `HttpOnly`、`SameSite=Lax`、`Secure`。
+- 所有写 API 需要会话和 `X-CSRF-Token`；页面表单使用同源 CSRF 令牌。前端脚本会自动附带该头。
+- 注册在生产环境默认需要邮箱验证；忘记密码与邮箱验证令牌 30 分钟一次性有效。配置 `SMTP_*` 后才会真正投递邮件；未配置 SMTP 时只会记录安全告警，不会在页面回显链接。
+- 角色变更、启停和删除均写入 `web_audit_logs`。默认网站数据库在开发模式位于 `.cache/website.db`，生产必须执行 Alembic 迁移到 PostgreSQL。
 
 ---
 
@@ -368,6 +442,9 @@ NA_xm_auto_configuration_new/
 ├── app.py                          # 融合 Web 服务（唯一入口，支持 serve/extract/batch 子命令）
 ├── run.bat / run.sh                # 一键启动脚本
 ├── requirements.txt
+├── Dockerfile / compose.yaml        # Web + PostgreSQL 18 + Redis 8 容器部署
+├── .env.example                     # 生产环境变量模板（不含真实凭据）
+├── alembic.ini / migrations/        # 网站账户数据库迁移
 ├── README.md
 │
 ├── env/                            # 多环境快捷连接 + 上游凭证（可选）
@@ -387,7 +464,14 @@ NA_xm_auto_configuration_new/
 │   ├── na-ui.js                    # Toast、步骤状态、首次引导
 │   ├── na-legacy-bridge.css        # 批量页 embed 样式桥接
 │   ├── na-theme.js                 # 主题切换与 iframe 同步
+│   ├── auth-shell.js               # 会话感知、导航授权与 API CSRF 头
+│   └── auth-pages.css              # 登录 / 注册 / 账户页面样式
 │   └── favicon.svg                 # 浏览器图标（N Logo）
+│
+├── templates/                      # 登录、注册、忘记密码、账户、超管用户管理
+├── webapp/identity.py              # 账户模型、Argon2、RBAC、审计与 CSRF
+├── deploy/k8s/                     # K8s StatefulSet / Deployment / Ingress 模板
+├── tests/test_web_identity.py      # 网站账户与权限回归测试
 │
 ├── docs/                           # 产品介绍（可选阅读）
 │   ├── introduction.html           # 功能介绍页
@@ -2140,6 +2224,7 @@ cd batch && python main.py token -c config.json -f ../examples/batch/tokens/inpu
 ### 运行测试
 
 ```bash
+python tests/test_web_identity.py
 python agent/tests/test_channel_line_parser.py
 python agent/tests/test_extract_for_update.py
 python agent/tests/test_token_extractor.py
@@ -2488,6 +2573,8 @@ python agent/tests/test_pipeline_runner.py
 
 
 ## 架构说明
+
+网站化部分仍为一个 Flask 进程：`webapp/identity.py` 在应用创建时注册认证 Blueprint、加载账户会话与全局 API 守卫；业务模块保持原有 `app.py` 路由。生产时 Web 使用 PostgreSQL 18 存储账户/令牌/审计/任务元数据，Redis 8 存储会话，Alembic 管理表结构。`/healthz` 是存活探针，`/readyz` 会验证账户数据库连接。容器镜像基于 Linux Python 3.12，因而可在 Rocky Linux 8/9 的 Docker 或 Podman 主机上运行。
 
 `agent` 与 `batch` 共用 Python 包名 `lib`。`app.py` 通过 `_pin_lib_root()` 在加载前清空 `lib.*` 缓存并从 `sys.path` 移除另一侧目录，确保每次仅有一侧 `lib` 在 `[0]` 位置；并用 `threading.RLock` 串行化加载，避免多 Tab 并发请求（如 `/api/llm-presets` 与 `/api/data-summary/info` 同时发起）导致 `ModuleNotFoundError`。
 
@@ -3091,3 +3178,5 @@ batch 与 agent 共用包名 `lib`。首页加载 LLM 预设会切到 agent。�
 - [x] **渠道更新原配置**（预更新 / 确认更新；不改密钥；已有备注弹窗确认后才覆盖为本行 `base_url`；`POST /api/batch-update-channels`）
 - [x] **全量同步渠道 Base URL 到备注**（预览 / 确认；Azure 只取 `AZURE_OPENAI_ENDPOINT`；已有备注换行追加；255 字符超限按渠道报错）
 - [x] **智能提取「更新」模式**（先点更新再提取；火山自动升级示例；`for_update`）
+- [x] **完整网站账户与 RBAC**（登录 / 注册 / 邮箱验证 / 忘记密码；超管、管理员、用户三角色；超管用户管理；Argon2id、Redis 会话、CSRF、审计）
+- [x] **PostgreSQL 18 + Redis 8 容器化部署**（Docker / Podman Rocky Linux 8/9 兼容；Alembic；Kubernetes StatefulSet / Deployment / Ingress 模板）

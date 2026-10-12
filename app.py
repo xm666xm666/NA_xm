@@ -18,6 +18,16 @@ from typing import Any
 from flask import Flask, Response, g, jsonify, request, send_from_directory, stream_with_context
 
 import na_logger
+from webapp.identity import (
+    FEATURE_AGENT,
+    FEATURE_BATCH,
+    FEATURE_DATA_SUMMARY,
+    FEATURE_OVERVIEW,
+    FEATURE_UPSTREAM,
+    FEATURE_UPSTREAM_BILL,
+    FEATURE_WORKSPACE,
+    init_identity,
+)
 
 NEW_DIR = Path(__file__).resolve().parent
 AGENT_DIR = NEW_DIR / "agent"
@@ -333,6 +343,7 @@ extract_tokens = _load_agent_token_extractor()
 _reload_batch_modules()
 
 app = Flask(__name__, static_folder=None, static_url_path=None)
+IDENTITY = init_identity(app, NEW_DIR)
 
 
 def _request_client_ip() -> str:
@@ -441,6 +452,10 @@ def _na_log_teardown_request(exc: BaseException | None):
 
 @app.get("/")
 def index():
+    # 根页面是已登录用户的导航容器；具体功能由菜单、iframe 与 API 三层授权。
+    blocked = IDENTITY.page_guard()
+    if blocked:
+        return blocked
     return send_from_directory(STATIC_DIR, "index.html")
 
 
@@ -451,6 +466,19 @@ def favicon_ico():
 
 @app.get("/static/<path:filename>")
 def static_files(filename: str):
+    guarded_pages = {
+        "batch_ui.html": FEATURE_BATCH,
+        "summary_ui.html": FEATURE_DATA_SUMMARY,
+        "agent_ui.html": FEATURE_AGENT,
+        "upstream_ui.html": FEATURE_UPSTREAM,
+        "overview_ui.html": FEATURE_OVERVIEW,
+        "bill_ui.html": FEATURE_UPSTREAM_BILL,
+    }
+    feature = guarded_pages.get(filename)
+    if feature:
+        blocked = IDENTITY.page_guard(feature)
+        if blocked:
+            return blocked
     if filename == "batch_ui.html":
         return send_from_directory(BATCH_STATIC, "index.html")
     if filename == "summary_ui.html":
@@ -467,6 +495,24 @@ def static_files(filename: str):
         if (folder / filename).is_file():
             return send_from_directory(folder, filename)
     return jsonify({"success": False, "message": "文件不存在"}), 404
+
+
+@app.get("/healthz")
+def healthz():
+    """容器存活探针：不访问外部上游，避免错误重启。"""
+    return jsonify({"status": "ok"})
+
+
+@app.get("/readyz")
+def readyz():
+    """容器就绪探针：确认账户数据库可连接。"""
+    try:
+        with IDENTITY.store.engine.connect() as connection:
+            connection.exec_driver_sql("SELECT 1")
+        return jsonify({"status": "ready"})
+    except Exception as exc:  # noqa: BLE001
+        na_logger.error(f"就绪探针失败 | {type(exc).__name__}: {exc}")
+        return jsonify({"status": "not_ready"}), 503
 
 
 def _load_llm_config() -> dict:

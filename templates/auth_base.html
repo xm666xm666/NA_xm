@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title or 'NA 自动配置' }}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/auth-pages.css?v=web-1">
+</head>
+<body>
+  <main class="auth-shell">
+    <a class="auth-brand" href="/" aria-label="NA 自动配置首页"><span class="auth-mark">N</span><span>NA 自动配置</span></a>
+    <section class="auth-card">
+      {% block content %}{% endblock %}
+    </section>
+    <p class="auth-foot">账户仅用于本网站访问控制；不会替代或读取 New API 渠道密钥。</p>
+  </main>
+</body>
+</html>

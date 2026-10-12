@@ -37,6 +37,7 @@ env/sites.json
 env/upstream.json
 env/hygiene_policy.json
 env/*.local.json
+deploy/k8s/secret.yaml
 excel/_hygiene_status.json
 
 # 本地探测脚本

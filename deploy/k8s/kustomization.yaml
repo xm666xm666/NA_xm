@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: na-xm
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - redis.yaml
+  - web.yaml
+  - ingress.yaml
+# secret.example.yaml 仅作模板，复制为不入库的 secret.yaml 后单独 apply。

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=auth-1"></script>
+  <script src="/static/auth-shell.js?v=web-1"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <style>
     .na-llm-panel h3 { margin: 0 0 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--na-accent-2); font-family: var(--na-font-display); }
@@ -41,6 +42,13 @@
       background: rgba(34, 211, 238, 0.16);
       box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.14);
     }
+    .na-auth-menu { position: relative; font: 600 .76rem var(--na-font-display); }
+    .na-auth-menu summary { list-style: none; cursor: pointer; color: var(--na-text); white-space: nowrap; }
+    .na-auth-menu summary::-webkit-details-marker { display: none; }
+    .na-auth-menu summary span { color: var(--na-accent); margin-left: .3rem; font-size: .68rem; }
+    .na-auth-menu > div { position: absolute; right: 0; top: calc(100% + .65rem); display: grid; min-width: 124px; padding: .4rem; border: 1px solid var(--na-border); border-radius: .55rem; background: var(--na-panel-solid, #0f172a); box-shadow: 0 12px 35px rgba(0,0,0,.28); z-index: 99; }
+    .na-auth-menu a, .na-auth-menu button { padding: .45rem .55rem; color: var(--na-text-muted); text-decoration: none; background: transparent; border: 0; text-align: left; font: inherit; cursor: pointer; border-radius: .35rem; }
+    .na-auth-menu a:hover, .na-auth-menu button:hover { background: var(--na-panel-hover); color: var(--na-text); }
   </style>
 </head>
 <body class="na-app">
@@ -63,17 +71,18 @@
     </div>
     <div class="na-nav-tabs" id="navTabs" role="tablist" aria-label="配置流程">
       <div class="na-nav-indicator" id="navIndicator"></div>
-      <button type="button" role="tab" id="tabWorkspace" aria-selected="true" aria-controls="viewWorkspace" class="active" data-view="workspace">工作台</button>
-      <button type="button" role="tab" id="tabAgent" aria-selected="false" aria-controls="viewAgent" data-view="agent">智能提取</button>
-      <button type="button" role="tab" id="tabBatch" aria-selected="false" aria-controls="viewBatch" data-view="batch">批量配置</button>
-      <button type="button" role="tab" id="tabSummary" aria-selected="false" aria-controls="viewSummary" data-view="summary">数据汇总</button>
-      <button type="button" role="tab" id="tabUpstream" aria-selected="false" aria-controls="viewUpstream" data-view="upstream">上游信息</button>
-      <button type="button" role="tab" id="tabBill" aria-selected="false" aria-controls="viewBill" data-view="bill">上游账单</button>
-      <button type="button" role="tab" id="tabOverview" aria-selected="false" aria-controls="viewOverview" data-view="overview">一表总览</button>
-      <button type="button" role="tab" id="tabPipeline" aria-selected="false" aria-controls="viewPipeline" data-view="pipeline">智能体</button>
+      <button type="button" role="tab" id="tabWorkspace" aria-selected="true" aria-controls="viewWorkspace" class="active" data-view="workspace" data-permission="workspace">工作台</button>
+      <button type="button" role="tab" id="tabAgent" aria-selected="false" aria-controls="viewAgent" data-view="agent" data-permission="extraction">智能提取</button>
+      <button type="button" role="tab" id="tabBatch" aria-selected="false" aria-controls="viewBatch" data-view="batch" data-permission="batch">批量配置</button>
+      <button type="button" role="tab" id="tabSummary" aria-selected="false" aria-controls="viewSummary" data-view="summary" data-permission="data_summary">数据汇总</button>
+      <button type="button" role="tab" id="tabUpstream" aria-selected="false" aria-controls="viewUpstream" data-view="upstream" data-permission="upstream">上游信息</button>
+      <button type="button" role="tab" id="tabBill" aria-selected="false" aria-controls="viewBill" data-view="bill" data-permission="upstream_bill">上游账单</button>
+      <button type="button" role="tab" id="tabOverview" aria-selected="false" aria-controls="viewOverview" data-view="overview" data-permission="overview">一表总览</button>
+      <button type="button" role="tab" id="tabPipeline" aria-selected="false" aria-controls="viewPipeline" data-view="pipeline" data-permission="agent">智能体</button>
     </div>
     <span class="spacer"></span>
     <span class="na-nav-hint" id="navHint" aria-hidden="true"></span>
+    <div id="authUserMenu"></div>
     <button type="button" class="na-theme-toggle" id="naThemeToggle" data-na-theme-toggle data-theme="dark" aria-label="切换到明亮主题" title="切换为明亮主题">
       <span class="na-theme-toggle-track" aria-hidden="true"><span class="na-theme-toggle-thumb"><span class="na-theme-toggle-icon na-theme-icon-dark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="na-theme-toggle-icon na-theme-icon-light" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M21 14.5A7.5 7.5 0 0 1 9.5 3a6.5 6.5 0 1 0 11.5 11.5Z" stroke="currentColor" stroke-width="1.8"/></svg></span></span></span>
       <span class="na-theme-toggle-label">明亮</span>
