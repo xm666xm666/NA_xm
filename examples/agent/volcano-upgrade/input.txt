@@ -1,0 +1,4 @@
+# 火山方舟自动升级申请：原 GLM-4.7 → GLM-5.2，不改密钥
+demo-alpha-test-glm-4.7
+字节火山方舟、豆包通用
+demo-alpha-test-glm-4.7->GLM-5.2

@@ -1,0 +1,7 @@
+{
+  "base_url": "http://localhost:3000",
+  "username": "admin",
+  "password": "123456",
+  "default_key": "sk-your-upstream-api-key",
+  "comment": "也可使用 access_token + user_id 代替 username/password"
+}

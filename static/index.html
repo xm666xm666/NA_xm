@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="na-brand-bridge">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NA 自动配置工具</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=auth-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
+  <script src="/static/na-theme.js"></script>
+  <script src="/static/na-ui.js?v=auth-1"></script>
+  <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+  <style>
+    .na-llm-panel h3 { margin: 0 0 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--na-accent-2); font-family: var(--na-font-display); }
+    .na-llm-note { margin: 0.55rem 0 0; font-size: 0.74rem; color: var(--na-text-muted); }
+    code { font-family: var(--na-font-mono); font-size: 0.88em; color: var(--na-accent); }
+    #rawInput { min-height: 200px; }
+    #channelLine.na-output.has-data { color: var(--na-text); border-color: rgba(34,211,238,0.25); }
+    .na-extract-mode { display: flex; gap: 0.45rem; margin: 0 0 0.85rem; flex-wrap: wrap; }
+    .na-extract-mode button {
+      border: 1px solid var(--na-border);
+      background: rgba(15, 23, 42, 0.35);
+      color: var(--na-text-muted);
+      border-radius: 999px;
+      padding: 0.35rem 0.9rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-family: var(--na-font-display);
+    }
+    .na-extract-mode button.active {
+      color: var(--na-text);
+      border-color: rgba(34, 211, 238, 0.45);
+      background: rgba(34, 211, 238, 0.12);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.12);
+    }
+    html[data-theme="light"] .na-extract-mode button { background: rgba(255,255,255,0.7); }
+    #btnExtractUpdate[aria-pressed="true"] {
+      color: var(--na-text);
+      border-color: rgba(34, 211, 238, 0.5);
+      background: rgba(34, 211, 238, 0.16);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.14);
+    }
+  </style>
+</head>
+<body class="na-app">
+  <div class="na-bg" aria-hidden="true">
+    <div class="na-bg-grid"></div>
+    <div class="na-bg-orb na-bg-orb-1"></div>
+    <div class="na-bg-orb na-bg-orb-2"></div>
+    <div class="na-bg-noise"></div>
+  </div>
+
+  <nav class="na-nav" aria-label="主流程">
+    <div class="na-brand">
+      <div class="na-brand-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4.5 19.5V4.5h3.1l7.4 10.8V4.5H18v15H14.9L7.5 8.7v10.8H4.5z" fill="url(#naNFill)"/>
+          <defs><linearGradient id="naNFill" x1="4" y1="4" x2="20" y2="20"><stop offset="0%" stop-color="#020617"/><stop offset="100%" stop-color="#0e3a5c"/></linearGradient></defs>
+        </svg>
+      </div>
+      <span class="na-brand-text">NA 自动配置</span>
+    </div>
+    <div class="na-nav-tabs" id="navTabs" role="tablist" aria-label="配置流程">
+      <div class="na-nav-indicator" id="navIndicator"></div>
+      <button type="button" role="tab" id="tabWorkspace" aria-selected="true" aria-controls="viewWorkspace" class="active" data-view="workspace">工作台</button>
+      <button type="button" role="tab" id="tabAgent" aria-selected="false" aria-controls="viewAgent" data-view="agent">智能提取</button>
+      <button type="button" role="tab" id="tabBatch" aria-selected="false" aria-controls="viewBatch" data-view="batch">批量配置</button>
+      <button type="button" role="tab" id="tabSummary" aria-selected="false" aria-controls="viewSummary" data-view="summary">数据汇总</button>
+      <button type="button" role="tab" id="tabUpstream" aria-selected="false" aria-controls="viewUpstream" data-view="upstream">上游信息</button>
+      <button type="button" role="tab" id="tabBill" aria-selected="false" aria-controls="viewBill" data-view="bill">上游账单</button>
+      <button type="button" role="tab" id="tabOverview" aria-selected="false" aria-controls="viewOverview" data-view="overview">一表总览</button>
+      <button type="button" role="tab" id="tabPipeline" aria-selected="false" aria-controls="viewPipeline" data-view="pipeline">智能体</button>
+    </div>
+    <span class="spacer"></span>
+    <span class="na-nav-hint" id="navHint" aria-hidden="true"></span>
+    <button type="button" class="na-theme-toggle" id="naThemeToggle" data-na-theme-toggle data-theme="dark" aria-label="切换到明亮主题" title="切换为明亮主题">
+      <span class="na-theme-toggle-track" aria-hidden="true"><span class="na-theme-toggle-thumb"><span class="na-theme-toggle-icon na-theme-icon-dark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="na-theme-toggle-icon na-theme-icon-light" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M21 14.5A7.5 7.5 0 0 1 9.5 3a6.5 6.5 0 1 0 11.5 11.5Z" stroke="currentColor" stroke-width="1.8"/></svg></span></span></span>
+      <span class="na-theme-toggle-label">明亮</span>
+    </button>
+  </nav>
+
+  <div id="viewWorkspace" class="na-view active" role="tabpanel" aria-labelledby="tabWorkspace">
+    <div class="na-wrap">
+      <header class="na-hero na-ws-hero na-animate-in">
+        <div class="na-ws-hero-row">
+          <div>
+            <h1>今日<em>工作台</em></h1>
+            <p class="na-subtitle" id="wsHeroSub">待办来自最新分析表与盘点产物。无 Excel 时不会显示假 0。</p>
+          </div>
+          <button type="button" class="na-btn na-btn-secondary" id="btnWsRefresh">刷新</button>
+        </div>
+      </header>
+      <div class="na-job-bar" id="wsJobBar" hidden></div>
+      <div class="na-ws-grid" id="wsTodoGrid"></div>
+      <div class="na-ws-pulse" id="wsPulse"></div>
+      <h2 class="na-panel-title" style="font-size:0.92rem;margin:0 0 0.7rem">开始一项任务</h2>
+      <div class="na-ws-tasks">
+        <button type="button" class="na-ws-card" data-task="onboard"><strong>新项目接入</strong><span>粘贴项目信息 → 智能提取 → 写入已配置站点（生产 / 非生产）</span></button>
+        <button type="button" class="na-ws-card" data-task="inventory"><strong>例行盘点</strong><span>到数据汇总采集渠道 / 令牌与余额，下载所选产物</span></button>
+        <button type="button" class="na-ws-card" data-task="upstream"><strong>上游采集</strong><span>一键采集火山云与 Azure 资源，对照下游是否已接入</span></button>
+        <button type="button" class="na-ws-card" data-task="bill"><strong>上游账单</strong><span>按账期采集费用，跨月则每月一份 Excel</span></button>
+        <button type="button" class="na-ws-card" data-task="hygiene"><strong>卫生清理</strong><span>到一表总览对照建议表勾选预禁用，宽限期内默认暂缓</span></button>
+        <button type="button" class="na-ws-card" data-task="pipeline"><strong>智能体跑通</strong><span>异步跑提取 → 写入 → 盘点，门禁确认后再落网关</span></button>
+      </div>
+      <div class="na-ws-split">
+        <section class="na-panel na-panel-static">
+          <h2>最近产物</h2>
+          <p class="na-hint">建议保留 30 天，过期请自行归档，系统不自动删除。含密钥文件下载需二次确认。</p>
+          <ul class="na-ws-list" id="wsArtifactList"></ul>
+        </section>
+        <section class="na-panel na-panel-static">
+          <h2>认证与策略</h2>
+          <div id="wsEnvChips"></div>
+          <p class="na-hint" id="wsPolicyHint"></p>
+          <div class="na-ws-auth-actions">
+            <button type="button" class="na-btn na-btn-secondary" id="btnWsAuth">全局站点认证</button>
+            <button type="button" class="na-btn na-btn-ghost" id="btnWsPolicy">去总览改策略</button>
+          </div>
+          <details class="na-policy-edit" id="wsPolicyEdit">
+            <summary>在此编辑卫生策略</summary>
+            <div class="na-policy-form">
+              <div class="na-policy-grid na-ws-policy-grid">
+                <label class="na-field"><span class="na-field-label">宽限天数</span><input type="number" id="wsPolDays" min="0" max="3650" /></label>
+                <label class="na-field"><span class="na-field-label">不用阈值 USD</span><input type="number" id="wsPolUnused" step="0.01" /></label>
+                <label class="na-field"><span class="na-field-label">不常用阈值 USD</span><input type="number" id="wsPolUncommon" step="0.01" /></label>
+              </div>
+              <div class="na-policy-actions">
+                <button type="button" class="na-btn na-btn-primary" id="btnWsSavePolicy"><span class="na-btn-label">保存策略</span></button>
+              </div>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="na-modal-backdrop" id="wsAuthDrawer" hidden>
+    <div class="na-modal na-ws-auth-modal" role="dialog" aria-modal="true" aria-labelledby="wsAuthTitle">
+      <h3 id="wsAuthTitle">全局站点认证</h3>
+      <p class="na-hint">一次认证已配置站点（生产 / 非生产）。成功后其它页采集、补密钥、查余额不再弹审查窗。未预置 TOTP 时，拉密钥仍会要当前 6 位码（约 30 秒有效）。</p>
+      <div id="wsAuthDrawerBody"></div>
+      <div class="na-toolbar" style="margin-top:1rem">
+        <button type="button" class="na-btn na-btn-primary" id="btnWsAuthRun">认证全部</button>
+        <button type="button" class="na-btn na-btn-ghost" id="btnWsAuthGoBatch">去批量配置</button>
+        <button type="button" class="na-btn na-btn-secondary" id="btnWsAuthClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewAgent" class="na-view" role="tabpanel" aria-labelledby="tabAgent" hidden>
+    <div class="na-wrap">
+      <div id="userBanner" class="na-banner" role="status"></div>
+      <header class="na-hero na-animate-in">
+        <h1 id="extractHeroTitle">渠道<em>智能提取</em></h1>
+        <p class="na-subtitle" id="extractHeroSub">
+          <span class="na-badge"><span class="na-badge-dot"></span>智能提取</span>
+          粘贴杂乱项目信息，一键生成批量配置可用的渠道行。
+        </p>
+      </header>
+
+      <div class="na-grid">
+        <section class="na-panel na-panel-static na-animate-in na-animate-in-1">
+          <h2>原始输入</h2>
+          <div class="na-extract-mode" id="extractMode" role="tablist" aria-label="提取类型">
+            <button type="button" role="tab" data-mode="channel" class="active" aria-selected="true">渠道智能提取</button>
+            <button type="button" role="tab" data-mode="token" aria-selected="false">令牌智能提取</button>
+          </div>
+          <div class="na-example-cards" id="exampleCards">
+            <button type="button" class="na-example-card" data-example="volcano" data-for="channel"><strong>火山方舟</strong><span>含 ep- 与 ark- 密钥</span></button>
+            <button type="button" class="na-example-card" data-example="volcanoUpgrade" data-for="channel"><strong>火山自动升级</strong><span>GLM-4.7→5.2 · 无需密钥</span></button>
+            <button type="button" class="na-example-card" data-example="multi" data-for="channel"><strong>多条混排</strong><span>换行 / Tab 分隔多项目</span></button>
+            <button type="button" class="na-example-card" data-example="full" data-for="channel"><strong>完整示例</strong><span>载入演示数据</span></button>
+            <button type="button" class="na-example-card" data-example="tokenStd" data-for="token" hidden><strong>令牌名-人名</strong><span>三行：名-人 / 分组 / 模型</span></button>
+            <button type="button" class="na-example-card" data-example="tokenSplit" data-for="token" hidden><strong>名与人分行</strong><span>自动拼接为 令牌名-人名</span></button>
+            <button type="button" class="na-example-card" data-example="tokenChannels" data-for="token" hidden><strong>渠道行转令牌</strong><span>令牌名/人名 + 渠道行</span></button>
+            <button type="button" class="na-example-card" data-example="tokenMulti" data-for="token" hidden><strong>多条令牌</strong><span>空行分隔批量提取</span></button>
+          </div>
+          <textarea id="rawInput" placeholder="在此粘贴项目信息，或点击上方示例卡片快速开始…" aria-label="原始输入"></textarea>
+          <div class="na-toolbar">
+            <button type="button" class="na-btn na-btn-primary" id="btnExtract"><span class="na-btn-label">智能提取</span></button>
+            <button type="button" class="na-btn na-btn-secondary" id="btnExtractUpdate" aria-pressed="false" title="先点此项，再点「智能提取」：按更新原配置处理，不要求密钥">更新</button>
+            <button type="button" class="na-btn na-btn-secondary" id="btnClear">清空</button>
+          </div>
+          <details class="na-advanced" id="llmAdvanced">
+            <summary>高级选项 · LLM 增强（非标准格式时启用）</summary>
+            <div class="na-advanced-body">
+              <label class="na-toggle" style="margin-bottom:0.65rem">
+                <input type="checkbox" id="useLlm" />
+                <span class="na-toggle-track" aria-hidden="true"></span>
+                <span class="na-toggle-text">启用 LLM 增强</span>
+              </label>
+              <div class="na-llm-panel" id="llmPanel">
+                <h3>LLM 连接配置</h3>
+                <div class="na-llm-grid">
+                  <label class="full na-field"><span class="na-field-label">厂商预设</span><div class="na-select-wrap"><select id="llmProvider" class="na-select"></select><span class="na-select-chevron" aria-hidden="true"></span></div></label>
+                  <label class="full">API 地址<input type="text" id="llmApiBase" placeholder="https://api.openai.com/v1" autocomplete="off" /></label>
+                  <label>API Key<input type="password" id="llmApiKey" placeholder="sk-..." autocomplete="off" /></label>
+                  <label>模型<input type="text" id="llmModel" placeholder="gpt-4o-mini" autocomplete="off" /></label>
+                </div>
+                <p class="na-llm-note" id="llmNote">勾选后将真实调用所选 AI API。Ollama 本地可不填 Key。</p>
+              </div>
+            </div>
+          </details>
+          <p class="na-hint" id="extractHint">支持<strong>多条批量提取</strong>。火山：粘贴含 <code>ep-</code>；Azure：粘贴完整门户链接。</p>
+        </section>
+
+        <section class="na-panel na-panel-static na-animate-in na-animate-in-2">
+          <h2 id="extractResultTitle">提取结果 → 批量格式</h2>
+          <div id="itemList">
+            <div class="na-empty" id="emptyResults">
+              <div class="na-empty-icon"><svg viewBox="0 0 24 24"><path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z"/></svg></div>
+              <div class="na-empty-title">尚无提取结果</div>
+              <div class="na-empty-desc">粘贴左侧内容并点击「智能提取」，结果将显示在此</div>
+            </div>
+          </div>
+          <div class="na-output" id="channelLine" aria-live="polite">（提取后将显示可粘贴的渠道行，多条按行分隔）</div>
+          <div class="na-toolbar">
+            <button type="button" class="na-btn na-btn-primary" id="btnCopy" disabled title="请先完成提取">复制渠道行</button>
+            <button type="button" class="na-btn na-btn-accent" id="btnApplyBatch" disabled title="请先完成提取">填入批量配置 →</button>
+            <button type="button" class="na-btn na-btn-secondary" id="btnApplyUpdate" disabled title="将提取结果填入「更新原配置」，不影响批量创建">填入更新原配置 →</button>
+          </div>
+          <div class="na-meta" id="meta"></div>
+        </section>
+      </div>
+
+      <details class="na-log-debug na-animate-in na-animate-in-4">
+        <summary>详细日志</summary>
+        <div class="na-log" id="log" aria-live="polite"></div>
+      </details>
+    </div>
+  </div>
+
+  <div id="viewBatch" class="na-view" role="tabpanel" aria-labelledby="tabBatch" hidden>
+    <iframe id="batchFrame" class="na-iframe" title="批量配置工具" src="/static/batch_ui.html?embed=1&v=art-1"></iframe>
+  </div>
+
+  <div id="viewSummary" class="na-view" role="tabpanel" aria-labelledby="tabSummary" hidden>
+    <iframe id="summaryFrame" class="na-iframe" title="数据汇总" src="/static/summary_ui.html?embed=1&v=auth-1"></iframe>
+  </div>
+
+  <div id="viewUpstream" class="na-view" role="tabpanel" aria-labelledby="tabUpstream" hidden>
+    <iframe id="upstreamFrame" class="na-iframe" title="上游信息" src="/static/upstream_ui.html?embed=1&v=art-1"></iframe>
+  </div>
+
+  <div id="viewBill" class="na-view" role="tabpanel" aria-labelledby="tabBill" hidden>
+    <iframe id="billFrame" class="na-iframe" title="上游账单" src="/static/bill_ui.html?embed=1&v=bill-3"></iframe>
+  </div>
+
+  <div id="viewOverview" class="na-view" role="tabpanel" aria-labelledby="tabOverview" hidden>
+    <iframe id="overviewFrame" class="na-iframe" title="一表总览" src="/static/overview_ui.html?embed=1&v=auth-1"></iframe>
+  </div>
+
+  <div id="viewPipeline" class="na-view" role="tabpanel" aria-labelledby="tabPipeline" hidden>
+    <iframe id="pipelineFrame" class="na-iframe" title="全流程智能体" src="/static/agent_ui.html?embed=1&v=art-1"></iframe>
+  </div>
+
+  <script>
+    const EXAMPLES = {
+      volcano: `demo-volcano-test-model-x\n00000000-0000-4000-8000-000000000001\nep-20260101000000-demo1`,
+      volcanoUpgrade: `# 火山方舟自动升级申请：原 GLM-4.7 → GLM-5.2，不改密钥\ndemo-alpha-test-glm-4.7\n字节火山方舟、豆包通用\ndemo-alpha-test-glm-4.7->GLM-5.2`,
+      multi: `demo-alpha-test-model-a\nModel-A｜260101\nark-00000000-0000-4000-8000-000000000001-demo\nep-20260101000000-demo1\n\ndemo-beta-test-model-b\nModel-B｜260102\nark-00000000-0000-4000-8000-000000000001-demo\nep-20260102000000-demo2`,
+      full: `demo-alpha-test-model-a\nModel-A｜260101\nark-00000000-0000-4000-8000-000000000001-demo\nep-20260101000000-demo1\n        15,000 RPM1,500,000 TPM\n\ndemo-beta-test-model-b\nModel-B｜260102\nark-00000000-0000-4000-8000-000000000001-demo\nep-20260102000000-demo2\n        500 RPM1,000,000 TPM`,
+      tokenStd: `demo-alpha-uat-gpt-x-张三\ndemo-alpha-uat\ndemo-alpha-uat-gpt-x，demo-alpha-uat-gpt-y`,
+      tokenSplit: `demo-alpha-uat-gpt-x\n张三\ndemo-alpha-uat\ndemo-alpha-uat-gpt-x，demo-alpha-uat-gpt-y`,
+      tokenChannels: `efficiency-ai-uat-gpt5.6sol\n张三\nefficiency-ai-uat-product-gpt5.6sol efficiency-ai-uat Azure OpenAI efficiency-ai-uat-product-gpt5.6sol efficiency-ai-uat-product-gpt5.6sol->gpt-5.6-sol https://phc-openai-aiic-pmg.openai.azure.com 2025-04-01-preview AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABACOGdemo1\nefficiency-ai-uat-project-gpt5.6sol efficiency-ai-uat Azure OpenAI efficiency-ai-uat-project-gpt5.6sol efficiency-ai-uat-project-gpt5.6sol->gpt-5.6-sol https://phc-openai-aiic-pmo.openai.azure.com 2025-04-01-preview BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBABACOGdemo2\nefficiency-ai-uat-agent-gpt5.6sol efficiency-ai-uat Azure OpenAI efficiency-ai-uat-agent-gpt5.6sol efficiency-ai-uat-agent-gpt5.6sol->gpt-5.6-sol https://phc-openai-aiic-llmg.openai.azure.com 2025-04-01-preview CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCABACOGdemo3`,
+      tokenMulti: `demo-alpha-uat-gpt-x-张三\ndemo-alpha-uat\ndemo-alpha-uat-gpt-x，demo-alpha-uat-gpt-y\n\ndemo-beta-test-claude\n李四\ndemo-beta-test\ndemo-beta-test-claude-sonnet`,
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const logEl = $("log");
+    const batchFrame = $("batchFrame");
+    let batchReady = false;
+    let llmPresets = [];
+    let extractMode = "channel";
+    let updateExtractArmed = false;
+    let lastExtractForUpdate = false;
+    const LLM_STORAGE_KEY = "na_agent_llm_config";
+    const EXTRACT_MODE_KEY = "na_extract_mode";
+
+    function isTokenMode() { return extractMode === "token"; }
+
+    function setUpdateExtractArmed(on, { silent = false } = {}) {
+      updateExtractArmed = Boolean(on) && !isTokenMode();
+      const btn = $("btnExtractUpdate");
+      if (btn) {
+        btn.hidden = isTokenMode();
+        btn.setAttribute("aria-pressed", updateExtractArmed ? "true" : "false");
+        btn.title = updateExtractArmed
+          ? "已启用更新提取：再点「智能提取」将不要求密钥。再点「更新」可取消"
+          : "先点此项，再点「智能提取」：按更新原配置处理，不要求密钥";
+      }
+      if (!silent && !isTokenMode()) {
+        NAUi.toast(
+          updateExtractArmed
+            ? "已切换为更新提取，请再点「智能提取」（不要求密钥）"
+            : "已恢复普通提取（需密钥，用于批量创建）",
+          "ok",
+          2600,
+        );
+      }
+    }
+
+    function setExtractMode(mode, { clear = true } = {}) {
+      extractMode = mode === "token" ? "token" : "channel";
+      try { localStorage.setItem(EXTRACT_MODE_KEY, extractMode); } catch (_) {}
+      document.querySelectorAll("#extractMode button").forEach((btn) => {
+        const on = btn.dataset.mode === extractMode;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      document.querySelectorAll("#exampleCards .na-example-card").forEach((btn) => {
+        const forMode = btn.dataset.for || "channel";
+        btn.hidden = forMode !== extractMode;
+      });
+      const token = isTokenMode();
+      $("extractHeroTitle").innerHTML = token ? "令牌<em>智能提取</em>" : "渠道<em>智能提取</em>";
+      $("extractHeroSub").innerHTML = token
+        ? `<span class="na-badge"><span class="na-badge-dot"></span>智能提取</span> 粘贴令牌名 / 分组 / 模型，或<strong>令牌名 + 渠道批量行</strong>，自动拼成令牌行。`
+        : `<span class="na-badge"><span class="na-badge-dot"></span>智能提取</span> 粘贴杂乱项目信息，一键生成批量配置可用的渠道行。`;
+      $("rawInput").placeholder = token
+        ? "令牌名-人名\\n分组\\n模型…  或  令牌名\\n人名\\n渠道批量行…"
+        : "在此粘贴项目信息，或点击上方示例卡片快速开始…";
+      $("extractHint").innerHTML = token
+        ? "支持<strong>多条</strong>（空行分隔）。也可粘贴「令牌名（人名可分行）+ 渠道批量行」：自动识别分组与模型，输出 <code>令牌名-人名\\t分组\\t模型1,模型2</code>。"
+        : "支持<strong>多条批量提取</strong>。火山：粘贴含 <code>ep-</code>；Azure：粘贴完整门户链接。自动升级请先点「<strong>更新</strong>」，再点「智能提取」。";
+      if (clear) {
+        $("channelLine").textContent = token
+          ? "（提取后将显示可粘贴的令牌行，多条按行分隔）"
+          : "（提取后将显示可粘贴的渠道行，多条按行分隔）";
+        $("channelLine").classList.remove("has-data");
+        $("rawInput").value = "";
+        renderItems([]);
+        $("btnCopy").disabled = true;
+        $("btnApplyBatch").disabled = true;
+        $("meta").innerHTML = "";
+        NAUi.hideBanner("userBanner");
+        lastExtractForUpdate = false;
+        setUpdateExtractArmed(false, { silent: true });
+      }
+      $("btnCopy").textContent = token ? "复制令牌行" : "复制渠道行";
+      $("btnApplyBatch").textContent = token ? "填入令牌管理 →" : "填入批量配置 →";
+      $("llmAdvanced").hidden = token;
+      const updateBtn = $("btnExtractUpdate");
+      if (updateBtn) updateBtn.hidden = token;
+      refreshApplyUpdateBtn();
+    }
+
+    document.querySelectorAll(".na-panel h2").forEach((h2, i) => {
+      if (h2.querySelector(".na-icon")) return;
+      const icons = [NAUi.icon("input"), NAUi.icon("output")];
+      if (icons[i]) h2.insertAdjacentHTML("afterbegin", icons[i]);
+    });
+
+    NAUi.initOnboarding(
+      '<ol class="na-onboarding-steps"><li><strong>接入</strong>提取后写入已配置站点（生产 / 非生产）</li><li><strong>盘点</strong>多站点采集并选择产物下载</li><li><strong>卫生</strong>页内勾选建议并预禁用</li></ol>'
+    );
+    NAUi.initStepNav();
+
+    batchFrame.addEventListener("load", () => {
+      batchReady = true;
+      try { batchFrame.contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+    });
+    $("summaryFrame").addEventListener("load", () => {
+      try { $("summaryFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+    });
+    $("upstreamFrame").addEventListener("load", () => {
+      try { $("upstreamFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+    });
+    $("billFrame").addEventListener("load", () => {
+      try { $("billFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+    });
+    $("overviewFrame").addEventListener("load", () => {
+      try { $("overviewFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+    });
+    $("pipelineFrame").addEventListener("load", () => {
+      try { $("pipelineFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+    });
+    NATheme.bindToggle($("naThemeToggle"));
+
+    function readLlmForm() {
+      return { provider: $("llmProvider").value, api_base: $("llmApiBase").value.trim(), api_key: $("llmApiKey").value.trim(), model: $("llmModel").value.trim() || "gpt-4o-mini" };
+    }
+    function writeLlmForm(cfg = {}) {
+      if (cfg.provider != null) $("llmProvider").value = cfg.provider;
+      if (cfg.api_base != null) $("llmApiBase").value = cfg.api_base;
+      if (cfg.api_key != null) $("llmApiKey").value = cfg.api_key;
+      if (cfg.model != null) $("llmModel").value = cfg.model;
+      updateLlmNote();
+    }
+    function saveLlmConfig() { try { localStorage.setItem(LLM_STORAGE_KEY, JSON.stringify(readLlmForm())); } catch (_) {} }
+    function loadStoredLlmConfig() { try { const raw = localStorage.getItem(LLM_STORAGE_KEY); return raw ? JSON.parse(raw) : {}; } catch (_) { return {}; } }
+    function findPreset(id) { return llmPresets.find((p) => p.id === id) || null; }
+    function updateLlmNote() {
+      const preset = findPreset($("llmProvider").value);
+      const note = $("llmNote");
+      if (!preset) { note.textContent = "支持 OpenAI、DeepSeek、百炼、火山方舟、智谱、Moonshot、硅基流动、Ollama 及自定义兼容 API。"; return; }
+      note.textContent = `${preset.label}：${preset.api_key_required ? "需填写 API Key" : "API Key 可留空"}；${preset.json_mode ? "支持 JSON 模式" : "不支持 JSON 模式，将自动降级"}`;
+    }
+    function applyPreset(id, forceFill = false) {
+      const preset = findPreset(id);
+      if (!preset) return;
+      if (forceFill || !$("llmApiBase").value.trim()) $("llmApiBase").value = preset.api_base || "";
+      if (forceFill || !$("llmModel").value.trim()) $("llmModel").value = preset.model || "gpt-4o-mini";
+      updateLlmNote();
+    }
+    function validateLlmConfig(llm) {
+      if (!llm.api_base) return "启用 LLM 增强需填写 API 地址";
+      const preset = findPreset(llm.provider);
+      if (preset?.api_key_required && !llm.api_key) return `厂商 ${preset.label} 需填写 API Key`;
+      return "";
+    }
+    function formatLlmStatus(llm) {
+      if (!llm?.enabled) return "AI: 未启用";
+      if (!llm.configured) return "AI: 未配置";
+      if (!llm.invoked) return "AI: 未调用";
+      if (!llm.success) return `AI: 调用失败 (${llm.items_failed || 0})`;
+      return `AI: 已调用 ${llm.provider || "llm"}/${llm.model || "model"}，填充 ${(llm.filled_fields || []).length} 项`;
+    }
+    async function initLlmPanel() {
+      let fileDefaults = {};
+      try {
+        const resp = await fetch("/api/llm-presets");
+        const data = await resp.json();
+        if (data.success) { llmPresets = data.data?.presets || []; fileDefaults = data.data?.defaults || {}; }
+      } catch (_) { llmPresets = []; }
+      const select = $("llmProvider");
+      select.innerHTML = "";
+      llmPresets.forEach((p) => { const opt = document.createElement("option"); opt.value = p.id; opt.textContent = p.label; select.appendChild(opt); });
+      const stored = loadStoredLlmConfig();
+      const merged = { provider: stored.provider || fileDefaults.provider || "openai", api_base: stored.api_base || fileDefaults.api_base || "", api_key: stored.api_key || fileDefaults.api_key || "", model: stored.model || fileDefaults.model || "gpt-4o-mini" };
+      writeLlmForm(merged);
+      if (!merged.api_base) applyPreset(merged.provider, true);
+    }
+    function toggleLlmPanel() {
+      $("llmPanel").classList.toggle("visible", $("useLlm").checked);
+      if ($("useLlm").checked) saveLlmConfig();
+    }
+
+    const VIEW_HASH = {
+      workspace: "workspace",
+      agent: "extract",
+      batch: "write",
+      summary: "inventory",
+      upstream: "upstream",
+      bill: "bill",
+      overview: "hygiene",
+      pipeline: "pipeline",
+    };
+    const HASH_VIEW = {
+      workspace: "workspace",
+      extract: "agent",
+      agent: "agent",
+      write: "batch",
+      batch: "batch",
+      inventory: "summary",
+      summary: "summary",
+      upstream: "upstream",
+      bill: "bill",
+      hygiene: "overview",
+      overview: "overview",
+      pipeline: "pipeline",
+    };
+    let hashLock = false;
+    let workspaceSummary = {};
+
+    const NAV_MOTTOS = [
+      "先对齐再落笔",
+      "把噪声留在门外",
+      "今日只做该做的",
+      "配置也有仪式感",
+      "清晰比速度更贵",
+      "少即是完整",
+      "让表格自己说话",
+      "观察胜过误伤",
+      "从混沌到可执行",
+      "克制地改网关",
+      "每一次都可复查",
+      "把待办变成动作",
+      "安静地完成配置",
+      "先看清再动手",
+      "把流程收成一线",
+      "不追速度追准确",
+    ];
+    const NAV_MOTTO_KEY = "na_nav_motto_idx";
+
+    function paintNavMotto() {
+      const el = $("navHint");
+      if (!el || !NAV_MOTTOS.length) return;
+      let last = -1;
+      try { last = Number(sessionStorage.getItem(NAV_MOTTO_KEY)); } catch (_) { /* ignore */ }
+      let idx = Math.floor(Math.random() * NAV_MOTTOS.length);
+      if (NAV_MOTTOS.length > 1 && idx === last) idx = (idx + 1) % NAV_MOTTOS.length;
+      el.textContent = NAV_MOTTOS[idx];
+      try { sessionStorage.setItem(NAV_MOTTO_KEY, String(idx)); } catch (_) { /* ignore */ }
+    }
+
+    function parseLocationHash() {
+      const raw = String(location.hash || "").replace(/^#/, "");
+      const [view, qs] = raw.split("?");
+      return { view: (view || "").trim().toLowerCase(), params: new URLSearchParams(qs || "") };
+    }
+
+    function updateNavIndicator() {
+      const tabs = $("navTabs");
+      const indicator = $("navIndicator");
+      const active = tabs?.querySelector("button.active");
+      if (!tabs || !indicator || !active) return;
+      const tabsRect = tabs.getBoundingClientRect();
+      const activeRect = active.getBoundingClientRect();
+      indicator.style.width = `${activeRect.width}px`;
+      indicator.style.transform = `translateX(${activeRect.left - tabsRect.left}px)`;
+      indicator.style.opacity = "1";
+    }
+
+    function tellOverview(extra) {
+      const frame = $("overviewFrame");
+      if (!frame || !extra) return;
+      const payload = { type: "na-hygiene-select" };
+      if (extra.analysis) payload.analysis = extra.analysis;
+      try { frame.contentWindow.postMessage(payload, "*"); } catch (_) {}
+    }
+
+    const VIEW_FRAME = {
+      batch: "batchFrame",
+      summary: "summaryFrame",
+      upstream: "upstreamFrame",
+      bill: "billFrame",
+      overview: "overviewFrame",
+      pipeline: "pipelineFrame",
+    };
+
+    function tellFrameArtifacts(name) {
+      const frame = VIEW_FRAME[name] && $(VIEW_FRAME[name]);
+      if (!frame) return;
+      try {
+        frame.contentWindow?.postMessage({ type: NAUi.ARTIFACTS_MSG, kinds: [] }, "*");
+      } catch (_) {}
+    }
+
+    function switchView(name, extra) {
+      const views = {
+        workspace: $("viewWorkspace"),
+        agent: $("viewAgent"),
+        batch: $("viewBatch"),
+        summary: $("viewSummary"),
+        upstream: $("viewUpstream"),
+        bill: $("viewBill"),
+        overview: $("viewOverview"),
+        pipeline: $("viewPipeline"),
+      };
+      if (!views[name]) name = "workspace";
+      document.querySelectorAll(".na-nav-tabs button[data-view]").forEach((btn) => {
+        const on = btn.dataset.view === name;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      Object.entries(views).forEach(([key, el]) => {
+        if (!el) return;
+        const on = key === name;
+        el.classList.toggle("active", on);
+        el.hidden = !on;
+        if (on) { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }
+      });
+      let hash = VIEW_HASH[name] || name;
+      if (name === "overview" && extra?.analysis) hash += `?analysis=${encodeURIComponent(extra.analysis)}`;
+      const current = String(location.hash || "").replace(/^#/, "");
+      if (current !== hash) {
+        hashLock = true;
+        location.hash = hash;
+      }
+      if (name === "overview") tellOverview(extra);
+      if (name === "workspace") loadWorkspaceSummary();
+      else tellFrameArtifacts(name);
+      requestAnimationFrame(updateNavIndicator);
+    }
+
+    function formatAgo(iso) {
+      const text = String(iso || "").trim();
+      if (!text) return "";
+      const ts = Date.parse(text.length === 14 ? `${text.slice(0,4)}-${text.slice(4,6)}-${text.slice(6,8)}T${text.slice(8,10)}:${text.slice(10,12)}:${text.slice(12,14)}` : text);
+      if (!Number.isFinite(ts)) return text;
+      const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
+      if (mins < 60) return `${mins} 分钟前`;
+      if (mins < 1440) return `${Math.round(mins / 60)} 小时前`;
+      return `${Math.round(mins / 1440)} 天前`;
+    }
+
+    function kindLabel(kind) {
+      return ({
+        summary: "数据汇总",
+        upstream: "上游信息",
+        overview: "一表总览",
+        analysis: "分析",
+        balance: "余额",
+        bill: "上游账单·火山云",
+        bill_azure: "上游账单·Azure",
+        bill_combined: "上游账单·汇总",
+      })[kind] || kind;
+    }
+
+    const ARTIFACT_VIEW = {
+      summary: "summary",
+      balance: "summary",
+      upstream: "upstream",
+      overview: "overview",
+      analysis: "overview",
+      bill: "bill",
+      bill_azure: "bill",
+      bill_combined: "bill",
+    };
+
+    function escapeHtml(text) {
+      return String(text ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[ch]);
+    }
+
+    function jobStatusLabel(status) {
+      return ({ queued: "排队", planning: "规划中", running: "执行中", waiting_confirm: "待确认" })[status] || status || "进行中";
+    }
+
+    function openArtifactView(item) {
+      const view = ARTIFACT_VIEW[item?.kind];
+      if (!view) return;
+      if (view === "overview") switchView("overview", { analysis: workspaceSummary.analysis_file || item.filename || "" });
+      else switchView(view);
+    }
+
+    function runWorkspaceTask(task) {
+      if (task === "onboard") switchView("agent");
+      else if (task === "inventory") switchView("summary");
+      else if (task === "upstream") switchView("upstream");
+      else if (task === "bill") switchView("bill");
+      else if (task === "hygiene") switchView("overview", { analysis: workspaceSummary.analysis_file || "" });
+      else if (task === "pipeline") switchView("pipeline");
+      else if (task === "coverage") switchView("overview", { analysis: workspaceSummary.analysis_file || "" });
+      else if (task === "auth") openWsAuthDrawer();
+    }
+
+    async function downloadArtifact(item) {
+      if (!item?.filename) return;
+      try {
+        await NAUi.downloadUrl(
+          `/api/artifacts/download?file=${encodeURIComponent(item.filename)}`,
+          item.filename,
+          { confirmSecrets: Boolean(item.has_secrets) },
+        );
+      } catch (e) {
+        if (String(e.message || e) !== "已取消下载") NAUi.toast(String(e.message || e), "err");
+      }
+    }
+
+    function applyWsPolicyForm(policy) {
+      if (!policy) return;
+      if ($("wsPolDays")) $("wsPolDays").value = policy.new_deploy_days ?? 10;
+      if ($("wsPolUnused")) $("wsPolUnused").value = policy.unused_used_usd ?? 0;
+      if ($("wsPolUncommon")) $("wsPolUncommon").value = policy.uncommon_used_usd ?? 1;
+    }
+
+    function envAuthLabel(site) {
+      if (site.session_ready) return "已认证";
+      if (site.needs_otp_prompt) return "需临时验证码";
+      if (site.has_totp_secret) return "TOTP 已预置";
+      return "需手填验证码";
+    }
+
+    function paintEnvChips(sites) {
+      const chips = $("wsEnvChips");
+      if (!chips) return;
+      chips.innerHTML = "";
+      if (!sites.length) {
+        chips.textContent = "未配置 env/sites.json";
+        return;
+      }
+      sites.forEach((site) => {
+        const span = document.createElement("span");
+        span.className = "na-env-chip" + (site.session_ready || site.has_totp_secret ? " is-ok" : " is-warn");
+        span.textContent = `${site.cluster || ""} · ${String(site.env || "").toUpperCase()} · ${envAuthLabel(site)}`;
+        chips.appendChild(span);
+      });
+    }
+
+    function fillWsAuthDrawer(sites) {
+      const body = $("wsAuthDrawerBody");
+      if (!body) return;
+      if (!sites.length) {
+        body.innerHTML = "<p class=\"na-hint\">未配置 env/sites.json。复制 env/sites.example.json 为 sites.json 后填写已部署集群。</p>";
+        return;
+      }
+      body.innerHTML = `<ul class="na-ws-auth-list">${sites.map((site) => {
+        const env = String(site.env || "").toLowerCase();
+        const totp = site.has_totp_secret ? "TOTP 已预置" : "未预置 TOTP";
+        const mode = site.auth_mode === "token" ? "Access Token" : "账号密码";
+        const showOtp = !site.session_ready && !site.has_totp_secret;
+        const status = envAuthLabel(site);
+        return `<li data-env="${escapeHtml(env)}">
+          <strong>${escapeHtml(site.cluster || "")} · ${escapeHtml(String(site.env || "").toUpperCase())}</strong>
+          <span>${escapeHtml(site.host || site.base_url || "未填地址")} · ${mode} · ${totp}</span>
+          <span class="na-ws-auth-status">${escapeHtml(site.auth_message || status)}</span>
+          ${showOtp ? `<label class="na-field"><span class="na-field-label">临时验证码（约 30 秒）</span><input data-otp type="text" autocomplete="one-time-code" maxlength="128" placeholder="6 位码或 8 位备用码" /></label>` : ""}
+        </li>`;
+      }).join("")}</ul>`;
+    }
+
+    async function openWsAuthDrawer() {
+      await loadWorkspaceSummary();
+      fillWsAuthDrawer(workspaceSummary.env_sites || []);
+      const el = $("wsAuthDrawer");
+      if (el) el.hidden = false;
+    }
+
+    function closeWsAuthDrawer() {
+      const el = $("wsAuthDrawer");
+      if (el) el.hidden = true;
+    }
+
+    function renderWorkspace(data) {
+      workspaceSummary = data || {};
+      const missing = Boolean(data.analysis_missing);
+      const pendingHigh = Number(data.pending_high);
+      const openCount = Number(data.open_count);
+      const coverageOpen = Number(data.coverage_open);
+      const jobs = data.active_job_list || [];
+
+      const hero = $("wsHeroSub");
+      if (hero) {
+        if (missing) hero.textContent = "尚无分析表，不会显示假 0。可先盘点、采上游，再到一表总览生成卫生建议。";
+        else if (Number.isFinite(pendingHigh) && pendingHigh > 0) hero.textContent = `有 ${pendingHigh} 条高优先级待处置${Number.isFinite(openCount) ? `（未处理共 ${openCount}）` : ""}。点卡片即可跳转。`;
+        else hero.textContent = "今日暂无高优先级待办。覆盖与采集进度见下方色条。";
+      }
+
+      const jobBar = $("wsJobBar");
+      if (jobBar) {
+        if (!jobs.length) {
+          jobBar.hidden = true;
+          jobBar.innerHTML = "";
+        } else {
+          jobBar.hidden = false;
+          jobBar.innerHTML = jobs.map((job) => {
+            const live = job.status === "running" || job.status === "waiting_confirm" ? " live" : "";
+            const title = escapeHtml(job.goal || job.message || job.id || "智能体任务");
+            return `<button type="button" class="na-job-chip${live}" data-task="pipeline">${jobStatusLabel(job.status)} · ${title}</button>`;
+          }).join("");
+        }
+      }
+
+      const cards = [
+        missing
+          ? { task: "hygiene", title: "卫生建议", value: "去生成", sub: "尚无分析表", empty: true, warn: false }
+          : { task: "hygiene", title: "高优先级未处理", value: String(data.pending_high ?? 0), sub: Number.isFinite(openCount) ? `未处理共 ${openCount}` : (data.analysis_file || ""), empty: false, warn: pendingHigh > 0 },
+        missing
+          ? { task: "hygiene", title: "新部署观察", value: "—", sub: "分析后可见宽限期", empty: true, warn: false }
+          : { task: "hygiene", title: "新部署观察", value: String(data.hold_count ?? 0), sub: "宽限期内暂缓禁用", empty: false, warn: false },
+        missing
+          ? { task: "hygiene", title: "环境覆盖", value: "—", sub: "分析后按已配置站点对照", empty: true, warn: false }
+          : { task: "coverage", title: "环境覆盖", value: String(Number.isFinite(coverageOpen) ? coverageOpen : 0), sub: data.up_no_down_open ? `上游无下游 ${data.up_no_down_open}` : "已配置站点不齐 / 密钥不一致", empty: false, warn: coverageOpen > 0 },
+        Number(data.active_jobs) > 0
+          ? { task: "pipeline", title: "未完成任务", value: String(data.active_jobs), sub: jobs[0]?.goal || "智能体进行中", empty: false, warn: true }
+          : { task: "pipeline", title: "未完成任务", value: "0", sub: "智能体 Jobs", empty: false, warn: false },
+      ];
+      $("wsTodoGrid").innerHTML = cards.map((c) =>
+        `<button type="button" class="na-ws-stat${c.empty ? " is-empty" : ""}${c.warn ? " is-warn" : ""}" data-task="${c.task}"><span class="na-ws-stat-title">${c.title}</span><span class="na-ws-stat-value">${c.value}</span>${c.sub ? `<span class="na-ws-sub">${c.sub}</span>` : ""}</button>`
+      ).join("");
+
+      const pulse = [
+        data.last_summary_at
+          ? { task: "inventory", title: "网关盘点", value: formatAgo(data.last_summary_at) || "已采集", empty: false }
+          : { task: "inventory", title: "网关盘点", value: "去盘点", empty: true },
+        data.last_upstream_at
+          ? { task: "upstream", title: "上游信息", value: formatAgo(data.last_upstream_at) || "已采集", empty: false }
+          : { task: "upstream", title: "上游信息", value: "去采集", empty: true },
+        data.last_bill_at
+          ? { task: "bill", title: "上游账单", value: formatAgo(data.last_bill_at) || "已采集", empty: false }
+          : { task: "bill", title: "上游账单", value: "去采集", empty: true },
+      ];
+      $("wsPulse").innerHTML = pulse.map((p) =>
+        `<button type="button" class="na-ws-pulse-item${p.empty ? " is-empty" : ""}" data-task="${p.task}"><span>${p.title}</span><strong>${p.value}</strong></button>`
+      ).join("");
+
+      const list = $("wsArtifactList");
+      const arts = data.latest_artifacts || [];
+      if (!arts.length) {
+        list.innerHTML = `<li class="na-ws-empty"><span>还没有产物。请先做例行盘点、上游采集或卫生分析。</span><span class="na-ws-inline-actions"><button type="button" class="na-btn na-btn-ghost" data-task="inventory">去盘点</button><button type="button" class="na-btn na-btn-ghost" data-task="upstream">采上游</button></span></li>`;
+      } else {
+        list.innerHTML = "";
+        arts.forEach((item) => {
+          const li = document.createElement("li");
+          const left = document.createElement("div");
+          left.innerHTML = `<strong>${kindLabel(item.kind)}</strong> ${escapeHtml(item.filename)}${item.has_secrets ? '<span class="na-secret-tag">含密钥</span>' : ""}<div class="meta">${escapeHtml(formatAgo(item.created_at || item.mtime) || item.created_at || item.mtime || "")}</div>`;
+          const actions = document.createElement("div");
+          actions.className = "na-ws-inline-actions";
+          if (ARTIFACT_VIEW[item.kind]) {
+            const openBtn = document.createElement("button");
+            openBtn.type = "button";
+            openBtn.className = "na-btn na-btn-ghost";
+            openBtn.textContent = "打开";
+            openBtn.addEventListener("click", () => openArtifactView(item));
+            actions.appendChild(openBtn);
+          }
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "na-btn na-btn-ghost";
+          btn.textContent = "下载";
+          btn.addEventListener("click", () => downloadArtifact(item));
+          actions.appendChild(btn);
+          li.appendChild(left);
+          li.appendChild(actions);
+          list.appendChild(li);
+        });
+      }
+
+      const sites = data.env_sites || [];
+      paintEnvChips(sites);
+      $("wsPolicyHint").textContent = data.policy?.summary ? `卫生策略：${data.policy.summary}` : "卫生策略：宽限 10 天 · 不用 $0 · 不常用 $1";
+      applyWsPolicyForm(data.policy || {});
+      fillWsAuthDrawer(sites);
+    }
+
+    let wsLoadGen = 0;
+    async function loadWorkspaceSummary() {
+      const gen = ++wsLoadGen;
+      const fetchOnce = async () => {
+        const resp = await fetch("/api/workspace/summary", { headers: { Accept: "application/json" } });
+        const ctype = (resp.headers.get("Content-Type") || "").toLowerCase();
+        if (!ctype.includes("json")) throw new Error("not-json");
+        const pack = await resp.json();
+        if (!resp.ok || pack.success === false) throw new Error(pack.message || `HTTP ${resp.status}`);
+        return pack.data || {};
+      };
+      try {
+        let data;
+        try {
+          data = await fetchOnce();
+        } catch (e) {
+          if (String(e.message || e) !== "not-json") throw e;
+          await new Promise((resolve) => setTimeout(resolve, 280));
+          data = await fetchOnce();
+        }
+        if (gen !== wsLoadGen) return;
+        renderWorkspace(data);
+      } catch (e) {
+        if (gen !== wsLoadGen) return;
+        renderWorkspace({ analysis_missing: true, env_sites: [], latest_artifacts: [] });
+        $("wsPolicyHint").textContent = String(e.message || e) === "not-json"
+          ? "工作台接口未就绪，请刷新"
+          : String(e.message || e);
+      }
+    }
+
+    async function saveWsPolicy() {
+      const btn = $("btnWsSavePolicy");
+      try {
+        if (btn) btn.disabled = true;
+        const prev = workspaceSummary.policy || {};
+        const resp = await fetch("/api/policy/hygiene", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            new_deploy_days: Number($("wsPolDays").value),
+            unused_used_usd: Number($("wsPolUnused").value),
+            uncommon_used_usd: Number($("wsPolUncommon").value),
+            relax_on_new_deploy: prev.relax_on_new_deploy,
+            external_vendors_in_scope: prev.external_vendors_in_scope,
+          }),
+        });
+        const pack = await resp.json();
+        if (!resp.ok || !pack.success) throw new Error(pack.message || `HTTP ${resp.status}`);
+        NAUi.toast(pack.message || "卫生策略已保存", "ok");
+        await loadWorkspaceSummary();
+      } catch (e) {
+        NAUi.toast(String(e.message || e), "err");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    document.querySelectorAll(".na-nav-tabs button[data-view]").forEach((btn) => {
+      btn.addEventListener("click", () => switchView(btn.dataset.view));
+    });
+    document.querySelectorAll(".na-ws-card[data-task]").forEach((btn) => {
+      btn.addEventListener("click", () => runWorkspaceTask(btn.dataset.task));
+    });
+    $("wsTodoGrid")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-task]");
+      if (btn) runWorkspaceTask(btn.dataset.task);
+    });
+    $("wsPulse")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-task]");
+      if (btn) runWorkspaceTask(btn.dataset.task);
+    });
+    $("wsJobBar")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-task]");
+      if (btn) runWorkspaceTask(btn.dataset.task);
+    });
+    $("wsArtifactList")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-task]");
+      if (btn) runWorkspaceTask(btn.dataset.task);
+    });
+    NAUi.initArtifactBridge(() => { loadWorkspaceSummary(); });
+    $("btnWsRefresh")?.addEventListener("click", () => loadWorkspaceSummary());
+    $("btnWsAuth")?.addEventListener("click", () => openWsAuthDrawer());
+    $("btnWsAuthClose")?.addEventListener("click", () => closeWsAuthDrawer());
+    $("btnWsAuthGoBatch")?.addEventListener("click", () => { closeWsAuthDrawer(); switchView("batch"); });
+    $("btnWsAuthRun")?.addEventListener("click", async () => {
+      const btn = $("btnWsAuthRun");
+      const payload = [];
+      document.querySelectorAll("#wsAuthDrawerBody li[data-env]").forEach((li) => {
+        const env = li.dataset.env || "";
+        const otp = String(li.querySelector("[data-otp]")?.value || "").trim();
+        if (env && otp) payload.push({ env, otp_code: otp });
+      });
+      if (btn) { btn.disabled = true; btn.classList.add("loading"); }
+      try {
+        const resp = await fetch("/api/workspace/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sites: payload }),
+        });
+        const pack = await resp.json();
+        if (!resp.ok || pack.success === false) throw new Error(pack.message || `HTTP ${resp.status}`);
+        const items = pack.data?.items || [];
+        const byEnv = {};
+        items.forEach((it) => { byEnv[String(it.env || "").toLowerCase()] = it; });
+        const merged = (workspaceSummary.env_sites || []).map((site) => {
+          const hit = byEnv[String(site.env || "").toLowerCase()];
+          if (!hit) return site;
+          return {
+            ...site,
+            session_ready: !!hit.session_ready,
+            needs_otp_prompt: !!hit.needs_otp_prompt && !hit.session_ready,
+            auth_message: hit.message || "",
+          };
+        });
+        workspaceSummary.env_sites = merged;
+        paintEnvChips(merged);
+        fillWsAuthDrawer(merged);
+        const need = Number(pack.data?.need_otp) || 0;
+        NAUi.toast(pack.message || "认证完成", need ? "warn" : "ok");
+        try { NAUi.broadcastToFrames({ type: "na-auth-changed", kinds: [] }); } catch (_) {}
+      } catch (e) {
+        NAUi.toast(e.message || String(e), "err");
+      } finally {
+        if (btn) { btn.disabled = false; btn.classList.remove("loading"); }
+      }
+    });
+    $("btnWsPolicy")?.addEventListener("click", () => switchView("overview", { analysis: workspaceSummary.analysis_file || "" }));
+    $("btnWsSavePolicy")?.addEventListener("click", () => saveWsPolicy());
+    $("wsAuthDrawer")?.addEventListener("click", (ev) => {
+      if (ev.target === $("wsAuthDrawer")) closeWsAuthDrawer();
+    });
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape" && $("wsAuthDrawer") && !$("wsAuthDrawer").hidden) closeWsAuthDrawer();
+    });
+    window.addEventListener("hashchange", () => {
+      if (hashLock) {
+        hashLock = false;
+        return;
+      }
+      const parsed = parseLocationHash();
+      switchView(HASH_VIEW[parsed.view] || "workspace", { analysis: parsed.params.get("analysis") || "" });
+    });
+    window.addEventListener("resize", updateNavIndicator);
+
+    const bootHash = parseLocationHash();
+    switchView(HASH_VIEW[bootHash.view] || "workspace", { analysis: bootHash.params.get("analysis") || "" });
+    paintNavMotto();
+
+    $("useLlm").addEventListener("change", toggleLlmPanel);
+    $("llmProvider").addEventListener("change", () => { applyPreset($("llmProvider").value, true); saveLlmConfig(); });
+    ["llmApiBase", "llmApiKey", "llmModel"].forEach((id) => { $(id).addEventListener("input", () => { updateLlmNote(); saveLlmConfig(); }); });
+    initLlmPanel().then(() => {
+      toggleLlmPanel();
+      if ($("viewWorkspace")?.classList.contains("active")) loadWorkspaceSummary();
+    });
+
+    document.querySelectorAll("#extractMode button").forEach((btn) => {
+      btn.addEventListener("click", () => setExtractMode(btn.dataset.mode));
+    });
+    document.querySelectorAll(".na-example-card").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        $("rawInput").value = EXAMPLES[btn.dataset.example] || "";
+        refreshApplyUpdateBtn();
+        if (btn.dataset.example === "volcanoUpgrade") {
+          NAUi.toast("请先点「更新」，再点「智能提取」", "ok", 2800);
+        } else {
+          NAUi.toast("已载入示例", "ok", 2200);
+        }
+      });
+    });
+    try {
+      const savedMode = localStorage.getItem(EXTRACT_MODE_KEY);
+      setExtractMode(savedMode === "token" ? "token" : "channel", { clear: false });
+    } catch (_) {
+      setExtractMode("channel", { clear: false });
+    }
+
+    function addLog(msg, cls = "") {
+      const div = document.createElement("div");
+      if (cls) div.className = cls;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.prepend(div);
+    }
+
+    function renderItems(items) {
+      const container = $("itemList");
+      container.innerHTML = "";
+      if (!items || !items.length) {
+        container.innerHTML = `<div class="na-empty" id="emptyResults"><div class="na-empty-icon"><svg viewBox="0 0 24 24"><path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg></div><div class="na-empty-title">尚无提取结果</div><div class="na-empty-desc">粘贴左侧内容并点击「智能提取」</div></div>`;
+        return;
+      }
+      items.forEach((item, idx) => {
+        const card = document.createElement("div");
+        card.className = "na-result-card" + (item.success ? "" : " fail");
+        card.style.animationDelay = `${idx * 0.05}s`;
+        const fields = item.fields || {};
+        const fieldHtml = Object.entries(fields).slice(0, 6).map(([k, v]) => `<dt>${k}</dt><dd>${v || "—"}</dd>`).join("");
+        const title = fields["名称"] || item.name || "未识别";
+        const line = item.token_line || item.channel_line || item.message || "提取失败";
+        card.innerHTML = `<div class="na-result-head"><h3>#${item.index} ${title}</h3><span class="na-result-badge ${item.success ? "ok" : "fail"}">${item.success ? "成功" : "失败"}</span></div>${fieldHtml ? `<dl class="na-result-fields">${fieldHtml}</dl>` : ""}<div class="na-result-line">${line}</div>`;
+        container.appendChild(card);
+      });
+    }
+
+    function getExtractedText() {
+      const el = $("channelLine");
+      if (!el.classList.contains("has-data")) return "";
+      const text = el.textContent.trim();
+      if (!text || text.startsWith("（提取后")) return "";
+      return text;
+    }
+    function getChannelText() { return getExtractedText(); }
+
+    function refreshApplyUpdateBtn() {
+      const el = $("btnApplyUpdate");
+      if (!el) return;
+      const token = isTokenMode();
+      el.hidden = token;
+      const ready = !token && Boolean(getExtractedText()) && lastExtractForUpdate;
+      el.disabled = !ready;
+      el.title = token
+        ? "令牌模式请用「填入令牌管理」"
+        : (ready
+          ? "填入渠道管理「更新原配置」，不走批量创建"
+          : "请先点「更新」，再点「智能提取」");
+    }
+
+    function stripChannelLineSecrets(text) {
+      return String(text || "").split(/\r?\n/).map((raw) => {
+        const line = raw.trim();
+        if (!line || line.startsWith("#")) return raw;
+        return line
+          .replace(/\s+ark-[\w-]+$/i, "")
+          .replace(/\s+sk-[A-Za-z0-9._-]+$/i, "")
+          .replace(/\s+[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "")
+          .replace(/\s+[A-Za-z0-9]{32,}$/, "");
+      }).join("\n").trim();
+    }
+
+    function normalizeNaBaseUrl(raw) {
+      const text = (raw || "").trim();
+      if (!text) return "";
+      let candidate = text;
+      if (!/^https?:\/\//i.test(candidate)) candidate = `https://${candidate}`;
+      try {
+        const url = new URL(candidate);
+        if (/^\/console(?:\/|$)/i.test(url.pathname) || /^\/api(?:\/|$)/i.test(url.pathname)) { url.pathname = ""; url.search = ""; url.hash = ""; }
+        return url.origin.replace(/\/+$/, "");
+      } catch (_) {
+        return text.replace(/\/console(?:\/.*)?\/?$/i, "").replace(/\/api(?:\/.*)?\/?$/i, "").replace(/\/+$/, "");
+      }
+    }
+
+    function applyConnectionConfigToDoc(doc, config) {
+      if (!doc || !config) return;
+      const setValue = (id, value) => { const el = doc.getElementById(id); if (!el || value == null || value === "") return; el.value = String(value); el.dispatchEvent(new Event("input", { bubbles: true })); };
+      const switchAuth = (mode) => {
+        doc.querySelectorAll(".auth-tabs button").forEach((btn) => btn.classList.toggle("active", btn.dataset.auth === mode));
+        doc.getElementById("authPassword")?.classList.toggle("active", mode === "password");
+        doc.getElementById("authToken")?.classList.toggle("active", mode === "token");
+      };
+      setValue("baseUrl", normalizeNaBaseUrl(config.base_url || ""));
+      setValue("defaultKey", config.default_key);
+      const useToken = Boolean(config.auth_mode === "token" || (config.access_token && !config.username && !config.password));
+      if (useToken) { switchAuth("token"); setValue("accessToken", config.access_token); if (config.user_id != null) setValue("userId", config.user_id); }
+      else { switchAuth("password"); setValue("username", config.username); setValue("password", config.password); setValue("otpCode", config.otp_code); }
+    }
+
+    async function loadMergedBatchConfig() {
+      let stored = {};
+      try { const raw = localStorage.getItem("na_batch_connection_config"); if (raw) stored = JSON.parse(raw); } catch (_) {}
+      let fileConfig = {};
+      try { const resp = await fetch("/api/batch-config"); const data = await resp.json(); if (data.success) fileConfig = data.data || {}; } catch (_) {}
+      return { ...fileConfig, ...stored };
+    }
+
+    async function applyToBatch() {
+      const text = getExtractedText();
+      const token = isTokenMode();
+      if (!text) {
+        NAUi.showBanner("userBanner", token ? "没有可填入的令牌行，请先完成提取" : "没有可填入的渠道行，请先完成提取", "warn");
+        return;
+      }
+      if (!token && lastExtractForUpdate) {
+        NAUi.showBanner("userBanner", "当前为更新提取结果，请用「填入更新原配置」", "warn");
+        return;
+      }
+      const doc = batchFrame.contentDocument;
+      if (!doc) { NAUi.toast("批量配置页面尚未加载", "warn"); return; }
+
+      const config = await loadMergedBatchConfig();
+      const win = batchFrame.contentWindow;
+      let flashEl = null;
+      if (token) {
+        const tokenText = doc.getElementById("tokenBatchText");
+        if (!tokenText) { NAUi.toast("未找到令牌批量输入框", "warn"); return; }
+        if (win?.__naBatchApplyTokenText) win.__naBatchApplyTokenText(text);
+        else {
+          tokenText.value = text;
+          tokenText.dispatchEvent(new Event("input", { bubbles: true }));
+          doc.querySelector('.module-tabs button[data-module="token"]')?.click();
+        }
+        flashEl = tokenText;
+      } else {
+        const batchText = doc.getElementById("batchText");
+        if (!batchText) { NAUi.toast("未找到批量渠道输入框", "warn"); return; }
+        if (win?.__naBatchApplyChannelText) win.__naBatchApplyChannelText(text);
+        else { batchText.value = text; batchText.dispatchEvent(new Event("input", { bubbles: true })); }
+        if (!win?.__naBatchApplyChannelText) {
+          if (win?.__naBatchFocusChannel) win.__naBatchFocusChannel();
+          else doc.querySelector('.module-tabs button[data-module="channel"]')?.click();
+        }
+        flashEl = batchText;
+      }
+      if (win?.__naBatchApplyConfig) win.__naBatchApplyConfig(config);
+      else applyConnectionConfigToDoc(doc, config);
+
+      switchView("batch");
+      if (flashEl) NAUi.flashEl(flashEl);
+      NAUi.setFlowProgress({ step1: true, step2: false, step3: false });
+      const lineCount = text.split(/\r?\n/).filter((l) => l.trim()).length;
+      const msg = token
+        ? `已填入 ${lineCount} 条令牌数据，请测试连接后批量创建`
+        : `已填入 ${lineCount} 条渠道数据，请测试连接后批量创建`;
+      NAUi.showBanner("userBanner", msg, "ok");
+      NAUi.toast(msg, "ok");
+      addLog(msg, "ok");
+    }
+
+    async function applyToUpdate() {
+      if (isTokenMode()) {
+        NAUi.showBanner("userBanner", "令牌模式请使用「填入令牌管理」", "warn");
+        return;
+      }
+      if (!lastExtractForUpdate) {
+        NAUi.showBanner("userBanner", "请先点「更新」，再点「智能提取」，然后再填入", "warn");
+        return;
+      }
+      const text = stripChannelLineSecrets(getExtractedText());
+      if (!text) {
+        NAUi.showBanner("userBanner", "没有可填入的更新行，请先完成更新提取", "warn");
+        return;
+      }
+      const doc = batchFrame.contentDocument;
+      if (!doc) { NAUi.toast("批量配置页面尚未加载", "warn"); return; }
+      const config = await loadMergedBatchConfig();
+      const win = batchFrame.contentWindow;
+      if (win?.__naBatchApplyChannelTextForUpdate) win.__naBatchApplyChannelTextForUpdate(text);
+      else if (win?.__naBatchApplyChannelText) win.__naBatchApplyChannelText(text);
+      else {
+        const batchText = doc.getElementById("batchText");
+        if (!batchText) { NAUi.toast("未找到批量渠道输入框", "warn"); return; }
+        batchText.value = text;
+        batchText.dispatchEvent(new Event("input", { bubbles: true }));
+        doc.querySelector('.module-tabs button[data-module="channel"]')?.click();
+      }
+      if (win?.__naBatchApplyConfig) win.__naBatchApplyConfig(config);
+      else applyConnectionConfigToDoc(doc, config);
+      switchView("batch");
+      const flashEl = doc.getElementById("channelUpdateSection") || doc.getElementById("batchText");
+      if (flashEl) NAUi.flashEl(flashEl);
+      const lineCount = text.split(/\r?\n/).filter((l) => l.trim()).length;
+      const msg = `已填入 ${lineCount} 条到「更新原配置」。请预更新后确认；不要点「开始批量创建」。`;
+      NAUi.showBanner("userBanner", msg, "ok");
+      NAUi.toast(msg, "ok");
+      addLog(msg, "ok");
+    }
+
+    async function extract() {
+      const raw = $("rawInput").value.trim();
+      if (!raw) { NAUi.showBanner("userBanner", "请先粘贴或选择示例内容", "warn"); return; }
+      const token = isTokenMode();
+      const useLlm = !token && $("useLlm").checked;
+      const llm = readLlmForm();
+      if (useLlm) { const err = validateLlmConfig(llm); if (err) { NAUi.showBanner("userBanner", err, "warn"); return; } }
+      const forUpdate = !token && updateExtractArmed;
+      $("btnExtract").disabled = true;
+      NAUi.showBanner(
+        "userBanner",
+        forUpdate ? "正在按更新原配置提取（不要求密钥）…" : (useLlm ? "正在提取（将调用 AI）…" : "正在提取…"),
+        "info",
+      );
+      addLog(forUpdate ? "正在更新提取…" : (useLlm ? "正在提取（将调用 AI）…" : (token ? "正在令牌提取…" : "正在提取…")));
+      try {
+        if (!token) saveLlmConfig();
+        const url = token ? "/api/extract-token" : "/api/extract";
+        const body = token
+          ? { raw_text: raw }
+          : { raw_text: raw, for_update: forUpdate, use_llm: useLlm, llm_provider: llm.provider, llm_api_base: llm.api_base, llm_api_key: llm.api_key, llm_model: llm.model };
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await res.json();
+        renderItems(data.items || []);
+        const out = data.token_lines || data.channel_lines || data.token_line || data.channel_line || data.message || "提取失败";
+        $("channelLine").textContent = out;
+        const hasOutput = !!(data.token_lines || data.channel_lines || data.token_line || data.channel_line);
+        lastExtractForUpdate = Boolean(forUpdate && data.success && hasOutput);
+        $("channelLine").classList.toggle("has-data", hasOutput);
+        $("btnCopy").disabled = !hasOutput;
+        $("btnApplyBatch").disabled = !hasOutput || lastExtractForUpdate;
+        refreshApplyUpdateBtn();
+
+        $("meta").innerHTML = "";
+        const mode = document.createElement("span"); mode.textContent = `模式: ${data.mode || (token ? "token_rules" : "—")}`; $("meta").appendChild(mode);
+        if (data.llm) { const ai = document.createElement("span"); ai.className = data.llm.success ? "ok" : (data.llm.enabled ? "warn" : ""); ai.textContent = formatLlmStatus(data.llm); $("meta").appendChild(ai); }
+        const count = document.createElement("span"); count.className = data.success ? "ok" : "warn"; count.textContent = `条数: ${data.count ?? 0}`; $("meta").appendChild(count);
+        [...(data.warnings || []), ...(data.llm?.errors || [])].forEach((w) => { const s = document.createElement("span"); s.className = "warn"; s.textContent = w; $("meta").appendChild(s); });
+
+        if (data.success) {
+          NAUi.setFlowProgress({ step1: true, step2: false, step3: false });
+          NAUi.showBanner("userBanner", data.message || `提取成功，共 ${data.count ?? 0} 条`, lastExtractForUpdate ? "warn" : "ok");
+          NAUi.toast(
+            token
+              ? "令牌提取完成，可填入令牌管理"
+              : (lastExtractForUpdate ? "更新提取完成，请点「填入更新原配置」" : "提取完成，可填入批量配置"),
+            "ok",
+          );
+        } else {
+          lastExtractForUpdate = false;
+          refreshApplyUpdateBtn();
+          NAUi.setFlowProgress({ step1: false, step2: false, step3: false });
+          NAUi.showBanner("userBanner", data.message || "提取失败", "err");
+        }
+        addLog(data.message, data.success ? "ok" : "err");
+      } catch (e) {
+        lastExtractForUpdate = false;
+        refreshApplyUpdateBtn();
+        NAUi.setFlowProgress({ step1: false, step2: false, step3: false });
+        NAUi.showBanner("userBanner", "请求失败: " + e.message, "err");
+        addLog("请求失败: " + e.message, "err");
+      } finally { $("btnExtract").disabled = false; }
+    }
+
+    $("btnExtract").onclick = extract;
+    $("btnExtractUpdate").onclick = () => setUpdateExtractArmed(!updateExtractArmed);
+    $("btnApplyBatch").onclick = applyToBatch;
+    $("btnApplyUpdate").onclick = applyToUpdate;
+    $("rawInput").addEventListener("input", refreshApplyUpdateBtn);
+    $("btnClear").onclick = () => {
+      $("rawInput").value = "";
+      $("channelLine").textContent = isTokenMode()
+        ? "（提取后将显示可粘贴的令牌行，多条按行分隔）"
+        : "（提取后将显示可粘贴的渠道行，多条按行分隔）";
+      $("channelLine").classList.remove("has-data");
+      renderItems([]);
+      $("btnCopy").disabled = true;
+      $("btnApplyBatch").disabled = true;
+      lastExtractForUpdate = false;
+      refreshApplyUpdateBtn();
+      $("meta").innerHTML = "";
+      NAUi.setFlowProgress({ step1: false, step2: false, step3: false });
+      NAUi.hideBanner("userBanner");
+    };
+    $("btnCopy").onclick = async () => {
+      const text = getExtractedText();
+      if (!text) return;
+      try { await navigator.clipboard.writeText(text); NAUi.toast("已复制到剪贴板", "ok"); addLog("已复制到剪贴板", "ok"); }
+      catch { NAUi.toast("复制失败，请手动选择", "warn"); }
+    };
+
+    window.addEventListener("message", (e) => {
+      if (e.data?.type === "na-flow-progress") NAUi.setFlowProgress(e.data.progress || {});
+    });
+  </script>
+</body>
+</html>

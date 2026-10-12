@@ -1,0 +1,8 @@
+{
+  "llm_provider": "openai",
+  "llm_api_base": "https://api.openai.com/v1",
+  "llm_api_key": "sk-your-key",
+  "llm_model": "gpt-4o-mini",
+  "llm_timeout": 60,
+  "comment": "规则引擎可离线工作。LLM 支持 OpenAI、DeepSeek、阿里云百炼、火山方舟、智谱、Moonshot、硅基流动、小米 MiMo、Ollama 及自定义 OpenAI 兼容 API。Ollama 可不填 api_key。MiMo 默认模型 mimo-v2.5-pro，Token Plan 请改用对应区域 Base URL。"
+}

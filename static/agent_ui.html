@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="na-brand-bridge">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>全流程智能体 · NA 自动配置</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=art-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=art-1" />
+  <script src="/static/na-theme.js"></script>
+  <script src="/static/na-ui.js?v=art-1"></script>
+  <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+  <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
+</head>
+<body class="na-app">
+  <div class="na-bg" aria-hidden="true">
+    <div class="na-bg-grid"></div>
+    <div class="na-bg-orb na-bg-orb-1"></div>
+    <div class="na-bg-orb na-bg-orb-2"></div>
+    <div class="na-bg-noise"></div>
+  </div>
+
+  <div class="na-wrap">
+    <div id="userBanner" class="na-banner" role="status"></div>
+    <header class="na-hero na-animate-in">
+      <h1>全流程<em>智能体</em></h1>
+      <p class="na-subtitle">
+        <span class="na-badge"><span class="na-badge-dot"></span>Agent Workbench</span>
+        异步任务 · 可视化计划 · ①②③⑤⑥ · 渠道确认门禁 · SSE 真进度
+      </p>
+    </header>
+
+    <div class="na-agent-grid">
+      <section class="na-panel na-panel-static na-animate-in na-animate-in-1">
+        <h2>任务与计划</h2>
+        <label class="na-field full">
+          <span class="na-field-label">目标描述（可选，供 LLM 规划）</span>
+          <input type="text" id="goal" placeholder="例如：提取写入 test，再汇总三站、生成总览并做智能分析" />
+        </label>
+        <label class="na-field full">
+          <span class="na-field-label">原始项目信息</span>
+          <textarea id="rawText" rows="6" placeholder="粘贴杂乱渠道信息…"></textarea>
+        </label>
+        <div class="na-example-cards" id="exampleCards">
+          <button type="button" class="na-example-card" data-example="multi"><strong>多条示例</strong><span>载入演示数据</span></button>
+        </div>
+
+        <h2 style="margin-top:1.1rem;font-size:0.92rem">执行计划（点击节点开关）</h2>
+        <p class="na-plan-meta" id="planMeta">启动后将由 LLM 规划，并与下方勾选求交。</p>
+        <div class="na-plan-canvas" id="planCanvas" aria-label="计划画布"></div>
+
+        <div class="na-toolbar" style="flex-wrap:wrap">
+          <label class="na-check"><input type="checkbox" id="optExtract" checked /><span class="na-check-box"></span><span>① 提取</span></label>
+          <label class="na-check"><input type="checkbox" id="optBatch" checked /><span class="na-check-box"></span><span>② 渠道</span></label>
+          <label class="na-check"><input type="checkbox" id="optToken" /><span class="na-check-box"></span><span>令牌创建</span></label>
+          <label class="na-check"><input type="checkbox" id="optTokenExport" /><span class="na-check-box"></span><span>令牌导出</span></label>
+          <label class="na-check"><input type="checkbox" id="optSummary" checked /><span class="na-check-box"></span><span>③ 汇总</span></label>
+          <label class="na-check"><input type="checkbox" id="optUpstream" /><span class="na-check-box"></span><span>⑤ 上游</span></label>
+          <label class="na-check"><input type="checkbox" id="optOverview" /><span class="na-check-box"></span><span>⑥ 总览</span></label>
+          <label class="na-check"><input type="checkbox" id="optAnalyze" /><span class="na-check-box"></span><span>智能分析</span></label>
+          <label class="na-check"><input type="checkbox" id="optConfirm" checked /><span class="na-check-box"></span><span>提取后确认</span></label>
+          <label class="na-check"><input type="checkbox" id="optDryRun" /><span class="na-check-box"></span><span>试运行</span></label>
+        </div>
+        <p class="na-hint" style="margin-top:0.35rem">⑤⑥ 与分析默认关闭。总览只从已有③⑤文件提取（不含渠道密钥）；无总览时分析会跳过。仅跑 ⑤⑥ 时请取消勾选①提取。</p>
+        <label class="na-field full" style="margin-top:0.65rem">
+          <span class="na-field-label">令牌用户名（每条渠道各建一条：渠道名-用户名）</span>
+          <input type="text" id="tokenUsernames" placeholder="例如：样例甲（多个可换行或逗号分隔）" autocomplete="off" />
+        </label>
+        <p class="na-hint" style="margin-top:0.35rem">命名规则：<code>{渠道名}-{用户名}</code>，如 <code>demo-alpha-test-glm-x-样例甲</code>。多条渠道会各自生成一条令牌。</p>
+
+        <h2 style="margin-top:1.1rem;font-size:0.92rem">网关连接（与批量 Tab 同步）</h2>
+        <div class="na-toolbar" id="envSiteSwitch" hidden style="margin-bottom:0.45rem">
+          <button type="button" class="na-btn na-btn-ghost" data-env="test">test</button>
+          <button type="button" class="na-btn na-btn-ghost" data-env="uat">uat</button>
+          <button type="button" class="na-btn na-btn-ghost" data-env="prod">prod</button>
+          <span class="na-hint" style="margin:0">从 env/sites.json 填入账号密码与 TOTP</span>
+        </div>
+        <div class="na-auth-tabs" id="authTabs">
+          <button type="button" class="active" data-auth="password">账号密码</button>
+          <button type="button" data-auth="token">Access Token</button>
+        </div>
+        <div class="na-llm-grid">
+          <label class="full">New API 地址<input id="baseUrl" placeholder="https://na-test.example.com" autocomplete="off" /></label>
+        </div>
+        <div class="na-auth-panel active" id="authPassword">
+          <div class="na-llm-grid">
+            <label>用户名<input id="username" value="admin" autocomplete="off" /></label>
+            <label>密码<input id="password" type="password" placeholder="可留空，使用 env/sites.json" autocomplete="off" /></label>
+            <label class="full">二次验证码（登录 2FA）<input id="otpCode" type="text" autocomplete="one-time-code" maxlength="128" placeholder="可留空（env 已预置 totp_secret 时自动生成）" /></label>
+          </div>
+          <p class="na-hint" style="margin:0.35rem 0 0">密码与 TOTP 密钥可从 <code>env/sites.json</code> 自动补齐，页面可留空。也可填认证器当前码，或粘贴原始密钥。建议先「测试连接」建立会话。验证码不写入本地缓存。</p>
+          <p class="na-hint" id="totpSecretHint" hidden style="margin:0.25rem 0 0">该环境已在 sites.json 配置 TOTP 密钥，将自动生成验证码。</p>
+        </div>
+        <div class="na-auth-panel" id="authToken">
+          <div class="na-llm-grid">
+            <label class="full">Access Token<input id="accessToken" type="password" placeholder="令牌" autocomplete="off" /></label>
+            <label>用户 ID<input id="userId" type="number" placeholder="1" autocomplete="off" /></label>
+          </div>
+        </div>
+        <div class="na-llm-grid" style="margin-top:0.5rem">
+          <label class="full">默认 Key（渠道用）<input id="defaultKey" placeholder="sk-..." autocomplete="off" /></label>
+        </div>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-ghost" id="btnTestConn">测试连接</button>
+          <span class="na-hint" style="margin:0">高级操作请切到「批量配置」Tab</span>
+        </div>
+
+        <h2 style="margin-top:1.1rem;font-size:0.92rem">汇总站点（与汇总 Tab 同步）</h2>
+        <div class="na-site-list" id="siteList" aria-live="polite"></div>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-ghost" id="btnAddSite">+ 添加站点</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnLoadEnvSites" hidden title="从 env/sites.json 载入 test/uat/prod">从 env 载入</button>
+          <span class="na-hint" style="margin:0">密码与 TOTP 可留空，服务端按地址从 env 补齐；手填的验证码不写入本地缓存</span>
+        </div>
+
+        <details class="na-advanced" open>
+          <summary>LLM 配置（规划 + 提取）</summary>
+          <div class="na-advanced-body">
+            <div class="na-llm-grid">
+              <label class="full na-field"><span class="na-field-label">厂商</span><div class="na-select-wrap"><select id="llmProvider" class="na-select"></select><span class="na-select-chevron" aria-hidden="true"></span></div></label>
+              <label class="full">API 地址<input id="llmApiBase" autocomplete="off" /></label>
+              <label>API Key<input id="llmApiKey" type="password" autocomplete="off" /></label>
+              <label>模型<input id="llmModel" autocomplete="off" /></label>
+            </div>
+          </div>
+        </details>
+
+        <div class="na-toolbar" style="margin-top:0.85rem;flex-wrap:wrap">
+          <button type="button" class="na-btn na-btn-primary" id="btnRun"><span class="na-spinner"></span><span class="na-btn-label">启动智能体</span></button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnCancel" disabled>取消</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnRetry" disabled>从失败步重试</button>
+        </div>
+      </section>
+
+      <section class="na-panel na-panel-static na-animate-in na-animate-in-2">
+        <h2>执行时间线</h2>
+        <div class="na-job-bar">
+          <span class="na-job-chip" id="jobChip">无任务</span>
+          <span class="na-hint" id="jobHint" style="margin:0">SSE 逐步推送真实进度</span>
+        </div>
+        <div class="na-pipeline-timeline" id="timeline">
+          <div class="na-empty">
+            <div class="na-empty-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" fill="none" stroke-width="1.6"/><path d="M12 7v5l3 2" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+            <div class="na-empty-title">等待启动</div>
+            <div class="na-empty-desc">填写左侧信息后点击「启动智能体」</div>
+          </div>
+        </div>
+
+        <div class="na-gate-box" id="gateBox">
+          <strong>人工门禁 · 确认渠道行</strong>
+          <p class="na-hint" style="margin:0.35rem 0 0">可编辑后再继续创建渠道/令牌。已预置 TOTP 时可留空。若账号开启登录两步验证且未预置密钥，请填认证器<strong>当前</strong> 6 位码（提取耗时后旧码会过期）。</p>
+          <textarea id="channelEdit" spellcheck="false"></textarea>
+          <label class="na-field full" id="gateOtpWrap" style="margin-top:0.55rem">
+            <span class="na-field-label">二次验证码（写入前刷新，env 已预置时可留空）</span>
+            <input id="gateOtpCode" type="text" autocomplete="one-time-code" maxlength="128" placeholder="当前码、TOTP 原始密钥，或留空使用 env" />
+          </label>
+          <div class="na-toolbar">
+            <button type="button" class="na-btn na-btn-primary" id="btnConfirm">确认并继续</button>
+            <button type="button" class="na-btn na-btn-ghost" id="btnCopyChannels">复制</button>
+          </div>
+        </div>
+
+        <div id="summaryDownload" style="display:none;margin-top:0.85rem" class="na-toolbar">
+          <button type="button" class="na-btn na-btn-secondary" id="btnDlExcel" style="display:none">下载③汇总</button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnDlUpstream" style="display:none">下载⑤上游</button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnDlOverview" style="display:none">下载⑥总览</button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnDlAnalysis" style="display:none">下载分析表</button>
+          <span class="na-hint" id="excelPathHint" style="margin:0"></span>
+        </div>
+
+        <div id="tokenExportBox" style="display:none;margin-top:0.85rem">
+          <strong>令牌导出结果</strong>
+          <textarea id="tokenExportOut" readonly rows="8" style="width:100%;margin-top:0.45rem;font-family:var(--na-font-mono,ui-monospace,monospace);font-size:0.78rem"></textarea>
+          <div class="na-toolbar" style="margin-top:0.45rem">
+            <button type="button" class="na-btn na-btn-ghost" id="btnCopyTokenExport">复制导出</button>
+            <button type="button" class="na-btn na-btn-ghost" id="btnDownloadTokenExport">下载 .txt</button>
+          </div>
+        </div>
+
+        <details class="na-log-debug"><summary>详细日志</summary><div class="na-log" id="log"></div></details>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const EXAMPLE = `demo-alpha-test-model-a\nModel-A｜260101\nark-00000000-0000-4000-8000-000000000001-demo\nep-20260101000000-demo1\n\ndemo-beta-test-model-b\nModel-B｜260102\nark-00000000-0000-4000-8000-000000000001-demo\nep-20260102000000-demo2`;
+    const LLM_KEY = "na_agent_llm_config";
+    const CONN_KEY = "na_batch_connection_config";
+    const SITES_KEY = "na_data_summary_sites";
+    const NODE_DEFS = [
+      { id: "plan", title: "规划", kicker: "LLM", fixed: true },
+      { id: "extract", title: "提取", kicker: "①", opt: "optExtract" },
+      { id: "gate", title: "确认", kicker: "门禁", gate: true },
+      { id: "batch", title: "渠道", kicker: "②", opt: "optBatch" },
+      { id: "token", title: "令牌", kicker: "T", opt: "optToken" },
+      { id: "token_export", title: "导出", kicker: "E", opt: "optTokenExport" },
+      { id: "summary", title: "汇总", kicker: "③", opt: "optSummary" },
+      { id: "upstream", title: "上游", kicker: "⑤", opt: "optUpstream" },
+      { id: "overview", title: "总览", kicker: "⑥", opt: "optOverview" },
+      { id: "analyze", title: "分析", kicker: "A", opt: "optAnalyze" },
+    ];
+    const NAV_STEP_MAP = { plan: 1, extract: 1, batch: 2, token: 2, token_export: 2, summary: 3 };
+    const ARTIFACT_BTNS = {
+      summary: "btnDlExcel",
+      upstream: "btnDlUpstream",
+      overview: "btnDlOverview",
+      analyze: "btnDlAnalysis",
+    };
+    function idleNodeState() {
+      return {
+        plan: "idle", extract: "idle", gate: "idle", batch: "idle",
+        token: "idle", token_export: "idle", summary: "idle",
+        upstream: "idle", overview: "idle", analyze: "idle",
+      };
+    }
+    const $ = (id) => document.getElementById(id);
+
+    let llmPresets = [];
+    let currentJobId = "";
+    let eventSource = null;
+    let sseIntentionalClose = false;
+    let timelineSteps = [];
+    let nodeState = idleNodeState();
+    let authMode = "password";
+
+    document.querySelectorAll(".na-panel h2").forEach((h2, i) => {
+      const icons = [
+        '<span class="na-icon na-panel-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 1 4 4v1h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h2V7a4 4 0 0 1 4-4z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg></span>',
+        NAUi.icon("chart"),
+      ];
+      if (icons[i]) h2.insertAdjacentHTML("afterbegin", icons[i]);
+    });
+
+    function addLog(msg, cls = "") {
+      const div = document.createElement("div");
+      if (cls) div.className = cls;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      $("log").prepend(div);
+    }
+
+    function notifyParentProgress(progress) {
+      try { window.parent.postMessage({ type: "na-flow-progress", progress }, "*"); } catch (_) {}
+    }
+
+    function readLlm() {
+      return {
+        llm_provider: $("llmProvider").value,
+        provider: $("llmProvider").value,
+        llm_api_base: $("llmApiBase").value.trim(),
+        llm_api_key: $("llmApiKey").value.trim(),
+        llm_model: $("llmModel").value.trim() || "gpt-4o-mini",
+      };
+    }
+
+    function saveLlm() {
+      try {
+        localStorage.setItem(LLM_KEY, JSON.stringify({
+          provider: $("llmProvider").value,
+          api_base: $("llmApiBase").value.trim(),
+          api_key: $("llmApiKey").value.trim(),
+          model: $("llmModel").value.trim(),
+        }));
+      } catch (_) {}
+    }
+
+    function switchAuthMode(mode) {
+      authMode = mode === "token" ? "token" : "password";
+      document.querySelectorAll("#authTabs button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.auth === authMode);
+      });
+      $("authPassword").classList.toggle("active", authMode === "password");
+      $("authToken").classList.toggle("active", authMode === "token");
+      saveConnection();
+    }
+
+    function readConnection() {
+      const config = {
+        base_url: $("baseUrl").value.trim(),
+        default_key: $("defaultKey").value.trim(),
+        auth_mode: authMode,
+      };
+      if (authMode === "token") {
+        config.access_token = $("accessToken").value.trim();
+        config.user_id = Number($("userId").value) || null;
+      } else {
+        config.username = $("username").value.trim();
+        config.password = $("password").value;
+        config.otp_code = ($("otpCode") && $("otpCode").value || "").trim();
+      }
+      try {
+        const saved = JSON.parse(localStorage.getItem(CONN_KEY) || "{}");
+        if (saved && saved.verify_ssl != null) config.verify_ssl = saved.verify_ssl;
+      } catch (_) {}
+      return config;
+    }
+
+    function applyConnection(config) {
+      if (!config) return;
+      if (config.base_url) $("baseUrl").value = config.base_url;
+      if (config.default_key) $("defaultKey").value = config.default_key;
+      const useToken = config.auth_mode === "token" || (config.access_token && !config.username && !config.password);
+      if (useToken) {
+        switchAuthMode("token");
+        if (config.access_token) $("accessToken").value = config.access_token;
+        if (config.user_id != null && config.user_id !== "") $("userId").value = config.user_id;
+      } else {
+        switchAuthMode("password");
+        if (config.username) $("username").value = config.username;
+        if (config.password != null) $("password").value = config.password;
+        if (config.otp_code && $("otpCode")) $("otpCode").value = config.otp_code;
+      }
+    }
+
+    function saveConnection() {
+      try {
+        const config = readConnection();
+        delete config.otp_code;
+        localStorage.setItem(CONN_KEY, JSON.stringify(config));
+      } catch (_) {}
+    }
+
+    const ENV_ORDER = ["test", "uat", "prod"];
+    let envSitesCache = { configured: false, sites: {}, available: [] };
+    let activeEnvKey = "";
+    let envSitesPromise = null;
+
+    function setEnvSwitchActive(key) {
+      activeEnvKey = key || "";
+      document.querySelectorAll("#envSiteSwitch [data-env]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.env === activeEnvKey);
+        btn.setAttribute("aria-pressed", btn.dataset.env === activeEnvKey ? "true" : "false");
+      });
+    }
+
+    function renderEnvSiteSwitch() {
+      const wrap = $("envSiteSwitch");
+      if (!wrap) return;
+      const available = new Set(envSitesCache.available || []);
+      const show = Boolean(envSitesCache.configured && available.size);
+      wrap.hidden = !show;
+      document.querySelectorAll("#envSiteSwitch [data-env]").forEach((btn) => {
+        const key = btn.dataset.env;
+        const ok = available.has(key);
+        btn.disabled = !ok;
+        btn.title = ok ? `填入 ${key} 站点连接信息` : `${key} 未在 env/sites.json 中配置`;
+      });
+      if (!show) setEnvSwitchActive("");
+    }
+
+    function updateTotpSecretHint(site) {
+      const hint = $("totpSecretHint");
+      if (!hint) return;
+      hint.hidden = !Boolean(site && site.has_totp_secret);
+    }
+
+    function matchEnvSiteByUrl(url) {
+      const target = normalizeUrl(url);
+      if (!target) return null;
+      for (const key of ENV_ORDER) {
+        const site = envSitesCache.sites?.[key];
+        if (site && normalizeUrl(site.base_url) === target) return { key, site };
+      }
+      return null;
+    }
+
+    function applyEnvSite(key) {
+      const site = envSitesCache.sites?.[key];
+      if (!site) {
+        addLog(`环境 ${key} 未配置（请编辑 env/sites.json）`, "warn");
+        NAUi.toast(`${key} 未配置`, "warn", 2000);
+        return;
+      }
+      applyConnection(site);
+      saveConnection();
+      setEnvSwitchActive(key);
+      updateTotpSecretHint(site);
+      addLog(`已填入 ${key} 连接配置（${site.base_url || ""}）`, "ok");
+      if (site.has_totp_secret) addLog(`${key} 已配置 TOTP 密钥，登录将自动生成验证码`, "ok");
+      NAUi.toast(`已切换到 ${key}`, "ok", 2200);
+    }
+
+    async function loadEnvSites() {
+      if (envSitesPromise) return envSitesPromise;
+      envSitesPromise = (async () => {
+        try {
+          const resp = await fetch("/api/env-sites");
+          const data = await resp.json();
+          if (data.success) {
+            envSitesCache = {
+              configured: Boolean(data.configured),
+              sites: data.sites || {},
+              available: data.available || [],
+            };
+          } else {
+            envSitesCache = { configured: false, sites: {}, available: [] };
+          }
+        } catch (_) {
+          envSitesCache = { configured: false, sites: {}, available: [] };
+        }
+        renderEnvSiteSwitch();
+        return envSitesCache;
+      })();
+      return envSitesPromise;
+    }
+
+    function envSitesToSummaryCards(payload) {
+      const sitesMap = payload?.sites || {};
+      const available = payload?.available || ENV_ORDER.filter((k) => sitesMap[k]);
+      const rows = [];
+      ENV_ORDER.forEach((key) => {
+        if (!available.includes(key)) return;
+        const site = sitesMap[key];
+        if (!site?.base_url) return;
+        rows.push(normalizeSite({
+          label: key,
+          base_url: site.base_url,
+          username: site.username || "admin",
+          password: site.password || "",
+          env: key,
+          has_totp_secret: Boolean(site.has_totp_secret),
+        }));
+      });
+      available.forEach((key) => {
+        if (ENV_ORDER.includes(key)) return;
+        const site = sitesMap[key];
+        if (!site?.base_url) return;
+        rows.push(normalizeSite({
+          label: key,
+          base_url: site.base_url,
+          username: site.username || "admin",
+          password: site.password || "",
+          env: key,
+          has_totp_secret: Boolean(site.has_totp_secret),
+        }));
+      });
+      return rows;
+    }
+
+    function hasFilledBaseUrl(sites) {
+      return Array.isArray(sites) && sites.some((s) => String(s?.base_url || "").trim());
+    }
+
+    function defaultEmptySites() {
+      return [emptySite("test"), emptySite("uat"), emptySite("prod")];
+    }
+
+    function applyEnvSitesToUi(rows, { toast = true } = {}) {
+      if (!rows.length) return false;
+      renderSites(rows);
+      saveSites(rows);
+      if (toast) {
+        const names = rows.map((s) => s.env || s.label || "site").join(" / ");
+        NAUi.showBanner("userBanner", `已从 env/sites.json 载入：${names}`, "ok");
+        NAUi.toast("已载入 env 站点", "ok", 2200);
+        addLog(`已从 env/sites.json 载入 ${rows.length} 个站点`, "ok");
+      }
+      return true;
+    }
+
+    async function initSiteList() {
+      const envPayload = await loadEnvSites();
+      const envConfigured = Boolean(envPayload?.configured && (envPayload.available || []).length);
+      const btnEnv = $("btnLoadEnvSites");
+      if (btnEnv) btnEnv.hidden = !envConfigured;
+
+      const stored = loadSitesFromStorage();
+      if (hasFilledBaseUrl(stored)) {
+        renderSites(annotateSitesTotp(stored));
+        return;
+      }
+      if (envConfigured) {
+        const rows = envSitesToSummaryCards(envPayload);
+        if (applyEnvSitesToUi(rows, { toast: true })) return;
+      }
+      renderSites(stored && stored.length ? stored : defaultEmptySites());
+    }
+
+    function annotateSitesTotp(sites) {
+      return (sites || []).map((s) => {
+        const hit = matchEnvSiteByUrl(s.base_url)
+          || (s.env && envSitesCache.sites?.[s.env] ? { site: envSitesCache.sites[s.env] } : null);
+        const envSite = hit && hit.site;
+        return {
+          ...s,
+          username: s.username && s.username !== "admin" ? s.username : (envSite?.username || s.username || "admin"),
+          password: s.password || (envSite && envSite.password) || "",
+          has_totp_secret: Boolean(s.has_totp_secret || (envSite && envSite.has_totp_secret)),
+        };
+      });
+    }
+
+    function emptySite(env = "") {
+      return { label: "", base_url: "", username: "admin", password: "", env };
+    }
+    function normalizeSite(site) {
+      return {
+        label: String(site?.label || "").trim(),
+        base_url: String(site?.base_url || "").trim(),
+        username: String(site?.username || "admin").trim() || "admin",
+        password: site?.password || "",
+        env: String(site?.env || "").trim(),
+        has_totp_secret: Boolean(site?.has_totp_secret),
+      };
+    }
+    function loadSitesFromStorage() {
+      try {
+        const raw = localStorage.getItem(SITES_KEY);
+        const data = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(data) && data.length) return data.map(normalizeSite);
+      } catch (_) {}
+      return null;
+    }
+    function loadSites() {
+      return loadSitesFromStorage() || [emptySite("test")];
+    }
+    function saveSites(sites) {
+      const persisted = sites.map((s) => {
+        const row = normalizeSite(s);
+        delete row.otp_code;
+        delete row.has_totp_secret;
+        return row;
+      });
+      localStorage.setItem(SITES_KEY, JSON.stringify(persisted));
+    }
+    function envPillClass(env) {
+      if (env === "test") return "test";
+      if (env === "uat") return "uat";
+      if (env === "prod") return "prod";
+      return "auto";
+    }
+    function readSitesFromCards(onlyWithUrl = false) {
+      const rows = [];
+      $("siteList").querySelectorAll(".na-site-card").forEach((card) => {
+        const site = normalizeSite({
+          label: card.querySelector('[data-field="label"]').value,
+          base_url: card.querySelector('[data-field="base_url"]').value,
+          username: card.querySelector('[data-field="username"]').value,
+          password: card.querySelector('[data-field="password"]').value,
+          env: card.querySelector('[data-field="env"]').value,
+        });
+        const otpEl = card.querySelector('[data-field="otp_code"]');
+        const otp = otpEl ? String(otpEl.value || "").trim() : "";
+        if (otp) site.otp_code = otp;
+        if (onlyWithUrl && !site.base_url) return;
+        rows.push(site);
+      });
+      return rows;
+    }
+    function bindSiteCard(card) {
+      card.querySelectorAll("input,select").forEach((el) => {
+        el.addEventListener("input", () => saveSites(readSitesFromCards()));
+        el.addEventListener("change", () => {
+          saveSites(readSitesFromCards());
+          const env = card.querySelector('[data-field="env"]').value;
+          const pill = card.querySelector(".env-pill");
+          if (pill) { pill.textContent = env || "auto"; pill.className = "env-pill " + envPillClass(env); }
+        });
+      });
+      card.querySelector("[data-remove]")?.addEventListener("click", () => {
+        const sites = readSitesFromCards();
+        const idx = Number(card.dataset.index);
+        sites.splice(idx, 1);
+        renderSites(sites.length ? sites : [emptySite()]);
+        saveSites(sites.length ? sites : [emptySite()]);
+      });
+    }
+    function renderSites(sites) {
+      const list = $("siteList");
+      list.innerHTML = "";
+      sites.forEach((site, index) => {
+        const card = document.createElement("div");
+        card.className = "na-site-card";
+        card.dataset.index = String(index);
+        const env = site.env || "";
+        card.innerHTML = `
+          <div class="na-site-card-head">
+            <span class="env-pill ${envPillClass(env)}">${env || "auto"}</span>
+            <button type="button" class="na-btn na-btn-ghost" style="padding:0.3rem 0.55rem;font-size:0.72rem" data-remove>删除</button>
+          </div>
+          <div class="na-site-card-body">
+            <label>备注<input data-field="label" value="${site.label || ""}" placeholder="可选" /></label>
+            <label class="full">站点地址<input data-field="base_url" value="${site.base_url || ""}" placeholder="https://na-test.example.com" /></label>
+            <label>用户名<input data-field="username" value="${site.username || ""}" placeholder="admin" /></label>
+            <label>密码<input data-field="password" type="password" value="${site.password || ""}" placeholder="可留空，使用 env/sites.json" autocomplete="off" /></label>
+            <label class="full">登录 2FA<input data-field="otp_code" type="text" autocomplete="one-time-code" maxlength="128" placeholder="${site.has_totp_secret ? "可留空，已预置 totp_secret" : "可留空（env 已预置 totp_secret 时自动生成）"}" value="${site.otp_code || ""}" /></label>
+            <label>环境<select data-field="env">
+              <option value="" ${!env ? "selected" : ""}>自动</option>
+              <option value="test" ${env === "test" ? "selected" : ""}>test</option>
+              <option value="uat" ${env === "uat" ? "selected" : ""}>uat</option>
+              <option value="prod" ${env === "prod" ? "selected" : ""}>prod</option>
+            </select></label>
+          </div>`;
+        list.appendChild(card);
+        bindSiteCard(card);
+      });
+    }
+
+    function currentOtp() {
+      return (($("gateOtpCode") && $("gateOtpCode").value) || ($("otpCode") && $("otpCode").value) || "").trim();
+    }
+
+    function normalizeUrl(raw) {
+      return String(raw || "").trim().replace(/\/+$/, "").toLowerCase();
+    }
+
+    function attachConnOtpToSites(sites, conn) {
+      const otp = String(conn?.otp_code || "").trim();
+      const connUrl = normalizeUrl(conn.base_url);
+      return (sites || []).map((s) => {
+        let row = s;
+        if (otp && !s.otp_code && connUrl && normalizeUrl(s.base_url) === connUrl) {
+          row = { ...row, otp_code: otp };
+        }
+        if (conn?.verify_ssl != null) row = { ...row, verify_ssl: conn.verify_ssl };
+        return row;
+      });
+    }
+
+    function authRefreshPayload() {
+      const conn = readConnection();
+      const otp = currentOtp();
+      if (otp) conn.otp_code = otp;
+      const sites = attachConnOtpToSites(readSitesFromCards(true), conn);
+      const payload = { connection: { otp_code: otp }, sites };
+      if (otp) payload.otp_code = otp;
+      return payload;
+    }
+
+    function prepareGateOtp() {
+      const wrap = $("gateOtpWrap");
+      const main = $("otpCode");
+      const gate = $("gateOtpCode");
+      if (!wrap || !gate) return;
+      const passwordMode = authMode !== "token";
+      wrap.style.display = passwordMode ? "" : "none";
+      if (passwordMode && !gate.value.trim() && main && main.value.trim()) {
+        gate.value = main.value.trim();
+      }
+    }
+
+    function enabledStepsFromChecks() {
+      const steps = [];
+      if ($("optExtract").checked) steps.push("extract");
+      if ($("optBatch").checked) steps.push("batch");
+      if ($("optToken").checked) steps.push("token");
+      if ($("optTokenExport").checked) steps.push("token_export");
+      if ($("optSummary").checked) steps.push("summary");
+      if ($("optUpstream").checked) steps.push("upstream");
+      if ($("optOverview").checked) steps.push("overview");
+      if ($("optAnalyze").checked) steps.push("analyze");
+      return steps;
+    }
+
+    function syncChecksFromCanvas() {
+      $("optExtract").checked = !document.querySelector('.na-plan-node[data-id="extract"]')?.classList.contains("off");
+      $("optBatch").checked = !document.querySelector('.na-plan-node[data-id="batch"]')?.classList.contains("off");
+      $("optToken").checked = !document.querySelector('.na-plan-node[data-id="token"]')?.classList.contains("off");
+      $("optTokenExport").checked = !document.querySelector('.na-plan-node[data-id="token_export"]')?.classList.contains("off");
+      $("optSummary").checked = !document.querySelector('.na-plan-node[data-id="summary"]')?.classList.contains("off");
+      $("optUpstream").checked = !document.querySelector('.na-plan-node[data-id="upstream"]')?.classList.contains("off");
+      $("optOverview").checked = !document.querySelector('.na-plan-node[data-id="overview"]')?.classList.contains("off");
+      $("optAnalyze").checked = !document.querySelector('.na-plan-node[data-id="analyze"]')?.classList.contains("off");
+      const batchOn = $("optBatch").checked;
+      const gate = document.querySelector('.na-plan-node[data-id="gate"]');
+      if (gate) gate.classList.toggle("off", !batchOn || !$("optConfirm").checked);
+    }
+
+    function renderPlanCanvas() {
+      const el = $("planCanvas");
+      el.innerHTML = "";
+      NODE_DEFS.forEach((n, i) => {
+        if (i) {
+          const arrow = document.createElement("span");
+          arrow.className = "na-plan-arrow";
+          arrow.textContent = "→";
+          el.appendChild(arrow);
+        }
+        const node = document.createElement("div");
+        node.className = "na-plan-node";
+        node.dataset.id = n.id;
+        if (n.gate) node.classList.add("gate");
+        const st = nodeState[n.id] || "idle";
+        if (st && st !== "idle") node.classList.add(st);
+        let off = false;
+        if (n.opt) off = !$(n.opt).checked;
+        if (n.gate) off = !$("optBatch").checked || !$("optConfirm").checked;
+        if (off) node.classList.add("off");
+        node.innerHTML = `<span class="kicker">${n.kicker}</span><span class="title">${n.title}</span>`;
+        node.onclick = () => {
+          if (n.fixed) return;
+          if (n.gate) {
+            $("optConfirm").checked = !$("optConfirm").checked;
+          } else if (n.opt) {
+            $(n.opt).checked = !$(n.opt).checked;
+          }
+          renderPlanCanvas();
+          maybePatchPlan();
+        };
+        el.appendChild(node);
+      });
+    }
+
+    async function maybePatchPlan() {
+      if (!currentJobId) return;
+      const steps = enabledStepsFromChecks();
+      try {
+        await fetch(`/api/agent/jobs/${currentJobId}/plan`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ steps, options: { require_confirm: $("optConfirm").checked } }),
+        });
+      } catch (_) {}
+    }
+
+    function renderTimeline(steps) {
+      const el = $("timeline");
+      if (!steps || !steps.length) {
+        el.innerHTML = `<div class="na-empty"><div class="na-empty-title">等待事件</div><div class="na-empty-desc">任务启动后这里逐步更新</div></div>`;
+        return;
+      }
+      el.innerHTML = "";
+      steps.forEach((s) => {
+        const div = document.createElement("div");
+        div.className = `na-pipeline-step ${s.status || "ok"}`;
+        const warn = (s.data && s.data.warnings && s.data.warnings.length)
+          ? `<p style="margin-top:0.25rem;opacity:0.85">${(s.data.warnings || []).join("；")}</p>`
+          : "";
+        div.innerHTML = `<span class="dot" aria-hidden="true"></span><div><h4>${s.label || s.id}</h4><p>${s.message || ""}</p>${warn}</div>`;
+        el.appendChild(div);
+      });
+    }
+
+    function showArtifactDownload(kind, file) {
+      const btnId = ARTIFACT_BTNS[kind];
+      if (!btnId || !$(btnId)) return;
+      $("summaryDownload").style.display = "flex";
+      $(btnId).style.display = "";
+      if (file) $("excelPathHint").textContent = file;
+    }
+
+    function hideArtifactDownloads() {
+      $("summaryDownload").style.display = "none";
+      $("excelPathHint").textContent = "";
+      Object.values(ARTIFACT_BTNS).forEach((id) => {
+        if ($(id)) $(id).style.display = "none";
+      });
+    }
+
+    function applyArtifactFromStep(step) {
+      if (!step || !step.data || !step.data.file) return;
+      if (ARTIFACT_BTNS[step.id]) showArtifactDownload(step.id, step.data.file);
+    }
+
+    function upsertStep(step) {
+      if (!step || !step.id) return;
+      const idx = timelineSteps.findIndex((s) => s.id === step.id);
+      if (idx >= 0) timelineSteps[idx] = step;
+      else timelineSteps.push(step);
+      renderTimeline(timelineSteps);
+      nodeState[step.id] = step.status === "skipped" ? "ok" : (step.status || "ok");
+      if (step.id === "extract" && step.status === "ok") nodeState.gate = "running";
+      applyArtifactFromStep(step);
+      renderPlanCanvas();
+      const running = Object.keys(NAV_STEP_MAP).find((k) => nodeState[k] === "running");
+      notifyParentProgress({
+        ...NAUi.progressFromPipelineSteps(timelineSteps),
+        runningStep: running ? NAV_STEP_MAP[running] : 0,
+      });
+    }
+
+    function setJobChip(status, id) {
+      const chip = $("jobChip");
+      chip.textContent = id ? `${id} · ${status}` : status;
+      chip.classList.toggle("live", ["running", "planning", "waiting_confirm"].includes(status));
+      $("btnCancel").disabled = !["running", "planning", "waiting_confirm", "queued"].includes(status);
+      $("btnRetry").disabled = !["failed", "cancelled"].includes(status);
+      $("btnRun").disabled = ["running", "planning"].includes(status);
+    }
+
+    function closeSSE() {
+      sseIntentionalClose = true;
+      if (eventSource) {
+        try { eventSource.close(); } catch (_) {}
+        eventSource = null;
+      }
+    }
+
+    async function refreshJobSnapshot(jobId) {
+      try {
+        const resp = await fetch(`/api/agent/jobs/${jobId}`);
+        const data = await resp.json();
+        if (!data.success || !data.job) return;
+        const job = data.job;
+        setJobChip(job.status, jobId);
+        if (Array.isArray(job.steps) && job.steps.length) {
+          timelineSteps = job.steps;
+          renderTimeline(timelineSteps);
+          timelineSteps.forEach(applyArtifactFromStep);
+          notifyParentProgress(NAUi.progressFromPipelineSteps(timelineSteps));
+        }
+        if (job.status === "waiting_confirm") {
+          $("gateBox").classList.add("active");
+          $("channelEdit").value = job.channel_lines || $("channelEdit").value || "";
+          prepareGateOtp();
+        }
+        if (job.message) addLog(job.message, job.status === "failed" ? "err" : "");
+      } catch (_) {}
+    }
+
+    function openSSE(jobId) {
+      closeSSE();
+      sseIntentionalClose = false;
+      currentJobId = jobId;
+      setJobChip("connecting", jobId);
+      eventSource = new EventSource(`/api/agent/jobs/${jobId}/events`);
+      const onPayload = (raw) => {
+        let payload;
+        try { payload = JSON.parse(raw); } catch (_) { return; }
+        const type = payload.type || "";
+        const data = payload.data || {};
+        if (type === "step") {
+          upsertStep(data);
+          if (data.id === "plan") {
+            const advice = data.message || "";
+            const warns = (data.data && data.data.warnings) || [];
+            const conf = data.data && data.data.confidence != null ? `置信度 ${data.data.confidence}` : "";
+            $("planMeta").innerHTML = `<strong>${advice || "计划已生成"}</strong>${conf ? " · " + conf : ""}${warns.length ? "<br/>" + warns.join("；") : ""}`;
+            const planned = (data.data && data.data.steps) || [];
+            if (planned.length) {
+              $("optExtract").checked = planned.includes("extract");
+              $("optBatch").checked = planned.includes("batch");
+              $("optToken").checked = planned.includes("token");
+              $("optTokenExport").checked = planned.includes("token_export");
+              $("optSummary").checked = planned.includes("summary");
+              $("optUpstream").checked = planned.includes("upstream");
+              $("optOverview").checked = planned.includes("overview");
+              $("optAnalyze").checked = planned.includes("analyze");
+              renderPlanCanvas();
+            }
+          }
+          if (data.id === "token" && data.data && data.data.token_lines) {
+            addLog(`令牌行预览 ${String(data.data.token_lines).split("\n").filter(Boolean).length} 条`);
+          }
+          if (data.id === "token_export" && data.data && data.data.export_text) {
+            $("tokenExportBox").style.display = "block";
+            $("tokenExportOut").value = data.data.export_text;
+          }
+          if (data.id === "summary" && data.data && data.data.file) {
+            addLog(`汇总已写入 ${data.data.file}，请点「下载③汇总」获取完整文件`, "ok");
+            NAUi.showBanner("userBanner", "汇总完成，请点「下载③汇总」", "ok");
+            NAUi.notifyArtifactsChanged(["summary"]);
+          }
+          if (data.id === "upstream" && data.data && data.data.file) {
+            addLog(`上游已写入 ${data.data.file}，请点「下载⑤上游」`, "ok");
+            NAUi.notifyArtifactsChanged(["upstream"]);
+          }
+          if (data.id === "overview" && data.data && data.data.file) {
+            addLog(`总览已写入 ${data.data.file}，请点「下载⑥总览」`, "ok");
+            NAUi.notifyArtifactsChanged(["overview"]);
+          }
+          if (data.id === "analyze" && data.data && data.data.file) {
+            addLog(`分析表已写入 ${data.data.file}，请点「下载分析表」`, "ok");
+            NAUi.notifyArtifactsChanged(["analysis"]);
+          }
+        } else if (type === "status") {
+          const st = data.status || "";
+          setJobChip(st, jobId);
+          if (st === "running" && data.running_step) {
+            nodeState[data.running_step] = "running";
+            renderPlanCanvas();
+            notifyParentProgress({
+              ...NAUi.progressFromPipelineSteps(timelineSteps),
+              runningStep: NAV_STEP_MAP[data.running_step] || 0,
+            });
+          }
+          if (st === "waiting_confirm") {
+            nodeState.gate = "running";
+            renderPlanCanvas();
+            $("gateBox").classList.add("active");
+            $("channelEdit").value = data.channel_lines || $("channelEdit").value || "";
+            prepareGateOtp();
+            NAUi.showBanner("userBanner", "请确认渠道行；env 已预置 TOTP 时可留空，否则请填认证器当前验证码后再继续", "info");
+            $("jobHint").textContent = "等待人工确认";
+          }
+          if (st === "planning") $("jobHint").textContent = "LLM 规划中…";
+          if (st === "running") $("jobHint").textContent = data.running_step ? `执行 ${data.running_step}` : "执行中";
+        } else if (type === "log") {
+          addLog(data.message || JSON.stringify(data));
+        } else if (type === "error") {
+          addLog(data.message || "错误", "err");
+          NAUi.showBanner("userBanner", data.message || "任务失败", "err");
+        } else if (type === "done") {
+          setJobChip(data.status || "done", jobId);
+          $("jobHint").textContent = data.message || "任务结束";
+          $("btnRun").disabled = false;
+          notifyParentProgress(NAUi.progressFromPipelineSteps(timelineSteps));
+          if (data.status === "succeeded") {
+            NAUi.showBanner("userBanner", data.message || "完成", "ok");
+            NAUi.toast(data.message || "完成", "ok");
+            $("gateBox").classList.remove("active");
+            nodeState.gate = "ok";
+            renderPlanCanvas();
+          } else if (data.status === "cancelled") {
+            NAUi.showBanner("userBanner", "已取消", "warn");
+          } else if (data.status === "failed") {
+            NAUi.showBanner("userBanner", data.message || "失败", "err");
+          }
+          closeSSE();
+        }
+      };
+      ["step", "status", "log", "error", "done", "ping"].forEach((ev) => {
+        eventSource.addEventListener(ev, (e) => onPayload(e.data));
+      });
+      eventSource.onmessage = (e) => onPayload(e.data);
+      eventSource.onerror = () => {
+        if (sseIntentionalClose || !eventSource) return;
+        const brokenId = jobId;
+        closeSSE();
+        addLog("SSE 断开，正在同步任务状态…", "warn");
+        refreshJobSnapshot(brokenId).then(() => {
+          $("btnRun").disabled = false;
+        });
+      };
+    }
+
+    async function initLlm() {
+      try {
+        const resp = await fetch("/api/llm-presets");
+        const data = await resp.json();
+        if (data.success) llmPresets = data.data?.presets || [];
+        const defs = data.data?.defaults || {};
+        const stored = JSON.parse(localStorage.getItem(LLM_KEY) || "{}");
+        $("llmProvider").innerHTML = llmPresets.map((p) => `<option value="${p.id}">${p.label}</option>`).join("");
+        $("llmProvider").value = stored.provider || defs.provider || "openai";
+        $("llmApiBase").value = stored.api_base || defs.api_base || "";
+        $("llmApiKey").value = stored.api_key || defs.api_key || "";
+        $("llmModel").value = stored.model || defs.model || "gpt-4o-mini";
+      } catch (_) {}
+    }
+
+    async function loadDefaults() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(CONN_KEY) || "{}");
+        if (stored && (stored.base_url || stored.access_token || stored.username)) {
+          applyConnection(stored);
+        }
+        const resp = await fetch("/api/batch-config");
+        const data = await resp.json();
+        if (data.success) {
+          const c = data.data || {};
+          const cur = readConnection();
+          if (!cur.base_url && c.base_url) $("baseUrl").value = c.base_url;
+          if (!$("username").value && c.username) $("username").value = c.username;
+          if (!$("password").value && c.password) $("password").value = c.password;
+          if (!$("defaultKey").value && c.default_key) $("defaultKey").value = c.default_key;
+          if (!$("accessToken").value && c.access_token) {
+            switchAuthMode("token");
+            $("accessToken").value = c.access_token;
+            if (c.user_id) $("userId").value = c.user_id;
+          }
+        }
+        await loadEnvSites();
+        const hit = matchEnvSiteByUrl($("baseUrl").value);
+        if (hit) {
+          const site = hit.site;
+          if (!$("username").value && site.username) $("username").value = site.username;
+          if (!$("password").value && site.password) $("password").value = site.password;
+          if (!$("defaultKey").value && site.default_key) $("defaultKey").value = site.default_key;
+          if (!$("accessToken").value && site.access_token && !site.username && !site.password) {
+            switchAuthMode("token");
+            $("accessToken").value = site.access_token;
+            if (site.user_id) $("userId").value = site.user_id;
+          }
+          setEnvSwitchActive(hit.key);
+          updateTotpSecretHint(site);
+        } else {
+          updateTotpSecretHint(null);
+        }
+      } catch (_) {}
+      saveConnection();
+    }
+
+    $("btnRun").onclick = async () => {
+      const btn = $("btnRun");
+      btn.disabled = true;
+      btn.classList.add("loading");
+      timelineSteps = [];
+      nodeState = idleNodeState();
+      renderPlanCanvas();
+      renderTimeline([]);
+      $("gateBox").classList.remove("active");
+      hideArtifactDownloads();
+      $("tokenExportBox").style.display = "none";
+      $("tokenExportOut").value = "";
+      notifyParentProgress({ step1: false, step2: false, step3: false, runningStep: 1 });
+      NAUi.showBanner("userBanner", "智能体任务已提交…", "info");
+      addLog("创建异步任务…");
+      try {
+        saveLlm();
+        saveConnection();
+        saveSites(readSitesFromCards());
+        const conn = readConnection();
+        const sites = $("optSummary").checked
+          ? attachConnOtpToSites(readSitesFromCards(true), conn)
+          : [];
+        const body = {
+          goal: $("goal").value.trim(),
+          raw_text: $("rawText").value.trim(),
+          connection: conn,
+          sites,
+          ...readLlm(),
+          auto_start: true,
+          options: {
+            run_extract: $("optExtract").checked,
+            run_batch: $("optBatch").checked,
+            run_token: $("optToken").checked,
+            run_token_export: $("optTokenExport").checked,
+            run_summary: $("optSummary").checked,
+            run_upstream: $("optUpstream").checked,
+            run_overview: $("optOverview").checked,
+            run_analyze: $("optAnalyze").checked,
+            dry_run: $("optDryRun").checked,
+            use_llm_plan: true,
+            require_confirm: $("optConfirm").checked && $("optBatch").checked && !$("optDryRun").checked,
+            token_usernames: $("tokenUsernames").value.trim(),
+          },
+        };
+        const resp = await fetch("/api/agent/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.message || "创建任务失败");
+        openSSE(data.job_id);
+        addLog(`任务 ${data.job_id} 已启动`, "ok");
+      } catch (e) {
+        notifyParentProgress({ step1: false, step2: false, step3: false, runningStep: 0 });
+        NAUi.showBanner("userBanner", e.message, "err");
+        addLog(e.message, "err");
+        btn.disabled = false;
+      } finally {
+        btn.classList.remove("loading");
+      }
+    };
+
+    $("btnCancel").onclick = async () => {
+      if (!currentJobId) return;
+      await fetch(`/api/agent/jobs/${currentJobId}/cancel`, { method: "POST" });
+      addLog("已请求取消");
+    };
+
+    $("btnRetry").onclick = async () => {
+      if (!currentJobId) return;
+      const resp = await fetch(`/api/agent/jobs/${currentJobId}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auto_start: true, ...authRefreshPayload() }),
+      });
+      const data = await resp.json();
+      if (!data.success) {
+        NAUi.toast(data.message || "无法重试", "err");
+        return;
+      }
+      timelineSteps = (data.job && data.job.steps) || timelineSteps;
+      renderTimeline(timelineSteps);
+      openSSE(currentJobId);
+      addLog("已从失败步重试");
+    };
+
+    $("btnConfirm").onclick = async () => {
+      if (!currentJobId) return;
+      const lines = $("channelEdit").value;
+      const resp = await fetch(`/api/agent/jobs/${currentJobId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel_lines: lines,
+          auto_resume: true,
+          ...authRefreshPayload(),
+        }),
+      });
+      const data = await resp.json();
+      if (!data.success) {
+        NAUi.toast(data.message || "确认失败", "err");
+        return;
+      }
+      nodeState.gate = "ok";
+      renderPlanCanvas();
+      $("gateBox").classList.remove("active");
+      NAUi.showBanner("userBanner", "已确认，继续执行…", "info");
+      openSSE(currentJobId);
+    };
+
+    $("btnCopyChannels").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText($("channelEdit").value || "");
+        NAUi.toast("已复制", "ok", 1600);
+      } catch (_) {
+        NAUi.toast("复制失败", "err");
+      }
+    };
+
+    $("btnTestConn").onclick = async () => {
+      const conn = readConnection();
+      const body = { base_url: conn.base_url };
+      if (conn.auth_mode === "token") {
+        body.access_token = conn.access_token;
+        body.user_id = conn.user_id;
+      } else {
+        body.username = conn.username;
+        body.password = conn.password;
+        if (conn.otp_code) body.otp_code = conn.otp_code;
+      }
+      try {
+        const resp = await fetch("/api/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        NAUi.toast(data.message || (data.success ? "连接成功" : "连接失败"), data.success ? "ok" : "err");
+        addLog(data.message || "", data.success ? "ok" : "err");
+      } catch (e) {
+        NAUi.toast(e.message, "err");
+      }
+    };
+
+    document.querySelectorAll("#authTabs button").forEach((btn) => {
+      btn.onclick = () => switchAuthMode(btn.dataset.auth);
+    });
+    ["baseUrl", "username", "password", "defaultKey", "accessToken", "userId"].forEach((id) => {
+      $(id).addEventListener("input", saveConnection);
+      $(id).addEventListener("change", saveConnection);
+    });
+    ["optExtract", "optBatch", "optToken", "optTokenExport", "optSummary", "optUpstream", "optOverview", "optAnalyze", "optConfirm"].forEach((id) => {
+      $(id).addEventListener("change", () => { renderPlanCanvas(); maybePatchPlan(); });
+    });
+    async function downloadArtifact(url, okMsg) {
+      try {
+        const name = await NAUi.downloadUrl(url);
+        addLog(`已开始浏览器下载：${name}`);
+        NAUi.toast(okMsg, "ok", 1600);
+      } catch (e) {
+        NAUi.toast(e.message || "下载失败", "err");
+      }
+    }
+    $("btnDlExcel").onclick = () => downloadArtifact("/api/data-summary/download", "已开始下载③汇总");
+    $("btnDlUpstream").onclick = () => downloadArtifact("/api/upstream/download", "已开始下载⑤上游");
+    $("btnDlOverview").onclick = () => downloadArtifact("/api/overview/download", "已开始下载⑥总览");
+    $("btnDlAnalysis").onclick = () => downloadArtifact("/api/overview/analyze/download", "已开始下载分析表");
+    $("btnCopyTokenExport").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText($("tokenExportOut").value || "");
+        NAUi.toast("已复制令牌导出", "ok", 1600);
+      } catch (_) {
+        NAUi.toast("复制失败", "err");
+      }
+    };
+    $("btnDownloadTokenExport").onclick = () => {
+      const text = ($("tokenExportOut").value || "").trim();
+      if (!text) {
+        NAUi.toast("暂无导出内容", "warn");
+        return;
+      }
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `tokens-export-${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      addLog("已下载令牌导出 .txt");
+    };
+    $("btnAddSite").onclick = () => {
+      const sites = readSitesFromCards();
+      sites.push(emptySite());
+      renderSites(sites);
+      saveSites(sites);
+    };
+    $("btnLoadEnvSites").onclick = async () => {
+      const payload = await loadEnvSites();
+      if (!payload?.configured) {
+        NAUi.showBanner("userBanner", "未配置 env/sites.json（可复制 env/sites.example.json）", "warn");
+        return;
+      }
+      const rows = envSitesToSummaryCards(payload);
+      if (!rows.length) {
+        NAUi.showBanner("userBanner", "env/sites.json 中没有有效的 base_url", "warn");
+        return;
+      }
+      applyEnvSitesToUi(rows, { toast: true });
+    };
+    document.querySelectorAll("#envSiteSwitch [data-env]").forEach((btn) => {
+      btn.onclick = () => applyEnvSite(btn.dataset.env);
+    });
+    $("baseUrl").addEventListener("change", () => {
+      const hit = matchEnvSiteByUrl($("baseUrl").value);
+      setEnvSwitchActive(hit ? hit.key : "");
+      updateTotpSecretHint(hit ? hit.site : null);
+    });
+    document.querySelectorAll(".na-example-card").forEach((b) => {
+      b.onclick = () => { $("rawText").value = EXAMPLE; NAUi.toast("已载入示例", "ok", 2000); };
+    });
+    ["llmProvider", "llmApiBase", "llmApiKey", "llmModel"].forEach((id) => {
+      $(id).addEventListener("input", saveLlm);
+      $(id).addEventListener("change", saveLlm);
+    });
+
+    renderPlanCanvas();
+    initLlm();
+    loadDefaults();
+    initSiteList().catch(() => renderSites(defaultEmptySites()));
+  </script>
+</body>
+</html>

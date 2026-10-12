@@ -1,0 +1,4180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>批量配置 · NA 自动配置</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=art-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=art-1" />
+  <link rel="stylesheet" href="/static/na-legacy-bridge.css" />
+  <script src="/static/na-theme.js"></script>
+  <script src="/static/na-ui.js?v=art-1"></script>
+  <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+  <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
+  <style>
+    /* legacy 组件样式 — 变量见 na-legacy-bridge.css */
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-body);
+      color: var(--text);
+      background: var(--bg-deep);
+      line-height: 1.6;
+    }
+
+    /* ── 背景层 ── */
+    .bg-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .bg-layer::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% -10%, rgba(34, 211, 238, 0.18) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 50% at 95% 5%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse 70% 40% at 50% 110%, rgba(34, 211, 238, 0.08) 0%, transparent 60%),
+        linear-gradient(180deg, var(--bg-mid) 0%, var(--bg-deep) 100%);
+    }
+
+    .bg-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 20%, transparent 80%);
+    }
+
+    .bg-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      animation: float 12s ease-in-out infinite;
+    }
+
+    .bg-orb-1 {
+      width: 420px;
+      height: 420px;
+      top: -120px;
+      right: -80px;
+      background: rgba(34, 211, 238, 0.07);
+    }
+
+    .bg-orb-2 {
+      width: 300px;
+      height: 300px;
+      bottom: 10%;
+      left: -60px;
+      background: rgba(99, 102, 241, 0.06);
+      animation-delay: -4s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(12px, -16px); }
+    }
+
+    /* ── 布局 ── */
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 36px 24px 56px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 32px;
+      animation: fadeUp 0.7s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-brand {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+    }
+
+    .hero-logo {
+      flex-shrink: 0;
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent) 0%, #6366f1 100%);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 32px var(--accent-glow);
+    }
+
+    .hero-logo svg { display: block; }
+
+    .hero h1 {
+      margin: 0 0 6px;
+      font-family: var(--font-display);
+      font-size: clamp(1.5rem, 3vw, 1.85rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(90deg, var(--accent), #a5f3fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-desc {
+      margin: 0;
+      max-width: 560px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    .hero-meta {
+      flex-shrink: 0;
+      text-align: right;
+      padding-top: 4px;
+    }
+
+    .version-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border: 1px solid rgba(34, 211, 238, 0.2);
+    }
+
+    /* ── 网格 ── */
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .hero { flex-direction: column; }
+      .hero-meta { text-align: left; }
+    }
+
+    /* ── 卡片 ── */
+    .card {
+      background: var(--panel);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      animation: fadeUp 0.7s ease both;
+    }
+
+    .card:nth-child(1) { animation-delay: 0.1s; }
+    .card:nth-child(2) { animation-delay: 0.2s; }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 22px 0;
+    }
+
+    .card-header h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 0.85rem;
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .card-body {
+      padding: 18px 22px 22px;
+    }
+
+    /* 左侧连接配置与右侧模块底对齐 */
+    .card-connect {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+
+    .card-connect .card-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ssl-skip-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .ssl-skip-row input {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--accent);
+    }
+
+    .card-connect .card-connect-foot {
+      padding-top: 8px;
+    }
+
+    .card-connect .card-connect-spacer {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .card.module-panel.active {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+
+    .card.module-panel.active .card-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card.module-panel.active .log-wrap {
+      margin-top: auto;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 500;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(34, 211, 238, 0.2);
+      white-space: nowrap;
+    }
+
+    /* ── 表单 ── */
+    .field { margin-bottom: 16px; }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 7px;
+      letter-spacing: 0.03em;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 13px;
+      font-size: 0.875rem;
+      font-family: var(--font-body);
+      color: var(--text);
+      background: rgba(7, 11, 18, 0.55);
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+
+    input::placeholder, textarea::placeholder {
+      color: rgba(139, 156, 184, 0.5);
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--border-bright);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+      background: rgba(7, 11, 18, 0.8);
+    }
+
+    #otpCode {
+      font-variant-numeric: tabular-nums;
+      font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    }
+
+    textarea {
+      min-height: 300px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.65;
+      resize: vertical;
+      tab-size: 2;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      margin: -4px 0 16px;
+    }
+
+    .hint strong { color: #b8c8de; font-weight: 500; }
+
+    /* ── 格式指南 ── */
+    .format-guide {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .format-step {
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border);
+      font-size: 0.72rem;
+    }
+
+    .format-step .step-num {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .format-step .step-label {
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    /* ── 认证切换 ── */
+    .auth-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      margin-bottom: 16px;
+      border-radius: var(--radius-sm);
+      background: rgba(7, 11, 18, 0.5);
+      border: 1px solid var(--border);
+    }
+
+    .auth-tabs button {
+      flex: 1;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      font-family: var(--font-body);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .auth-tabs button:hover { color: var(--text); }
+
+    .auth-tabs button.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .auth-panel { display: none; }
+    .auth-panel.active { display: block; }
+
+    /* ── 环境快捷切换 test / uat / prod ── */
+    .env-site-switch {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .env-site-switch.visible { display: inline-flex; }
+    .env-site-switch .env-site-btn {
+      border: 1px solid var(--border);
+      background: rgba(7, 11, 18, 0.45);
+      color: var(--text-muted);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      font-family: var(--font-mono, ui-monospace, monospace);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      line-height: 1.4;
+      text-transform: lowercase;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .env-site-switch .env-site-btn:hover:not(:disabled) {
+      color: var(--text);
+      border-color: rgba(34, 211, 238, 0.4);
+    }
+    .env-site-switch .env-site-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .env-site-switch .env-site-btn.active {
+      color: var(--accent);
+      border-color: rgba(34, 211, 238, 0.55);
+      background: var(--accent-soft);
+    }
+    html[data-theme="light"] .env-site-switch .env-site-btn {
+      background: rgba(255, 255, 255, 0.75);
+    }
+
+    /* ── 按钮 ── */
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    button {
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 10px 18px;
+      font-size: 0.84rem;
+      font-family: var(--font-body);
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s, background 0.2s, opacity 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    button:active:not(:disabled) { transform: scale(0.97); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .example-guard-hint {
+      display: none;
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--warn);
+      background: var(--warn-soft);
+      border: 1px solid rgba(251, 191, 36, 0.25);
+    }
+
+    .batch-ops-label {
+      min-width: 2.4em;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .delete-section .actions {
+      margin-top: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, #0891b2 100%);
+      color: #041018;
+      font-weight: 600;
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 6px 28px rgba(34, 211, 238, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px dashed var(--border);
+      padding: 8px 14px;
+      font-size: 0.78rem;
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text);
+    }
+
+    .log-time-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .log-time-presets button {
+      padding: 6px 12px;
+      font-size: 0.76rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .log-time-presets button:hover {
+      background: rgba(34, 211, 238, 0.1);
+      border-color: rgba(34, 211, 238, 0.35);
+      color: var(--text);
+    }
+
+    .log-time-presets button.active {
+      background: var(--accent-soft);
+      border-color: var(--border-bright);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .field-span-2 {
+      grid-column: 1 / -1;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+      color: #1a0505;
+      font-weight: 600;
+      box-shadow: 0 4px 20px rgba(248, 113, 113, 0.25);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      box-shadow: 0 6px 24px rgba(248, 113, 113, 0.35);
+    }
+
+    .btn-danger:disabled {
+      background: rgba(248, 113, 113, 0.35);
+      box-shadow: none;
+    }
+
+    .delete-section {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .delete-section .hint {
+      margin-bottom: 10px;
+    }
+
+    .log .warn { color: var(--warn); }
+
+    .btn-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(4, 16, 24, 0.25);
+      border-top-color: #041018;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    button.loading .btn-spinner { display: block; }
+    button.loading .btn-label { opacity: 0.7; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── 连接状态 ── */
+    .status-bar {
+      margin-top: 18px;
+      padding: 13px 15px;
+      border-radius: var(--radius-sm);
+      background: rgba(7, 11, 18, 0.45);
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      line-height: 1.55;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: border-color 0.3s, background 0.3s;
+    }
+
+    .status-dot {
+      flex-shrink: 0;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-top: 5px;
+      background: rgba(139, 156, 184, 0.4);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+
+    .status-bar.connected {
+      border-color: rgba(52, 211, 153, 0.25);
+      background: var(--success-soft);
+    }
+
+    .status-bar.connected .status-dot {
+      background: var(--success);
+      box-shadow: 0 0 10px rgba(52, 211, 153, 0.6);
+    }
+
+    .status-bar.connected .status-text { color: #a7f3d0; }
+
+    .status-bar.error {
+      border-color: rgba(248, 113, 113, 0.25);
+      background: var(--danger-soft);
+    }
+
+    .status-bar.error .status-dot {
+      background: var(--danger);
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
+    }
+
+    .status-bar.error .status-text { color: #fecaca; }
+
+    /* ── 日志终端 ── */
+    .log-wrap {
+      margin-top: 18px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #0a101c;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .log-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .log-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: block;
+    }
+
+    .log-dots[data-status] span {
+      opacity: 0.42;
+      transform: scale(1);
+      box-shadow: none;
+      transition: opacity 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
+    }
+
+    .log-dots span:nth-child(1) { background: #ff5f57; }
+    .log-dots span:nth-child(2) { background: #febc2e; }
+    .log-dots span:nth-child(3) { background: #28c840; }
+
+    .log-dots[data-status="running"] span:nth-child(2),
+    .log-dots[data-status="fail"] span:nth-child(1),
+    .log-dots[data-status="ok"] span:nth-child(3) {
+      opacity: 1;
+      transform: scale(1.18);
+      filter: saturate(1.15);
+    }
+
+    .log-dots[data-status="running"] span:nth-child(2) {
+      animation: logDotPulseYellow 1.15s ease-in-out infinite;
+    }
+
+    .log-dots[data-status="fail"] span:nth-child(1) {
+      animation: logDotBloomRed 0.7s ease-out 1 both;
+      box-shadow: 0 0 0 3px rgba(255, 95, 87, 0.22), 0 0 12px rgba(255, 95, 87, 0.75);
+    }
+
+    .log-dots[data-status="ok"] span:nth-child(3) {
+      animation: logDotBloomGreen 0.7s ease-out 1 both;
+      box-shadow: 0 0 0 3px rgba(40, 200, 64, 0.22), 0 0 12px rgba(40, 200, 64, 0.7);
+    }
+
+    @keyframes logDotPulseYellow {
+      0%, 100% {
+        transform: scale(1.08);
+        box-shadow: 0 0 0 0 rgba(254, 188, 46, 0.55), 0 0 8px rgba(254, 188, 46, 0.55);
+      }
+      50% {
+        transform: scale(1.28);
+        box-shadow: 0 0 0 5px rgba(254, 188, 46, 0), 0 0 16px rgba(254, 188, 46, 0.95);
+      }
+    }
+
+    @keyframes logDotBloomRed {
+      0% {
+        transform: scale(0.85);
+        box-shadow: 0 0 0 0 rgba(255, 95, 87, 0.7);
+      }
+      55% {
+        transform: scale(1.32);
+        box-shadow: 0 0 0 6px rgba(255, 95, 87, 0), 0 0 18px rgba(255, 95, 87, 0.9);
+      }
+      100% {
+        transform: scale(1.18);
+        box-shadow: 0 0 0 3px rgba(255, 95, 87, 0.22), 0 0 12px rgba(255, 95, 87, 0.75);
+      }
+    }
+
+    @keyframes logDotBloomGreen {
+      0% {
+        transform: scale(0.85);
+        box-shadow: 0 0 0 0 rgba(40, 200, 64, 0.7);
+      }
+      55% {
+        transform: scale(1.32);
+        box-shadow: 0 0 0 6px rgba(40, 200, 64, 0), 0 0 18px rgba(40, 200, 64, 0.85);
+      }
+      100% {
+        transform: scale(1.18);
+        box-shadow: 0 0 0 3px rgba(40, 200, 64, 0.22), 0 0 12px rgba(40, 200, 64, 0.7);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .log-dots span,
+      .log-dots[data-status="running"] span:nth-child(2),
+      .log-dots[data-status="fail"] span:nth-child(1),
+      .log-dots[data-status="ok"] span:nth-child(3) {
+        animation: none;
+        transform: none;
+      }
+    }
+
+    .log-title {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .log-clear {
+      background: none;
+      border: none;
+      padding: 2px 8px;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .log-clear:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+    .log {
+      max-height: 340px;
+      overflow: auto;
+      background: #060a12;
+      color: #cbd5e1;
+      padding: 14px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      line-height: 1.7;
+    }
+
+    .log::-webkit-scrollbar { width: 6px; }
+    .log::-webkit-scrollbar-track { background: transparent; }
+    .log::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.2);
+      border-radius: 3px;
+    }
+
+    .log .line {
+      padding: 1px 0;
+      animation: logIn 0.25s ease both;
+    }
+
+    @keyframes logIn {
+      from { opacity: 0; transform: translateX(-6px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .log .ok   { color: var(--success); }
+    .log .skip { color: var(--warn); }
+    .log .warn { color: var(--warn); }
+    .log .fail { color: var(--danger); }
+    .log .info { color: #7dd3fc; }
+
+    .log .ts {
+      color: rgba(139, 156, 184, 0.45);
+      margin-right: 8px;
+      user-select: none;
+    }
+
+    /* ── 行数统计 ── */
+    .textarea-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .line-count {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .line-count strong { color: var(--accent); }
+
+    .export-output {
+      min-height: 200px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.65;
+      margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 0.92rem;
+      font-weight: 700;
+      margin: 20px 0 10px;
+      color: var(--text);
+    }
+
+    /* ── 模块切换 ── */
+    .module-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+
+    html.na-embed .module-tabs {
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+
+    .module-tabs button {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      border-radius: 999px;
+      padding: 9px 18px;
+      font-size: 0.84rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .module-tabs button:hover { color: var(--text); }
+
+    .module-tabs button.active {
+      background: var(--accent-soft);
+      border-color: rgba(34, 211, 238, 0.35);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .module-panel { display: none; }
+    .module-panel.active {
+      display: flex;
+      flex-direction: column;
+      animation: fadeUp 0.42s ease both;
+    }
+
+    .model-catalog {
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      background: rgba(7, 11, 18, 0.45);
+      border: 1px solid var(--border);
+      max-height: 120px;
+      overflow: auto;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .model-catalog strong { color: var(--accent); }
+
+    .status-list-wrap {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--panel-solid);
+      overflow: hidden;
+    }
+    .status-list-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-hover);
+    }
+    .status-list-toolbar .meta {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .status-list {
+      max-height: 360px;
+      overflow: auto;
+      background: transparent;
+    }
+    .status-row {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1.4fr) minmax(0, 0.9fr) 88px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      background: transparent;
+    }
+    .status-row:last-child { border-bottom: none; }
+    .status-row:hover { background: var(--accent-soft); }
+    .status-row .name {
+      font-weight: 600;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .status-row .muted {
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .status-badge.on {
+      color: var(--success);
+      background: var(--success-soft);
+      border: 1px solid rgba(52, 211, 153, 0.28);
+    }
+    .status-badge.off {
+      color: var(--danger);
+      background: var(--danger-soft);
+      border: 1px solid rgba(248, 113, 113, 0.28);
+    }
+    .status-row-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .status-row-actions button {
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      min-height: auto;
+      box-shadow: none;
+    }
+    .status-row-actions .btn-primary:disabled,
+    .status-row-actions .btn-danger:disabled {
+      opacity: 0.35;
+    }
+    .status-empty {
+      padding: 18px 12px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+    .switch-section {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--border);
+    }
+    .switch-section h3 {
+      margin: 0 0 8px;
+      font-size: 0.95rem;
+    }
+    .switch-row {
+      grid-template-columns: 28px 64px minmax(0, 1.6fr) minmax(0, 1.2fr) 72px;
+    }
+    #statusModelText { min-height: 120px; }
+
+    .query-metric-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 20px;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .query-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.86rem;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .query-check input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+    .balance-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .balance-presets button {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-size: 0.74rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .balance-presets button:hover { color: var(--text); border-color: rgba(34, 211, 238, 0.35); }
+    .balance-presets button.active {
+      background: var(--accent-soft);
+      border-color: rgba(34, 211, 238, 0.4);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .balance-presets button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .balance-custom-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .balance-table-wrap {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      background: var(--panel-solid);
+    }
+    .balance-table-scroll {
+      max-height: 420px;
+      overflow: auto;
+    }
+    .balance-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .balance-table th,
+    .balance-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    .balance-table th {
+      position: sticky;
+      top: 0;
+      background: var(--panel-hover);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.72rem;
+      z-index: 1;
+    }
+    .balance-table td.num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .balance-table tr:hover td { background: var(--accent-soft); }
+    .balance-table .col-hide { display: none; }
+
+    .field-hidden { display: none !important; }
+
+    /* ── 分隔线 ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0 18px;
+    }
+
+    /* ── UI 增强动画 ── */
+    .bg-layer::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+
+    .card {
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s, box-shadow 0.35s;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(34, 211, 238, 0.22);
+      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
+    }
+
+    .module-tabs button {
+      transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .module-tabs button.active {
+      box-shadow: 0 4px 22px rgba(34, 211, 238, 0.22);
+      transform: translateY(-2px);
+    }
+
+    .btn-primary:not(:disabled):hover {
+      transform: translateY(-2px);
+    }
+
+    .status-bar.connected .status-dot {
+      animation: pulseDot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { box-shadow: 0 0 10px rgba(52, 211, 153, 0.6); }
+      50% { box-shadow: 0 0 18px rgba(52, 211, 153, 0.9); }
+    }
+
+    .log-body div {
+      animation: fadeUp 0.32s ease both;
+    }
+  </style>
+</head>
+<body class="na-app batch-app">
+  <div class="na-bg" aria-hidden="true">
+    <div class="na-bg-grid"></div>
+    <div class="na-bg-orb na-bg-orb-1"></div>
+    <div class="na-bg-orb na-bg-orb-2"></div>
+    <div class="na-bg-noise"></div>
+  </div>
+
+  <div class="wrap">
+    <header class="hero">
+      <div class="hero-brand">
+        <div class="hero-logo" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <path d="M4 6h16M4 12h10M4 18h14" stroke="#041018" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="19" cy="12" r="2.5" fill="#041018"/>
+          </svg>
+        </div>
+        <div>
+          <h1><span>NA</span> 批量配置工具</h1>
+          <p class="hero-desc">
+            渠道批量导入 · 令牌批量创建 · 分组单独创建 · 智能去重
+          </p>
+          <div class="hero-badges">
+            <span class="badge"><span class="badge-dot"></span>渠道管理</span>
+            <span class="badge">令牌管理</span>
+            <span class="badge">重复保护</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-meta">
+        <span class="version-tag">v1.1 · local</span>
+      </div>
+    </header>
+
+    <div class="module-tabs" role="tablist" aria-label="批量配置模块">
+      <button type="button" role="tab" aria-selected="true" class="active" data-module="channel">渠道管理</button>
+      <button type="button" role="tab" aria-selected="false" data-module="token">令牌管理</button>
+      <button type="button" role="tab" aria-selected="false" data-module="group">分组设置</button>
+      <button type="button" role="tab" aria-selected="false" data-module="status">渠道启停</button>
+      <button type="button" role="tab" aria-selected="false" data-module="log">使用日志</button>
+    </div>
+
+    <div class="grid">
+      <!-- 左：连接配置 -->
+      <div class="card card-connect">
+        <div class="card-header">
+          <h2><span class="card-icon na-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/></svg></span>连接配置</h2>
+          <div class="env-site-switch" id="envSiteSwitch" hidden aria-label="环境快捷切换">
+            <button type="button" class="env-site-btn" data-env="test" title="填入 test 站点">test</button>
+            <button type="button" class="env-site-btn" data-env="uat" title="填入 uat 站点">uat</button>
+            <button type="button" class="env-site-btn" data-env="prod" title="填入 prod 站点">prod</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label for="baseUrl">New API 地址</label>
+            <input id="baseUrl" placeholder="http://localhost:3000" value="http://localhost:3000" />
+            <div class="hint" style="margin-top:6px;">可粘贴控制台页面地址（如 …/console/log），将自动识别为站点根地址。</div>
+            <label class="ssl-skip-row" for="skipSslVerify">
+              <input type="checkbox" id="skipSslVerify" />
+              <span>跳过 SSL 证书校验</span>
+            </label>
+            <div class="hint">默认关闭。证书报 Hostname mismatch / CERTIFICATE_VERIFY_FAILED 时勾选即可。</div>
+          </div>
+
+          <div class="auth-tabs">
+            <button type="button" class="active" data-auth="password">账号密码</button>
+            <button type="button" data-auth="token">Access Token</button>
+          </div>
+
+          <div id="authPassword" class="auth-panel active">
+            <div class="field">
+              <label for="username">管理员用户名</label>
+              <input id="username" placeholder="admin" value="admin" />
+            </div>
+            <div class="field">
+              <label for="password">管理员密码</label>
+              <input id="password" type="password" placeholder="123456" />
+            </div>
+            <div class="field">
+              <label for="otpCode">二次验证码（登录 2FA）</label>
+              <input id="otpCode" type="text" autocomplete="one-time-code" maxlength="128" placeholder="6 位码 / 8 位备用码，或粘贴 TOTP 原始密钥" />
+              <div class="hint" style="margin-top:6px;">可填认证器当前码，或粘贴原始密钥（Base32，自动生成当前 6 位码）。也可在 env/sites.json 预置 totp_secret，无需每次手填。验证码约 30 秒一变，不会写入本地缓存。</div>
+              <div class="hint" id="totpSecretHint" hidden>该环境已在 sites.json 配置 TOTP 密钥，将自动生成验证码。</div>
+            </div>
+          </div>
+
+          <div id="authToken" class="auth-panel">
+            <div class="field">
+              <label for="userId">用户 ID (New-Api-User)</label>
+              <input id="userId" type="number" placeholder="1" />
+            </div>
+            <div class="field">
+              <label for="accessToken">Access Token</label>
+              <input id="accessToken" placeholder="用户 Access Token" />
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field field-channel-only" id="fieldDefaultKey">
+            <label for="defaultKey">全局秘钥（可选）</label>
+            <input id="defaultKey" type="password" placeholder="行末已有秘钥时可留空" />
+          </div>
+          <div class="hint field-channel-only" id="hintDefaultKey">每行末列已有秘钥时可留空；仅当某行缺少秘钥时才需要填写全局秘钥作为备用。</div>
+
+          <div class="card-connect-foot">
+          <div class="actions">
+            <button class="btn-secondary" id="btnTest">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">测试连接</span>
+            </button>
+            <button class="btn-ghost" id="btnLoadTypes">刷新类型</button>
+          </div>
+
+          <div class="status-bar" id="connStatus">
+            <span class="status-dot"></span>
+            <span class="status-text">尚未连接 — 请先测试连接以验证凭据与分组</span>
+          </div>
+          </div>
+          <div class="card-connect-spacer" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- 右：渠道批量 -->
+      <div class="card module-panel active" id="moduleChannel">
+        <div class="card-header">
+          <h2><span class="card-icon">📋</span>批量数据</h2>
+          <span class="tag" id="typeSource">类型未加载</span>
+        </div>
+        <div class="card-body">
+          <div class="format-guide">
+            <div class="format-step"><div class="step-num">01</div><div class="step-label">名称</div></div>
+            <div class="format-step"><div class="step-num">02</div><div class="step-label">分组</div></div>
+            <div class="format-step"><div class="step-num">03</div><div class="step-label">类型</div></div>
+            <div class="format-step"><div class="step-num">04</div><div class="step-label">模型</div></div>
+            <div class="format-step"><div class="step-num">05</div><div class="step-label">模型→上游</div></div>
+            <div class="format-step"><div class="step-num">06</div><div class="step-label">base_url</div></div>
+            <div class="format-step"><div class="step-num">07</div><div class="step-label">[API版本]</div></div>
+            <div class="format-step"><div class="step-num">08</div><div class="step-label">秘钥</div></div>
+          </div>
+
+          <div class="hint">
+            <strong>无需表头</strong>，空格分隔每行一条。
+            Azure 自动要求 API 版本；分组不存在时将自动创建（需 Root 权限）；本站内<strong>渠道名、模型名须唯一</strong>：批量内重复则跳过，与本站已有同名渠道或同名模型则拒绝创建。
+            新建渠道会将该行规范化后的 <code>base_url</code> 写入管理员<strong>备注</strong>。
+            火山方舟 / 豆包等上游自动升级后，请用下方「更新原配置」同步网关登记（未收到升级申请单则不要改）。
+          </div>
+
+          <div class="textarea-meta">
+            <span class="line-count">共 <strong id="lineCount">0</strong> 行数据</span>
+          </div>
+          <textarea id="batchText">demo-alpha-test-qwen-z demo-alpha-test OpenAI demo-alpha-test-qwen-z demo-alpha-test-qwen-z->qwen-z https://llm.example.com/compatible-mode sk-demo-key-replace-me
+demo-beta-test-ds-v3 demo-beta-test 自定义渠道 demo-beta-test-ds-v3 demo-beta-test-ds-v3->ds-v3 https://gateway.example.com/v1/chat/completions sk-demo-key-replace-me
+sample-azure-test-gpt-x sample-azure-test Azure OpenAI sample-azure-test-gpt-x sample-azure-test-gpt-x->gpt-x https://sample-azure.example.com 2025-04-01-preview sk-demo-key-replace-me
+</textarea>
+
+          <div class="example-guard-hint visible" id="channelExampleGuard">
+            当前为<strong>示例数据</strong>，误点不会创建。请修改内容后再点「开始批量创建」。
+          </div>
+
+          <div class="actions">
+            <button class="btn-secondary" id="btnLoadExample">载入示例</button>
+            <button class="btn-secondary" id="btnImport">导入文件</button>
+            <input type="file" id="fileInput" accept=".tsv,.csv,.txt" hidden />
+            <button class="btn-primary" id="btnSubmit">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">开始批量创建</span>
+            </button>
+            <button class="btn-secondary" id="btnTestCreated" disabled title="对刚刚创建成功的渠道逐模型测试；失败会标出出错模型">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">一键测试</span>
+            </button>
+          </div>
+
+          <div class="delete-section" id="channelUpdateSection">
+            <div class="hint" style="padding:8px 10px;border-radius:8px;background:var(--accent-soft, rgba(34,211,238,.08));border:1px solid rgba(34,211,238,.22);">
+              <strong>更新原配置</strong>（火山/豆包自动升级）：按<strong>名称+分组</strong>匹配已有渠道，覆盖模型与「模型→上游」映射，不新建渠道。
+              备注为空时会写入本行 <code>base_url</code>；已有且不同的备注会在确认更新时弹窗，由你选择<strong>覆盖</strong>或<strong>保留</strong>原内容。
+              <strong>不需要填写密钥</strong>，也不会改原密钥。若要改渠道名，名称列写 <code>原名称=>新名称</code>。
+              可从智能提取点「填入更新原配置」。须先<strong>预更新</strong>查看变更，再点「确认更新」。
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="btnPreviewUpdateChannel">预更新</button>
+              <button class="btn-secondary" id="btnLoadChannelUpdateTemplate">导入更新模板</button>
+              <button class="btn-primary" id="btnConfirmUpdateChannel" disabled>
+                <span class="btn-spinner"></span>
+                <span class="btn-label">确认更新</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="delete-section" id="channelRemarkSyncSection">
+            <div class="hint" style="padding:8px 10px;border-radius:8px;background:var(--accent-soft, rgba(34,211,238,.08));border:1px solid rgba(34,211,238,.22);">
+              <strong>同步 Base URL 到备注</strong>：读取当前站点的<strong>全部渠道</strong>，将每条渠道的 <code>base_url</code> 记录到 New API「备注」。
+              Azure 渠道只读取 <code>AZURE_OPENAI_ENDPOINT</code>。已有备注会在<strong>下一行追加</strong>；相同地址已存在时跳过。备注超过 255 字符、或未填写地址的渠道不会更新，日志会指出渠道名称。
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="btnPreviewChannelRemarkSync">一键同步 Base URL 到备注</button>
+              <button class="btn-primary" id="btnConfirmChannelRemarkSync" disabled>
+                <span class="btn-spinner"></span>
+                <span class="btn-label">确认同步备注</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="delete-section">
+            <div class="hint warn-box" style="padding:8px 10px;border-radius:8px;background:var(--danger-soft);border:1px solid rgba(248,113,113,.2);">
+              删除 / 禁用 / 启用均须<strong>先预览</strong>再确认。按<strong>名称+分组</strong>匹配上方批量数据（可只写 <code>名称 分组</code>）。禁用可随时再启用；删除不可撤销。
+            </div>
+            <div class="actions">
+              <span class="batch-ops-label">删除</span>
+              <button class="btn-secondary" id="btnPreviewDeleteChannel">预删除</button>
+              <button class="btn-danger" id="btnConfirmDeleteChannel" disabled>确认删除</button>
+            </div>
+            <div class="actions">
+              <span class="batch-ops-label">禁用</span>
+              <button class="btn-secondary" id="btnPreviewDisableChannel">预禁用</button>
+              <button class="btn-danger" id="btnConfirmDisableChannel" disabled>确认禁用</button>
+            </div>
+            <div class="actions">
+              <span class="batch-ops-label">启用</span>
+              <button class="btn-secondary" id="btnPreviewEnableChannel">预启用</button>
+              <button class="btn-primary" id="btnConfirmEnableChannel" disabled>
+                <span class="btn-label">确认启用</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="log-wrap">
+            <div class="log-header">
+              <div class="log-dots"><span></span><span></span><span></span></div>
+              <span class="log-title">执行日志</span>
+              <button class="log-clear" id="btnClearLog" type="button">清空</button>
+            </div>
+            <div class="log" id="logBox">
+              <div class="line info"><span class="ts">--:--:--</span>等待操作...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：令牌批量 -->
+      <div class="card module-panel" id="moduleToken">
+        <div class="card-header">
+          <h2><span class="card-icon">🔑</span>批量令牌</h2>
+          <span class="tag" id="tokenModelSource">模型未加载</span>
+        </div>
+        <div class="card-body">
+          <div class="format-guide">
+            <div class="format-step"><div class="step-num">01</div><div class="step-label">名称</div></div>
+            <div class="format-step"><div class="step-num">02</div><div class="step-label">令牌分组</div></div>
+            <div class="format-step"><div class="step-num">03</div><div class="step-label">模型限制</div></div>
+            <div class="format-step"><div class="step-num">04</div><div class="step-label">额度 Tokens（可选）</div></div>
+          </div>
+
+          <div class="hint">
+            <strong>无需表头</strong>。前三列为<strong>名称 · 令牌分组 · 模型限制</strong>；第 4 列可选填<strong>额度 Tokens</strong>（非负整数）。列间可用 Tab、空格或英文逗号；多模型用顿号「、」或英文逗号（与渠道「模型」列一致）。
+            填写额度时会创建有限额度令牌；省略第 4 列即为<strong>无限额度</strong>，均默认永不过期。本站内<strong>令牌名须唯一</strong>：批量内同名则跳过，与本站已有同名令牌则拒绝创建。令牌分组不存在时将自动创建（需 Root 权限）。
+            已有令牌要改分组：到「<strong>分组设置 → 分组切换</strong>」，勾选或全选后切到目标分组。
+          </div>
+
+          <div class="actions" style="margin-bottom: 12px;">
+            <button class="btn-ghost" id="btnLoadChannelModels">刷新渠道模型目录</button>
+          </div>
+          <div class="model-catalog" id="modelCatalog">连接后点击「刷新渠道模型目录」查看各分组可用模型</div>
+
+          <div class="textarea-meta">
+            <span class="line-count">共 <strong id="tokenLineCount">0</strong> 行数据</span>
+          </div>
+          <textarea id="tokenBatchText">sample-azure-test-gpt-x-样例甲	sample-azure-test	sample-azure-test-gpt-x	500000
+demo-alpha-test-Gx&Gy&Qz-样例乙	demo-alpha-test	demo-alpha-test-glm-x、demo-alpha-test-glm-y、demo-alpha-test-qwen-z
+demo-beta-test-ds-v3-样例丙	demo-beta-test	demo-beta-test-ds-v3	1000000
+</textarea>
+
+          <div class="example-guard-hint visible" id="tokenExampleGuard">
+            当前为<strong>示例数据</strong>，误点不会创建。请修改内容后再点「开始批量创建令牌」。
+          </div>
+
+          <div class="actions">
+            <button class="btn-secondary" id="btnLoadTokenExample">载入示例</button>
+            <button class="btn-secondary" id="btnImportToken">导入文件</button>
+            <input type="file" id="tokenFileInput" accept=".tsv,.csv,.txt" hidden />
+            <button class="btn-primary" id="btnSubmitToken">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">开始批量创建令牌</span>
+            </button>
+          </div>
+
+          <div class="delete-section" id="tokenUpdateSection">
+            <div class="hint" style="padding:8px 10px;border-radius:8px;background:var(--accent-soft, rgba(34,211,238,.08));border:1px solid rgba(34,211,238,.22);">
+              <strong>更新令牌额度</strong>：按<strong>名称+分组</strong>匹配已有令牌。仅处理明确填写<strong>额度 Tokens</strong>的行；可用精简三列 <code>名称 分组 额度</code>，或使用上方完整四列数据。
+              更新只改变令牌额度与「无限额度」开关，<strong>不会修改</strong>名称、分组、模型限制、模型级限流、IP 白名单、过期时间或密钥。须先<strong>预更新</strong>查看变更，再点「确认更新」。
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="btnPreviewUpdateToken">预更新</button>
+              <button class="btn-secondary" id="btnLoadTokenUpdateTemplate">导入更新模板</button>
+              <button class="btn-primary" id="btnConfirmUpdateToken" disabled>
+                <span class="btn-spinner"></span>
+                <span class="btn-label">确认更新</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="delete-section">
+            <div class="hint warn-box" style="padding:8px 10px;border-radius:8px;background:var(--danger-soft);border:1px solid rgba(248,113,113,.2);">
+              删除 / 禁用 / 启用均须<strong>先预览</strong>再确认。按<strong>名称+分组</strong>匹配上方批量数据（可只写 <code>名称 分组</code>，完整创建行也可）。禁用可再启用；删除不可撤销。
+            </div>
+            <div class="actions">
+              <span class="batch-ops-label">删除</span>
+              <button class="btn-secondary" id="btnPreviewDeleteToken">预删除</button>
+              <button class="btn-danger" id="btnConfirmDeleteToken" disabled>确认删除</button>
+            </div>
+            <div class="actions">
+              <span class="batch-ops-label">禁用</span>
+              <button class="btn-secondary" id="btnPreviewDisableToken">预禁用</button>
+              <button class="btn-danger" id="btnConfirmDisableToken" disabled>确认禁用</button>
+            </div>
+            <div class="actions">
+              <span class="batch-ops-label">启用</span>
+              <button class="btn-secondary" id="btnPreviewEnableToken">预启用</button>
+              <button class="btn-primary" id="btnConfirmEnableToken" disabled>
+                <span class="btn-label">确认启用</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="section-title">导出令牌信息</div>
+          <div class="hint warn-box" style="margin-bottom:10px;padding:10px 12px;border-radius:10px;background:var(--warn-soft);border:1px solid rgba(251,191,36,.25);">
+            <strong>线上 API 不返回明文 sk- 秘钥</strong>。请先在网页操作：
+            <br />① 勾选全部令牌 → ②「复制所选令牌」→ ③ 选「<strong>名称+密钥</strong>」→ ④ 粘贴到下方框 → ⑤ 再点「获取全部令牌信息」
+          </div>
+          <label for="tokenKeysPaste" style="display:block;font-size:13px;color:var(--text-muted);margin-bottom:6px;">从网页粘贴「名称+密钥」（新版 test 环境列表已脱敏时可选手动补充）</label>
+          <div class="hint" style="margin-bottom:8px;">新版 New API 列表只显示掩码；网页点「复制密钥」与工具调用 <code>/api/token/batch/keys</code> 等价。若自动获取失败再粘贴。</div>
+          <textarea id="tokenKeysPaste" class="export-output" style="min-height:96px;margin-bottom:10px;" placeholder="demo-alpha-test-glm-x-样例甲    sk-xxxxxxxxxxxxxxxx&#10;demo-beta-test-ds-v3-样例丙    sk-xxxxxxxxxxxxxxxx"></textarea>
+          <div class="actions" style="margin-bottom:8px;">
+            <button class="btn-ghost" id="btnPasteKeysFromClipboard" type="button">从剪贴板粘贴密钥</button>
+          </div>
+          <textarea id="tokenExportOutput" class="export-output" readonly placeholder="点击「获取全部令牌信息」后显示…"></textarea>
+          <div class="actions" style="margin-bottom: 18px;">
+            <button class="btn-secondary" id="btnExportTokens">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">获取全部令牌信息</span>
+            </button>
+            <button class="btn-ghost" id="btnCopyTokenExport">复制导出</button>
+            <button class="btn-ghost" id="btnDownloadTokenExport">下载 .txt</button>
+          </div>
+
+          <div class="log-wrap">
+            <div class="log-header">
+              <div class="log-dots"><span></span><span></span><span></span></div>
+              <span class="log-title">令牌执行日志</span>
+              <button class="log-clear" id="btnClearTokenLog" type="button">清空</button>
+            </div>
+            <div class="log" id="tokenLogBox">
+              <div class="line info"><span class="ts">--:--:--</span>等待操作...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：分组设置 -->
+      <div class="card module-panel" id="moduleGroup">
+        <div class="card-header">
+          <h2><span class="card-icon">🏷️</span>分组创建</h2>
+          <span class="tag" id="groupCountTag">分组未加载</span>
+        </div>
+        <div class="card-body">
+          <div class="hint">
+            仅写入后台「<strong>分组倍率 (GroupRatio)</strong>」与「<strong>用户可选分组 (UserUsableGroups)</strong>」，不创建渠道或令牌。
+            需要 <strong>Root 权限</strong>。每行一个分组名，或用逗号/Tab 分隔；<code>#</code> 开头为注释。
+          </div>
+
+          <div class="field" style="margin-top:12px;">
+            <label for="groupDefaultRatio">默认分组倍率</label>
+            <input id="groupDefaultRatio" type="number" min="0" step="0.01" value="1" />
+          </div>
+
+          <div class="actions" style="margin-bottom: 12px;">
+            <button class="btn-ghost" id="btnRefreshGroups">刷新已有分组</button>
+          </div>
+          <div class="model-catalog" id="groupCatalog">连接后点击「刷新已有分组」查看站点分组列表</div>
+
+          <div class="textarea-meta">
+            <span class="line-count">待创建 <strong id="groupLineCount">0</strong> 个分组</span>
+          </div>
+          <textarea id="groupBatchText" placeholder="demo-alpha-test&#10;sample-azure-test&#10;# 注释行会被忽略">demo-alpha-test
+sample-azure-test
+</textarea>
+
+          <div class="example-guard-hint visible" id="groupExampleGuard">
+            当前为<strong>示例数据</strong>，误点不会创建。请修改内容后再点「创建分组」。
+          </div>
+
+          <div class="actions">
+            <button class="btn-secondary" id="btnLoadGroupExample">载入示例</button>
+            <button class="btn-primary" id="btnSubmitGroups">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">创建分组</span>
+            </button>
+          </div>
+
+          <div class="switch-section">
+            <h3>分组切换</h3>
+            <div class="hint">
+              将<strong>源分组</strong>下的渠道或令牌改到<strong>目标分组</strong>。可勾选部分，或点「全选」。
+              渠道若属于多个分组，只把源分组替换为目标分组，其它分组保留。请先「刷新已有分组」。
+            </div>
+            <div class="field-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px;">
+              <div class="field">
+                <label for="switchSourceGroup">源分组</label>
+                <select id="switchSourceGroup">
+                  <option value="">请先刷新已有分组</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="switchTargetGroup">目标分组</label>
+                <select id="switchTargetGroup">
+                  <option value="">请先刷新已有分组</option>
+                </select>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:10px;">
+              <button class="btn-secondary" id="btnLoadGroupMembers" type="button">加载该分组渠道 / 令牌</button>
+            </div>
+
+            <div class="status-list-wrap" id="switchChannelWrap" style="margin-top:12px;">
+              <div class="status-list-toolbar">
+                <strong style="font-size:0.82rem;">渠道</strong>
+                <button class="btn-ghost" id="btnSwitchChSelectAll" type="button">全选</button>
+                <button class="btn-ghost" id="btnSwitchChInvert" type="button">反选</button>
+                <span class="meta" id="switchChannelMeta">尚未加载</span>
+              </div>
+              <div class="status-list" id="switchChannelList">
+                <div class="status-empty">选择源分组后点「加载该分组渠道 / 令牌」</div>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:8px;">
+              <button class="btn-primary" id="btnSwitchChannels" type="button" disabled>
+                <span class="btn-spinner"></span>
+                <span class="btn-label">切换所选渠道</span>
+              </button>
+            </div>
+
+            <div class="status-list-wrap" id="switchTokenWrap" style="margin-top:14px;">
+              <div class="status-list-toolbar">
+                <strong style="font-size:0.82rem;">令牌</strong>
+                <button class="btn-ghost" id="btnSwitchTkSelectAll" type="button">全选</button>
+                <button class="btn-ghost" id="btnSwitchTkInvert" type="button">反选</button>
+                <span class="meta" id="switchTokenMeta">尚未加载</span>
+              </div>
+              <div class="status-list" id="switchTokenList">
+                <div class="status-empty">选择源分组后点「加载该分组渠道 / 令牌」</div>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:8px;">
+              <button class="btn-primary" id="btnSwitchTokens" type="button" disabled>
+                <span class="btn-spinner"></span>
+                <span class="btn-label">切换所选令牌</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="delete-section">
+            <div class="hint warn-box" style="padding:8px 10px;border-radius:8px;background:var(--danger-soft);border:1px solid rgba(248,113,113,.2);">
+              删除须<strong>先预删除</strong>。仅移除分组配置（GroupRatio / UserUsableGroups），不删渠道/令牌；<code>default</code>、<code>auto</code> 不可删。
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="btnPreviewDeleteGroups">预删除</button>
+              <button class="btn-danger" id="btnConfirmDeleteGroups" disabled>确认删除</button>
+            </div>
+          </div>
+
+          <div class="log-wrap">
+            <div class="log-header">
+              <div class="log-dots"><span></span><span></span><span></span></div>
+              <span class="log-title">分组执行日志</span>
+              <button class="log-clear" id="btnClearGroupLog" type="button">清空</button>
+            </div>
+            <div class="log" id="groupLogBox">
+              <div class="line info"><span class="ts">--:--:--</span>等待操作...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：渠道启停（按上游模型 / 类型 / 勾选） -->
+      <div class="card module-panel" id="moduleStatus">
+        <div class="card-header">
+          <h2><span class="card-icon">⏻</span>渠道启停</h2>
+          <span class="tag" id="statusTypeTag">按上游模型</span>
+        </div>
+        <div class="card-body">
+          <div class="hint">
+            须指定<strong>渠道类型</strong>（默认自定义渠道）。可按<strong>上游模型</strong>筛选，或对该类型<strong>全部</strong>启停。
+            清单支持<strong>全选 / 反选</strong>与<strong>单条</strong>启用禁用。
+          </div>
+
+          <div class="field" style="margin-top:12px;">
+            <label for="statusChannelType">渠道类型</label>
+            <select id="statusChannelType">
+              <option value="自定义渠道" selected>自定义渠道</option>
+            </select>
+          </div>
+
+          <div class="actions" style="margin-top:8px;">
+            <button class="btn-secondary" id="btnLoadStatusList" type="button">加载类型清单</button>
+            <button class="btn-danger" id="btnTypeDisableAll" type="button">类型全部禁用</button>
+            <button class="btn-primary" id="btnTypeEnableAll" type="button">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">类型全部启用</span>
+            </button>
+          </div>
+
+          <div class="textarea-meta" style="margin-top:14px;">
+            <span class="line-count">上游模型筛选 · 共 <strong id="statusModelCount">0</strong> 个</span>
+          </div>
+          <textarea id="statusModelText" placeholder="可选：每行一个上游模型；留空则用「加载类型清单」看该类型全部&#10;glm-5.1&#10;glm-5.2">glm-5.1
+</textarea>
+
+          <div class="actions" style="margin-top:8px;">
+            <button class="btn-secondary" id="btnPreviewByModels" type="button">按上游模型加载</button>
+            <button class="btn-danger" id="btnDisableSelected" type="button" disabled>禁用所选</button>
+            <button class="btn-primary" id="btnEnableSelected" type="button" disabled>
+              <span class="btn-spinner"></span>
+              <span class="btn-label">启用所选</span>
+            </button>
+          </div>
+
+          <div class="status-list-wrap" id="statusListWrap">
+            <div class="status-list-toolbar">
+              <button class="btn-ghost" id="btnStatusSelectAll" type="button">全选</button>
+              <button class="btn-ghost" id="btnStatusInvert" type="button">反选</button>
+              <span class="meta" id="statusListMeta">尚未加载</span>
+            </div>
+            <div class="status-list" id="statusChannelList">
+              <div class="status-empty">先选择类型，再「加载类型清单」或「按上游模型加载」</div>
+            </div>
+          </div>
+
+          <div class="log-wrap">
+            <div class="log-header">
+              <div class="log-dots"><span></span><span></span><span></span></div>
+              <span class="log-title">启停执行日志</span>
+              <button class="log-clear" id="btnClearStatusLog" type="button">清空</button>
+            </div>
+            <div class="log" id="statusLogBox">
+              <div class="line info"><span class="ts">--:--:--</span>等待操作...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：使用日志导出 -->
+      <div class="card module-panel" id="moduleLog">
+        <div class="card-header">
+          <h2><span class="card-icon">📊</span>使用日志导出</h2>
+          <span class="tag" id="logExportTag">对接 NA /api/log</span>
+        </div>
+        <div class="card-body">
+          <div class="hint">
+            使用左侧<strong>连接配置</strong>登录 NA，按使用日志接口分页抓取并导出 CSV / Excel。时间筛选精确到秒；管理员导出全站日志，普通用户仅导出自身日志。
+            <strong>模型名称</strong>支持模糊查询（不区分大小写子串，如 <code>glm-5.1</code> 可命中所有包含该关键词的模型）。
+            NA 接口<strong>不能按模型名筛选</strong>，本工具会先按时间/分组/令牌把网关日志全部翻页拉完，再在本地按模型名过滤——进度里较大的分母是网关条数，导出条数会变少。
+            若提示「网关有 N 条但模型名未匹配」，清空「模型名称」即可导出这 N 条。
+            默认时间是<strong>今天</strong>，量大请改「近 7 天 / 近 30 天」。NA 每页硬上限 100 条，本工具会一直翻页到拉完。<strong>180 次 / 180 秒</strong>是网关速度上限。导出期间请尽量不要同时刷 NA 控制台（同一 IP 共用配额）。
+            文件存放在 <code>excel/</code>（如 <code>usage_logs_年月日_时分秒.xlsx</code>）。导出完成后再点「下载 Excel」获取完整文件，不会自动下载。
+          </div>
+
+          <div class="field-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px;">
+            <div class="field field-span-2">
+              <label>快捷时间</label>
+              <div class="log-time-presets" id="logTimePresets">
+                <button type="button" class="active" data-range="today">今天</button>
+                <button type="button" data-range="yesterday">昨天</button>
+                <button type="button" data-range="last7">近 7 天</button>
+                <button type="button" data-range="last30">近 30 天</button>
+                <button type="button" data-range="thisMonth">本月</button>
+                <button type="button" data-range="lastMonth">上月</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="logStartTime">开始时间</label>
+              <input id="logStartTime" type="datetime-local" step="1" />
+            </div>
+            <div class="field">
+              <label for="logEndTime">结束时间</label>
+              <input id="logEndTime" type="datetime-local" step="1" />
+            </div>
+            <div class="field">
+              <label for="logType">日志类型</label>
+              <select id="logType">
+                <option value="0" selected>全部</option>
+                <option value="1">充值</option>
+                <option value="2">消费</option>
+                <option value="3">管理</option>
+                <option value="4">系统</option>
+                <option value="5">错误</option>
+                <option value="6">退款</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="logGroup">分组</label>
+              <input id="logGroup" placeholder="demo-alpha-test" />
+            </div>
+            <div class="field">
+              <label for="logTokenName">令牌名称</label>
+              <input id="logTokenName" placeholder="demo-alpha-test-glm-x-样例甲" />
+            </div>
+            <div class="field">
+              <label for="logModelName">模型名称（模糊）</label>
+              <input id="logModelName" placeholder="glm-5.1 可匹配全部含该关键词的模型" />
+            </div>
+            <div class="field field-log-admin">
+              <label for="logChannel">渠道 ID</label>
+              <input id="logChannel" type="number" min="1" step="1" placeholder="116（留空表示不限，须 ≥ 1）" />
+            </div>
+            <div class="field">
+              <label for="logExportFormat">导出格式</label>
+              <select id="logExportFormat">
+                <option value="xlsx">Excel (.xlsx，含内外框)</option>
+                <option value="csv">CSV（纯文本，无边框样式）</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions" style="margin-top:16px;">
+            <button class="btn-primary" id="btnExportLogs">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">导出使用日志</span>
+            </button>
+            <button class="btn-secondary" id="btnDownloadLogs" type="button" disabled>下载 Excel</button>
+            <button class="btn-ghost" id="btnRefreshLogsExport" type="button" title="其它页导出后点此同步下载状态">刷新</button>
+            <button class="btn-danger" id="btnStopExportLogs" type="button" hidden>终止</button>
+          </div>
+
+          <div class="log-wrap" style="margin-top:18px;">
+            <div class="log-header">
+              <div class="log-dots" id="logExportDots" data-status="idle" aria-hidden="true"><span></span><span></span><span></span></div>
+              <span class="log-title">日志导出进度</span>
+              <button class="log-clear" id="btnClearLogExport" type="button">清空</button>
+            </div>
+            <div class="log" id="logExportBox">
+              <div class="line info"><span class="ts">--:--:--</span>设置筛选条件后点击「导出使用日志」</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const logBox = $('logBox');
+    const tokenLogBox = $('tokenLogBox');
+    const groupLogBox = $('groupLogBox');
+    const statusLogBox = $('statusLogBox');
+    const statusModelText = $('statusModelText');
+    const statusChannelType = $('statusChannelType');
+    const statusModelCount = $('statusModelCount');
+    const logExportBox = $('logExportBox');
+    const connStatus = $('connStatus');
+    const typeSource = $('typeSource');
+    const tokenModelSource = $('tokenModelSource');
+    const groupCountTag = $('groupCountTag');
+    const lineCount = $('lineCount');
+    const tokenLineCount = $('tokenLineCount');
+    const groupLineCount = $('groupLineCount');
+    const batchText = $('batchText');
+    const tokenBatchText = $('tokenBatchText');
+    const groupBatchText = $('groupBatchText');
+    const tokenExportOutput = $('tokenExportOutput');
+    const modelCatalog = $('modelCatalog');
+    const groupCatalog = $('groupCatalog');
+    let activeModule = 'channel';
+    let cachedGroupModels = {};
+    let cachedGroups = [];
+    let cachedUserId = null;
+    let cachedIsAdmin = false;
+    const CONFIG_STORAGE_KEY = 'na_batch_connection_config';
+
+    function normalizeNaBaseUrl(raw) {
+      const text = (raw || '').trim();
+      if (!text) return '';
+      let candidate = text;
+      if (!/^https?:\/\//i.test(candidate)) {
+        candidate = `https://${candidate}`;
+      }
+      try {
+        const url = new URL(candidate);
+        const path = url.pathname || '';
+        if (/^\/console(?:\/|$)/i.test(path) || /^\/api(?:\/|$)/i.test(path)) {
+          url.pathname = '';
+          url.search = '';
+          url.hash = '';
+        }
+        return url.origin.replace(/\/+$/, '');
+      } catch (_) {
+        return text
+          .replace(/\/console(?:\/.*)?\/?$/i, '')
+          .replace(/\/api(?:\/.*)?\/?$/i, '')
+          .replace(/\/+$/, '');
+      }
+    }
+
+    function applyBaseUrlNormalization({ updateInput = true, showStatus = false } = {}) {
+      const el = $('baseUrl');
+      if (!el) return '';
+      const original = el.value.trim();
+      const normalized = normalizeNaBaseUrl(original);
+      if (updateInput && normalized && normalized !== original) {
+        el.value = normalized;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (showStatus && normalized && normalized !== original) {
+        setConnStatus(`已识别站点地址：${normalized}`, 'connected');
+      }
+      return normalized || original;
+    }
+
+    function bindBaseUrlNormalization() {
+      const el = $('baseUrl');
+      if (!el) return;
+      const handle = () => applyBaseUrlNormalization({ updateInput: true, showStatus: false });
+      el.addEventListener('blur', handle);
+      el.addEventListener('change', handle);
+      el.addEventListener('paste', () => {
+        setTimeout(handle, 0);
+      });
+    }
+
+    function switchAuthMode(mode) {
+      document.querySelectorAll('.auth-tabs button').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.auth === mode);
+      });
+      $('authPassword').classList.toggle('active', mode === 'password');
+      $('authToken').classList.toggle('active', mode === 'token');
+    }
+
+    function readConnectionConfig() {
+      const tokenPanelActive = $('authToken').classList.contains('active');
+      const config = {
+        base_url: normalizeNaBaseUrl($('baseUrl').value.trim()),
+        default_key: $('defaultKey').value.trim(),
+        verify_ssl: !($('skipSslVerify') && $('skipSslVerify').checked),
+      };
+      if (tokenPanelActive) {
+        config.access_token = $('accessToken').value.trim();
+        config.user_id = Number($('userId').value) || null;
+        config.auth_mode = 'token';
+      } else {
+        config.username = $('username').value.trim();
+        config.password = $('password').value;
+        config.otp_code = ($('otpCode') && $('otpCode').value || '').trim();
+        config.auth_mode = 'password';
+      }
+      return config;
+    }
+
+    function applyConnectionConfig(config, { onlyEmpty = false, force = false } = {}) {
+      if (!config) return;
+      const setValue = (id, value, { allowEmpty = false } = {}) => {
+        const el = $(id);
+        if (!el) return;
+        if (value == null) return;
+        const text = String(value);
+        if (!allowEmpty && text === '') return;
+        if (onlyEmpty && el.value.trim()) return;
+        el.value = text;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+
+      setValue('baseUrl', normalizeNaBaseUrl(config.base_url || ''), { allowEmpty: force });
+      if ($('skipSslVerify') && config.verify_ssl != null) {
+        $('skipSslVerify').checked = config.verify_ssl === false;
+      }
+      if (force || config.default_key != null) {
+        setValue('defaultKey', config.default_key == null ? '' : config.default_key, { allowEmpty: force });
+      }
+
+      const useToken = Boolean(
+        config.auth_mode === 'token'
+        || (config.access_token && !config.username && !config.password),
+      );
+      if (useToken) {
+        switchAuthMode('token');
+        setValue('accessToken', config.access_token || '', { allowEmpty: force });
+        if (config.user_id != null && config.user_id !== '') {
+          setValue('userId', config.user_id);
+        } else if (force) {
+          setValue('userId', '', { allowEmpty: true });
+        }
+      } else {
+        switchAuthMode('password');
+        setValue('username', config.username || '', { allowEmpty: force });
+        setValue('password', config.password == null ? '' : config.password, { allowEmpty: force });
+        if (force || config.otp_code) {
+          setValue('otpCode', config.otp_code == null ? '' : config.otp_code, { allowEmpty: force });
+        }
+      }
+    }
+
+    let envSitesCache = { configured: false, sites: {}, available: [] };
+    let activeEnvKey = '';
+
+    function setEnvSwitchActive(key) {
+      activeEnvKey = key || '';
+      document.querySelectorAll('#envSiteSwitch .env-site-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.env === activeEnvKey);
+      });
+    }
+
+    function renderEnvSiteSwitch() {
+      const wrap = $('envSiteSwitch');
+      if (!wrap) return;
+      const available = new Set(envSitesCache.available || []);
+      const show = Boolean(envSitesCache.configured && available.size);
+      wrap.hidden = !show;
+      wrap.classList.toggle('visible', show);
+      document.querySelectorAll('#envSiteSwitch .env-site-btn').forEach((btn) => {
+        const key = btn.dataset.env;
+        const ok = available.has(key);
+        btn.disabled = !ok;
+        btn.title = ok ? `填入 ${key} 站点连接信息` : `${key} 未在 env/sites.json 中配置`;
+      });
+      if (!show) setEnvSwitchActive('');
+    }
+
+    async function loadEnvSites() {
+      try {
+        const resp = await fetch('/api/env-sites');
+        const data = await resp.json();
+        if (data.success) {
+          envSitesCache = {
+            configured: Boolean(data.configured),
+            sites: data.sites || {},
+            available: data.available || [],
+          };
+        } else {
+          envSitesCache = { configured: false, sites: {}, available: [] };
+        }
+      } catch (_) {
+        envSitesCache = { configured: false, sites: {}, available: [] };
+      }
+      renderEnvSiteSwitch();
+    }
+
+    function updateTotpSecretHint(site) {
+      const hint = $('totpSecretHint');
+      if (!hint) return;
+      const on = Boolean(site && site.has_totp_secret);
+      hint.hidden = !on;
+    }
+
+    function applyEnvSite(key) {
+      const site = envSitesCache.sites?.[key];
+      if (!site) {
+        appendLog(`环境 ${key} 未配置（请编辑 env/sites.json）`, 'warn');
+        return;
+      }
+      applyConnectionConfig(site, { force: true });
+      applyBaseUrlNormalization({ updateInput: true, showStatus: false });
+      saveConnectionConfig();
+      setEnvSwitchActive(key);
+      updateTotpSecretHint(site);
+      setConnStatus(`已切换到 ${key}：${site.base_url || ''}`, '');
+      appendLog(`已填入 ${key} 连接配置`, 'ok');
+      if (site.has_totp_secret) {
+        appendLog(`${key} 已配置 TOTP 密钥，登录将自动生成验证码`, 'ok');
+      }
+      if (typeof NAUi !== 'undefined') NAUi.toast(`已切换到 ${key}`, 'ok', 2200);
+    }
+
+    function saveConnectionConfig() {
+      try {
+        const config = readConnectionConfig();
+        delete config.otp_code;
+        localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+      } catch (_) {
+        /* ignore quota / private mode */
+      }
+    }
+
+    async function fetchFileBatchConfig() {
+      const resp = await fetch('/api/batch-config');
+      const data = await resp.json();
+      if (!data.success) return {};
+      return data.data || {};
+    }
+
+    function readStoredBatchConfig() {
+      try {
+        const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    async function loadMergedBatchConfig() {
+      const fileConfig = await fetchFileBatchConfig();
+      const storedConfig = readStoredBatchConfig();
+      return { ...fileConfig, ...storedConfig };
+    }
+
+    async function loadDefaultConfig() {
+      const config = await loadMergedBatchConfig();
+      applyConnectionConfig(config, { onlyEmpty: true });
+    }
+
+    function focusChannelModule() {
+      switchModule('channel');
+    }
+
+    function focusTokenModule() {
+      switchModule('token');
+    }
+
+    function applyChannelTextFromAgent(text) {
+      channelExampleGuard.replaceContent(
+        text,
+        '已从智能提取填入渠道数据（已清除示例），可以开始批量创建',
+      );
+      updateLineCount();
+      channelDeleteGuard.invalidate();
+      channelUpdateGuard.invalidate();
+      channelDisableGuard.invalidate();
+      channelEnableGuard.invalidate();
+      focusChannelModule();
+      const batchText = $('batchText');
+      const panel = batchText?.closest('.card') || batchText?.closest('.module-panel');
+      let tag = panel?.querySelector('.na-inbound-tag');
+      if (panel && !tag) {
+        tag = document.createElement('div');
+        tag.className = 'na-inbound-tag';
+        panel.insertBefore(tag, panel.firstChild);
+      }
+      const lines = String(text || '').split(/\r?\n/).filter((l) => l.trim()).length;
+      if (tag) tag.textContent = `来自智能提取 · ${lines} 条`;
+      if (typeof NAUi !== 'undefined') NAUi.flashEl(batchText);
+    }
+
+    function applyChannelTextFromAgentForUpdate(text) {
+      channelExampleGuard.replaceContent(
+        text,
+        '已从智能提取填入「更新原配置」（不改密钥）。请预更新后确认，不要点「开始批量创建」。',
+      );
+      updateLineCount();
+      channelDeleteGuard.invalidate();
+      channelUpdateGuard.invalidate();
+      channelDisableGuard.invalidate();
+      channelEnableGuard.invalidate();
+      focusChannelModule();
+      const batchText = $('batchText');
+      const panel = batchText?.closest('.card') || batchText?.closest('.module-panel');
+      let tag = panel?.querySelector('.na-inbound-tag');
+      if (panel && !tag) {
+        tag = document.createElement('div');
+        tag.className = 'na-inbound-tag';
+        panel.insertBefore(tag, panel.firstChild);
+      }
+      const lines = String(text || '').split(/\r?\n/).filter((l) => l.trim()).length;
+      if (tag) tag.textContent = `来自智能提取 · 更新原配置 · ${lines} 条`;
+      const updateSection = $('channelUpdateSection');
+      if (updateSection && typeof updateSection.scrollIntoView === 'function') {
+        updateSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (typeof NAUi !== 'undefined') NAUi.flashEl(updateSection || batchText);
+    }
+
+    function applyTokenTextFromAgent(text) {
+      tokenExampleGuard.replaceContent(
+        text,
+        '已从智能提取填入令牌数据（已清除示例），可以开始批量创建',
+      );
+      updateTokenLineCount();
+      tokenUpdateGuard.invalidate();
+      tokenDeleteGuard.invalidate();
+      tokenDisableGuard.invalidate();
+      tokenEnableGuard.invalidate();
+      focusTokenModule();
+      const panel = tokenBatchText?.closest('.card') || tokenBatchText?.closest('.module-panel');
+      let tag = panel?.querySelector('.na-inbound-tag');
+      if (panel && !tag) {
+        tag = document.createElement('div');
+        tag.className = 'na-inbound-tag';
+        panel.insertBefore(tag, panel.firstChild);
+      }
+      const lines = String(text || '').split(/\r?\n/).filter((l) => l.trim()).length;
+      if (tag) tag.textContent = `来自令牌智能提取 · ${lines} 条`;
+      if (typeof NAUi !== 'undefined') NAUi.flashEl(tokenBatchText);
+    }
+
+    window.__naBatchApplyConfig = applyConnectionConfig;
+    window.__naBatchFocusChannel = focusChannelModule;
+    window.__naBatchApplyChannelText = applyChannelTextFromAgent;
+    window.__naBatchApplyChannelTextForUpdate = applyChannelTextFromAgentForUpdate;
+    window.__naBatchFocusToken = focusTokenModule;
+    window.__naBatchApplyTokenText = applyTokenTextFromAgent;
+
+    function ts() {
+      const d = new Date();
+      return [d.getHours(), d.getMinutes(), d.getSeconds()]
+        .map((n) => String(n).padStart(2, '0'))
+        .join(':');
+    }
+
+    function appendLog(text, cls = '', target = logBox) {
+      const line = document.createElement('div');
+      line.className = 'line' + (cls ? ' ' + cls : '');
+      const time = document.createElement('span');
+      time.className = 'ts';
+      time.textContent = ts();
+      line.appendChild(time);
+      line.appendChild(document.createTextNode(text));
+      target.appendChild(line);
+      target.scrollTop = target.scrollHeight;
+    }
+
+    async function readApiResult(resp, actionLabel) {
+      try {
+        const data = await resp.json();
+        if (!data || typeof data !== 'object') {
+          throw new Error('empty');
+        }
+        return data;
+      } catch (err) {
+        throw new Error(
+          `${actionLabel}失败：服务器返回 HTTP ${resp.status}，无法解析故障信息。请查看终端或项目 log/ 目录。`
+        );
+      }
+    }
+
+    function clearLog(target = logBox) {
+      target.innerHTML = '';
+    }
+
+    let lastCreatedChannels = [];
+
+    function refreshTestCreatedBtn() {
+      const btn = $('btnTestCreated');
+      if (!btn) return;
+      const loading = btn.classList.contains('loading');
+      btn.disabled = loading || lastCreatedChannels.length === 0;
+    }
+
+    function collectCreatedChannels(items) {
+      return (items || []).filter((item) => (
+        item && item.success && !item.skipped && !item.meta && !item.preview && Number(item.channel_id || 0) > 0
+      )).map((item) => ({
+        channel_id: Number(item.channel_id),
+        name: item.name || '',
+        models: Array.isArray(item.models) ? item.models : [],
+        index: item.index,
+      }));
+    }
+
+    function renderBatchItems(items, target = logBox) {
+      items.forEach((item) => {
+        if (item.meta) {
+          if (item.type_source) {
+            appendLog(`渠道类型来源: ${item.type_source} (${item.type_count})`, 'info', target);
+          }
+          if (item.group_models) {
+            cachedGroupModels = item.group_models;
+            renderModelCatalog(item.group_models);
+            appendLog(`已关联 ${Object.keys(item.group_models).length} 个分组的渠道模型`, 'info', target);
+          }
+          return;
+        }
+        if (item.skipped) {
+          appendLog(`#${item.index} ${item.name}: ${item.message}`, 'skip', target);
+          return;
+        }
+        if (item.preview) {
+          appendLog(`#${item.index} ${item.name}: ${item.message}`, 'warn', target);
+          return;
+        }
+        appendLog(`#${item.index} ${item.name}: ${item.message}`, item.success ? 'ok' : 'fail', target);
+      });
+    }
+
+    function fillGroupSelect(select, groups, placeholder) {
+      if (!select) return;
+      const prev = select.value;
+      const names = groups || [];
+      if (!names.length) {
+        select.innerHTML = `<option value="">${placeholder || "请先刷新已有分组"}</option>`;
+        return;
+      }
+      select.innerHTML = [`<option value="">请选择</option>`]
+        .concat(names.map((g) => `<option value="${String(g).replace(/"/g, "&quot;")}">${g}</option>`))
+        .join("");
+      if (prev && names.includes(prev)) select.value = prev;
+    }
+
+    function renderGroupCatalog(groups) {
+      cachedGroups = groups || [];
+      if (!cachedGroups.length) {
+        groupCatalog.textContent = '暂无分组';
+        groupCountTag.textContent = '0 个分组';
+        fillGroupSelect($('switchSourceGroup'), [], "请先刷新已有分组");
+        fillGroupSelect($('switchTargetGroup'), [], "请先刷新已有分组");
+        return;
+      }
+      groupCountTag.textContent = `${cachedGroups.length} 个分组`;
+      groupCatalog.innerHTML = cachedGroups.map((group) => `<div><strong>${group}</strong></div>`).join('');
+      fillGroupSelect($('switchSourceGroup'), cachedGroups, "请选择");
+      fillGroupSelect($('switchTargetGroup'), cachedGroups, "请选择");
+    }
+
+    function updateGroupLineCount() {
+      const lines = groupBatchText.value.split('\n').filter((l) => {
+        const text = l.trim();
+        return text && !text.startsWith('#');
+      }).length;
+      groupLineCount.textContent = lines;
+    }
+
+    async function loadSiteGroups(showLog = false) {
+      const resp = await fetch('/api/groups-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getAuthPayload()),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.message || '加载分组失败');
+      renderGroupCatalog(data.data.groups || []);
+      if (showLog) {
+        appendLog(`已加载 ${data.data.count || 0} 个站点分组`, 'info', groupLogBox);
+      }
+      return data;
+    }
+
+    function renderModelCatalog(groupModels) {
+      const groups = Object.keys(groupModels || {});
+      if (!groups.length) {
+        modelCatalog.textContent = '未找到渠道模型，请先创建渠道';
+        tokenModelSource.textContent = '无可用模型';
+        return;
+      }
+      tokenModelSource.textContent = `${groups.length} 个分组`;
+      modelCatalog.innerHTML = groups.map((group) => {
+        const models = (groupModels[group] || []).join(', ');
+        return `<div><strong>${group}</strong>: ${models || '无'}</div>`;
+      }).join('');
+    }
+
+    function setConnStatus(text, state = '') {
+      connStatus.className = 'status-bar' + (state ? ' ' + state : '');
+      connStatus.querySelector('.status-text').textContent = text;
+    }
+
+    function setLoading(btn, loading) {
+      btn.disabled = loading || btn.dataset.exampleLocked === '1';
+      btn.classList.toggle('loading', loading);
+    }
+
+    function createExampleGuard({ textarea, submitBtn, hintEl, defaultLabel, logTarget = logBox, extraButtons = [] }) {
+      const state = {
+        locked: true,
+        snapshot: textarea.value,
+      };
+
+      function refreshUI() {
+        submitBtn.disabled = state.locked;
+        submitBtn.dataset.exampleLocked = state.locked ? '1' : '0';
+        submitBtn.title = state.locked ? '当前为示例数据，请先修改后再创建' : '';
+        const label = submitBtn.querySelector('.btn-label');
+        if (label) {
+          label.textContent = state.locked ? '请先修改示例数据' : defaultLabel;
+        }
+        extraButtons.forEach((btn) => {
+          if (!btn) return;
+          btn.disabled = state.locked;
+          btn.dataset.exampleLocked = state.locked ? '1' : '0';
+        });
+        if (hintEl) {
+          hintEl.classList.toggle('visible', state.locked);
+        }
+      }
+
+      function lock(message) {
+        state.locked = true;
+        state.snapshot = textarea.value;
+        refreshUI();
+        if (message) {
+          appendLog(message, 'info', logTarget);
+        }
+      }
+
+      function unlock(message) {
+        if (!state.locked) return;
+        state.locked = false;
+        refreshUI();
+        if (message) {
+          appendLog(message, 'ok', logTarget);
+        }
+      }
+
+      function replaceContent(text, message) {
+        textarea.value = text;
+        state.locked = false;
+        state.snapshot = text;
+        refreshUI();
+        if (message) {
+          appendLog(message, 'ok', logTarget);
+        }
+      }
+
+      function assertReady(actionLabel) {
+        if (!state.locked) return true;
+        appendLog(
+          `${actionLabel}已拦截：当前仍为示例数据，请修改内容后再操作`,
+          'fail',
+          logTarget,
+        );
+        return false;
+      }
+
+      textarea.addEventListener('input', () => {
+        if (state.locked && textarea.value !== state.snapshot) {
+          unlock('已检测到内容修改，可以开始批量创建');
+        }
+      });
+
+      refreshUI();
+      return { lock, unlock, replaceContent, assertReady, refreshUI };
+    }
+
+    const channelExampleGuard = createExampleGuard({
+      textarea: batchText,
+      submitBtn: $('btnSubmit'),
+      hintEl: $('channelExampleGuard'),
+      defaultLabel: '开始批量创建',
+      extraButtons: [
+        $('btnPreviewUpdateChannel'),
+        $('btnPreviewDisableChannel'),
+        $('btnPreviewEnableChannel'),
+      ].filter(Boolean),
+    });
+
+    const tokenExampleGuard = createExampleGuard({
+      textarea: tokenBatchText,
+      submitBtn: $('btnSubmitToken'),
+      hintEl: $('tokenExampleGuard'),
+      defaultLabel: '开始批量创建令牌',
+      logTarget: tokenLogBox,
+      extraButtons: [
+        $('btnPreviewUpdateToken'),
+        $('btnPreviewDisableToken'),
+        $('btnPreviewEnableToken'),
+      ].filter(Boolean),
+    });
+
+    const groupExampleGuard = createExampleGuard({
+      textarea: groupBatchText,
+      submitBtn: $('btnSubmitGroups'),
+      hintEl: $('groupExampleGuard'),
+      defaultLabel: '创建分组',
+      logTarget: groupLogBox,
+    });
+
+    function createDeleteGuard({
+      getText,
+      previewBtn,
+      confirmBtn,
+      apiPath,
+      logTarget,
+      buildBodyExtra,
+      onAfterConfirm,
+      beforeConfirm = null,
+      messages = {},
+      assertReady = null,
+    }) {
+      let pendingFingerprint = null;
+      let pendingPreviewData = null;
+      const msg = {
+        empty: messages.empty || '删除内容为空',
+        needPreview: messages.needPreview || '内容已变化或未预删除，请先点击「预删除」',
+        confirmAsk: messages.confirmAsk || '确定执行删除？此操作不可撤销。',
+        previewing: messages.previewing || '预删除扫描中...',
+        confirming: messages.confirming || '正在删除...',
+      };
+
+      function invalidate() {
+        pendingFingerprint = null;
+        pendingPreviewData = null;
+        confirmBtn.disabled = true;
+      }
+
+      async function runDelete(dryRun) {
+        if (assertReady && !assertReady()) {
+          return;
+        }
+        const text = getText();
+        if (!text.trim()) {
+          appendLog(msg.empty, 'fail', logTarget);
+          return;
+        }
+        let confirmBodyExtra = {};
+        if (!dryRun) {
+          if (pendingFingerprint === null || pendingFingerprint !== text) {
+            appendLog(msg.needPreview, 'fail', logTarget);
+            invalidate();
+            return;
+          }
+          if (!window.confirm(msg.confirmAsk)) {
+            return;
+          }
+          if (beforeConfirm) {
+            const extra = beforeConfirm(pendingPreviewData);
+            if (extra === null) return;
+            if (extra && typeof extra === 'object') confirmBodyExtra = extra;
+          }
+        }
+
+        const btn = dryRun ? previewBtn : confirmBtn;
+        clearLog(logTarget);
+        appendLog(dryRun ? msg.previewing : msg.confirming, dryRun ? 'info' : 'warn', logTarget);
+        setLoading(btn, true);
+        if (dryRun) confirmBtn.disabled = true;
+
+        try {
+          const resp = await fetch(apiPath, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...getAuthPayload(),
+              ...buildBodyExtra(),
+              ...confirmBodyExtra,
+              dry_run: dryRun,
+            }),
+          });
+          const data = await resp.json();
+          renderBatchItems((data.data && data.data.items) || [], logTarget);
+          const cls = dryRun ? (data.success ? 'warn' : 'fail') : (data.success ? 'ok' : 'fail');
+          appendLog(data.message || '完成', cls, logTarget);
+
+          if (dryRun && data.success && data.data && data.data.matched_count > 0) {
+            pendingFingerprint = text;
+            pendingPreviewData = data.data;
+            confirmBtn.disabled = false;
+          } else if (dryRun) {
+            invalidate();
+          } else if (data.success) {
+            invalidate();
+            if (onAfterConfirm) onAfterConfirm(data);
+          }
+        } catch (err) {
+          appendLog(err.message, 'fail', logTarget);
+          if (!dryRun) invalidate();
+        } finally {
+          setLoading(btn, false);
+        }
+      }
+
+      previewBtn.addEventListener('click', () => runDelete(true));
+      confirmBtn.addEventListener('click', () => runDelete(false));
+
+      return { invalidate };
+    }
+
+    function createChannelRemarkSyncGuard() {
+      const previewBtn = $('btnPreviewChannelRemarkSync');
+      const confirmBtn = $('btnConfirmChannelRemarkSync');
+      let pendingBaseUrl = null;
+
+      function invalidate() {
+        pendingBaseUrl = null;
+        confirmBtn.disabled = true;
+      }
+
+      async function runSync(dryRun) {
+        const baseUrl = applyBaseUrlNormalization({ updateInput: true, showStatus: false });
+        if (!baseUrl) {
+          appendLog('请填写 New API 地址', 'fail');
+          return;
+        }
+        if (!dryRun && pendingBaseUrl !== baseUrl) {
+          appendLog('站点已变化或尚未预览，请先点击「一键同步 Base URL 到备注」', 'fail');
+          invalidate();
+          return;
+        }
+        if (!dryRun && !window.confirm(
+          '确定同步全部可处理渠道的 Base URL 到备注？已有备注将在下一行追加；超过 255 字符或缺少地址的渠道会保持不变。'
+        )) return;
+
+        const btn = dryRun ? previewBtn : confirmBtn;
+        clearLog(logBox);
+        appendLog(dryRun ? '正在预览全部渠道的备注同步...' : '正在同步全部渠道备注...', dryRun ? 'info' : 'warn');
+        setLoading(btn, true);
+        if (dryRun) confirmBtn.disabled = true;
+        try {
+          const resp = await fetch('/api/channel-remark-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...getAuthPayload(), dry_run: dryRun }),
+          });
+          const data = await readApiResult(resp, '同步渠道备注');
+          const summary = data.data || {};
+          renderBatchItems(summary.items || [], logBox);
+          const canConfirm = dryRun && Number(summary.matched_count || 0) > 0;
+          const cls = data.success
+            ? (dryRun ? 'warn' : 'ok')
+            : ((canConfirm || Number(summary.updated_count || 0) > 0) ? 'warn' : 'fail');
+          appendLog(data.message || '完成', cls);
+
+          if (dryRun) {
+            if (canConfirm) {
+              pendingBaseUrl = baseUrl;
+              confirmBtn.disabled = false;
+            } else {
+              invalidate();
+            }
+          } else {
+            invalidate();
+          }
+        } catch (err) {
+          appendLog(err.message, 'fail');
+          if (!dryRun) invalidate();
+        } finally {
+          setLoading(btn, false);
+        }
+      }
+
+      previewBtn.addEventListener('click', () => runSync(true));
+      confirmBtn.addEventListener('click', () => runSync(false));
+      return { invalidate };
+    }
+
+    const channelDeleteGuard = createDeleteGuard({
+      getText: () => batchText.value,
+      previewBtn: $('btnPreviewDeleteChannel'),
+      confirmBtn: $('btnConfirmDeleteChannel'),
+      apiPath: '/api/batch-delete-channels',
+      logTarget: logBox,
+      buildBodyExtra: () => ({ batch_text: batchText.value }),
+    });
+
+    const channelUpdateGuard = createDeleteGuard({
+      getText: () => batchText.value,
+      previewBtn: $('btnPreviewUpdateChannel'),
+      confirmBtn: $('btnConfirmUpdateChannel'),
+      apiPath: '/api/batch-update-channels',
+      logTarget: logBox,
+      buildBodyExtra: () => ({
+        batch_text: batchText.value,
+      }),
+      assertReady: () => channelExampleGuard.assertReady('更新原配置'),
+      beforeConfirm: (preview) => {
+        const count = Number(preview && preview.remark_overwrite_candidates) || 0;
+        if (!count) return { overwrite_remark: false };
+        const overwrite = window.confirm(
+          `预更新发现 ${count} 条渠道已有且不同的备注。\n\n点击「确定」：用本行 base_url 覆盖这些原备注。\n点击「取消」：保留原备注，仍继续更新其他配置。`
+        );
+        return { overwrite_remark: overwrite };
+      },
+      messages: {
+        empty: '更新内容为空',
+        needPreview: '内容已变化或未预更新，请先点击「预更新」',
+        confirmAsk: '确定按上方数据更新已有渠道？将覆盖模型与上游映射；已有备注会在下一步由你选择是否覆盖；不修改密钥。',
+        previewing: '预更新扫描中...',
+        confirming: '正在更新原配置...',
+      },
+    });
+
+    const channelRemarkSyncGuard = createChannelRemarkSyncGuard();
+
+    const tokenUpdateGuard = createDeleteGuard({
+      getText: () => tokenBatchText.value,
+      previewBtn: $('btnPreviewUpdateToken'),
+      confirmBtn: $('btnConfirmUpdateToken'),
+      apiPath: '/api/token-batch-update',
+      logTarget: tokenLogBox,
+      buildBodyExtra: () => ({
+        batch_text: tokenBatchText.value,
+      }),
+      assertReady: () => tokenExampleGuard.assertReady('更新令牌额度'),
+      messages: {
+        empty: '更新内容为空',
+        needPreview: '内容已变化或未预更新，请先点击「预更新」',
+        confirmAsk: '确定按上方数据更新已有令牌额度？名称、分组、模型限制及密钥不会修改。',
+        previewing: '预更新令牌额度中...',
+        confirming: '正在更新令牌额度...',
+      },
+    });
+
+    const tokenDeleteGuard = createDeleteGuard({
+      getText: () => tokenBatchText.value,
+      previewBtn: $('btnPreviewDeleteToken'),
+      confirmBtn: $('btnConfirmDeleteToken'),
+      apiPath: '/api/token-batch-delete',
+      logTarget: tokenLogBox,
+      buildBodyExtra: () => ({ batch_text: tokenBatchText.value }),
+    });
+
+    const channelDisableGuard = createDeleteGuard({
+      getText: () => batchText.value,
+      previewBtn: $('btnPreviewDisableChannel'),
+      confirmBtn: $('btnConfirmDisableChannel'),
+      apiPath: '/api/batch-channel-status',
+      logTarget: logBox,
+      buildBodyExtra: () => ({
+        batch_text: batchText.value,
+        action: 'disable',
+        match_mode: 'name',
+      }),
+      assertReady: () => channelExampleGuard.assertReady('批量禁用渠道'),
+      messages: {
+        empty: '禁用内容为空',
+        needPreview: '内容已变化或未预禁用，请先点击「预禁用」',
+        confirmAsk: '确定按上方数据禁用已匹配渠道？之后可再启用。',
+        previewing: '预禁用扫描中...',
+        confirming: '正在禁用渠道...',
+      },
+    });
+
+    const channelEnableGuard = createDeleteGuard({
+      getText: () => batchText.value,
+      previewBtn: $('btnPreviewEnableChannel'),
+      confirmBtn: $('btnConfirmEnableChannel'),
+      apiPath: '/api/batch-channel-status',
+      logTarget: logBox,
+      buildBodyExtra: () => ({
+        batch_text: batchText.value,
+        action: 'enable',
+        match_mode: 'name',
+      }),
+      assertReady: () => channelExampleGuard.assertReady('批量启用渠道'),
+      messages: {
+        empty: '启用内容为空',
+        needPreview: '内容已变化或未预启用，请先点击「预启用」',
+        confirmAsk: '确定按上方数据启用已匹配渠道？',
+        previewing: '预启用扫描中...',
+        confirming: '正在启用渠道...',
+      },
+    });
+
+    const tokenDisableGuard = createDeleteGuard({
+      getText: () => tokenBatchText.value,
+      previewBtn: $('btnPreviewDisableToken'),
+      confirmBtn: $('btnConfirmDisableToken'),
+      apiPath: '/api/token-batch-status',
+      logTarget: tokenLogBox,
+      buildBodyExtra: () => ({
+        batch_text: tokenBatchText.value,
+        action: 'disable',
+      }),
+      assertReady: () => tokenExampleGuard.assertReady('批量禁用令牌'),
+      messages: {
+        empty: '禁用内容为空',
+        needPreview: '内容已变化或未预禁用，请先点击「预禁用」',
+        confirmAsk: '确定按上方数据禁用已匹配令牌？之后可再启用。',
+        previewing: '预禁用扫描中...',
+        confirming: '正在禁用令牌...',
+      },
+    });
+
+    const tokenEnableGuard = createDeleteGuard({
+      getText: () => tokenBatchText.value,
+      previewBtn: $('btnPreviewEnableToken'),
+      confirmBtn: $('btnConfirmEnableToken'),
+      apiPath: '/api/token-batch-status',
+      logTarget: tokenLogBox,
+      buildBodyExtra: () => ({
+        batch_text: tokenBatchText.value,
+        action: 'enable',
+      }),
+      assertReady: () => tokenExampleGuard.assertReady('批量启用令牌'),
+      messages: {
+        empty: '启用内容为空',
+        needPreview: '内容已变化或未预启用，请先点击「预启用」',
+        confirmAsk: '确定按上方数据启用已匹配令牌？已过期或额度用尽的令牌可能无法启用。',
+        previewing: '预启用扫描中...',
+        confirming: '正在启用令牌...',
+      },
+    });
+
+    const groupDeleteGuard = createDeleteGuard({
+      getText: () => groupBatchText.value,
+      previewBtn: $('btnPreviewDeleteGroups'),
+      confirmBtn: $('btnConfirmDeleteGroups'),
+      apiPath: '/api/groups-delete',
+      logTarget: groupLogBox,
+      buildBodyExtra: () => ({ groups_text: groupBatchText.value }),
+      onAfterConfirm: (data) => {
+        if (data.data && data.data.groups) {
+          renderGroupCatalog(data.data.groups);
+        }
+      },
+    });
+
+    let statusListItems = [];
+
+    function getSelectedStatusIds() {
+      return Array.from(document.querySelectorAll('#statusChannelList input.status-check:checked'))
+        .map((el) => Number(el.value))
+        .filter((id) => id > 0);
+    }
+
+    function syncStatusSelectionButtons() {
+      const selected = getSelectedStatusIds().length;
+      const disableBtn = $('btnDisableSelected');
+      const enableBtn = $('btnEnableSelected');
+      if (disableBtn) disableBtn.disabled = selected === 0;
+      if (enableBtn) enableBtn.disabled = selected === 0;
+      const meta = $('statusListMeta');
+      if (meta) {
+        meta.textContent = statusListItems.length
+          ? `共 ${statusListItems.length} 条 · 已选 ${selected}`
+          : '尚未加载';
+      }
+    }
+
+    function renderStatusChannelList(items) {
+      statusListItems = Array.isArray(items) ? items.filter((it) => it && it.target_id) : [];
+      const list = $('statusChannelList');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!statusListItems.length) {
+        list.innerHTML = '<div class="status-empty">未匹配到渠道</div>';
+        syncStatusSelectionButtons();
+        return;
+      }
+      statusListItems.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'status-row';
+        row.dataset.id = String(item.target_id);
+        const enabled = !!item.enabled || Number(item.current_status) === 1;
+        const upstream = (item.matched_upstreams || []).join(', ') || '—';
+        row.innerHTML = `
+          <input type="checkbox" class="status-check" value="${item.target_id}" checked />
+          <div class="name" title="${item.name || ''}">${item.name || '—'}</div>
+          <div class="muted" title="${item.group || ''}">${item.group || '—'}</div>
+          <span class="status-badge ${enabled ? 'on' : 'off'}">${item.status_label || (enabled ? '已启用' : '已禁用')}</span>
+          <div class="muted" title="${upstream}">${upstream}</div>
+          <div class="status-row-actions">
+            <button type="button" class="btn-primary btn-row-enable" data-id="${item.target_id}" ${enabled ? 'disabled' : ''}>启用</button>
+            <button type="button" class="btn-danger btn-row-disable" data-id="${item.target_id}" ${enabled ? '' : 'disabled'}>禁用</button>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+      syncStatusSelectionButtons();
+    }
+
+    async function callChannelStatus({
+      action,
+      matchMode,
+      dryRun = false,
+      channelIds = null,
+      modelText = null,
+      btn = null,
+      confirmText = '',
+    }) {
+      const channelType = statusChannelType.value.trim();
+      if (!channelType && matchMode !== 'ids') {
+        appendLog('请指定渠道类型', 'fail', statusLogBox);
+        return null;
+      }
+      if (matchMode === 'upstream' && !(modelText || statusModelText.value).trim()) {
+        appendLog('上游模型列表为空', 'fail', statusLogBox);
+        return null;
+      }
+      if (matchMode === 'ids' && (!channelIds || !channelIds.length)) {
+        appendLog('请先勾选渠道', 'fail', statusLogBox);
+        return null;
+      }
+      if (!dryRun && confirmText && !window.confirm(confirmText)) {
+        return null;
+      }
+      if (btn) setLoading(btn, true);
+      try {
+        const body = {
+          ...getAuthPayload(),
+          channel_type: channelType,
+          action,
+          dry_run: dryRun,
+          match_mode: matchMode,
+        };
+        if (matchMode === 'upstream') {
+          body.model_text = modelText != null ? modelText : statusModelText.value;
+        }
+        if (matchMode === 'ids') {
+          body.channel_ids = channelIds;
+        }
+        const resp = await fetch('/api/batch-channel-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        appendLog(data.message || '完成', data.success ? (dryRun ? 'warn' : 'ok') : 'fail', statusLogBox);
+        if (data.data && Array.isArray(data.data.items)) {
+          if (dryRun) {
+            renderStatusChannelList(data.data.items);
+          } else {
+            // 刷新清单中对应行状态
+            const byId = new Map(data.data.items.map((it) => [Number(it.target_id), it]));
+            statusListItems = statusListItems.map((it) => {
+              const updated = byId.get(Number(it.target_id));
+              return updated ? { ...it, ...updated } : it;
+            });
+            // 若当前是类型/模型清单刷新后的操作，尽量保持列表
+            if (matchMode === 'type' || matchMode === 'upstream') {
+              renderStatusChannelList(data.data.items);
+            } else {
+              renderStatusChannelList(statusListItems);
+            }
+          }
+        }
+        return data;
+      } catch (err) {
+        appendLog(err.message, 'fail', statusLogBox);
+        return null;
+      } finally {
+        if (btn) setLoading(btn, false);
+      }
+    }
+
+    function updateStatusModelCount() {
+      const parts = statusModelText.value
+        .split(/[\s,，;；\n]+/)
+        .map((s) => s.trim())
+        .filter((s) => s && !s.startsWith('#'));
+      const unique = new Set(parts);
+      statusModelCount.textContent = String(unique.size);
+    }
+
+    function fillStatusTypeSelect(types) {
+      if (!Array.isArray(types) || !types.length) return;
+      const fillOne = (selectEl, allowAll, defaultLabel) => {
+        if (!selectEl) return;
+        const prev = selectEl.value;
+        selectEl.innerHTML = '';
+        if (allowAll) {
+          const allOpt = document.createElement('option');
+          allOpt.value = '';
+          allOpt.textContent = '全部类型';
+          selectEl.appendChild(allOpt);
+        }
+        let hasPrev = allowAll ? prev === '' : false;
+        types.forEach((item) => {
+          const opt = document.createElement('option');
+          opt.value = item.label;
+          opt.textContent = `${item.label} (${item.value})`;
+          if (item.label === prev) hasPrev = true;
+          selectEl.appendChild(opt);
+        });
+        if (hasPrev) {
+          selectEl.value = prev;
+        } else if (allowAll) {
+          selectEl.value = '';
+        } else {
+          const custom = types.find((t) => t.label === defaultLabel);
+          selectEl.value = custom ? custom.label : types[0].label;
+        }
+      };
+      fillOne(statusChannelType, false, '自定义渠道');
+      fillOne($('queryChannelType'), true, '自定义渠道');
+      const tag = $('statusTypeTag');
+      if (tag) tag.textContent = (statusChannelType && statusChannelType.value) || '渠道启停';
+    }
+
+    function updateLineCount() {
+      const lines = batchText.value.split('\n').filter((l) => l.trim()).length;
+      lineCount.textContent = lines;
+    }
+
+    function updateTokenLineCount() {
+      const lines = tokenBatchText.value.split('\n').filter((l) => l.trim()).length;
+      tokenLineCount.textContent = lines;
+    }
+
+    function switchModule(module) {
+      activeModule = module;
+      document.querySelectorAll('.module-tabs button').forEach((btn) => {
+        const on = btn.dataset.module === module;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      $('moduleChannel').classList.toggle('active', module === 'channel');
+      $('moduleToken').classList.toggle('active', module === 'token');
+      $('moduleGroup').classList.toggle('active', module === 'group');
+      $('moduleStatus').classList.toggle('active', module === 'status');
+      $('moduleLog').classList.toggle('active', module === 'log');
+      document.querySelectorAll('.field-channel-only').forEach((el) => {
+        el.classList.toggle('field-hidden', module !== 'channel');
+      });
+      document.querySelectorAll('.field-token-only').forEach((el) => {
+        el.classList.toggle('field-hidden', module !== 'token');
+      });
+      document.querySelectorAll('.field-log-admin').forEach((el) => {
+        el.classList.toggle('field-hidden', !cachedIsAdmin);
+      });
+    }
+
+    function toDatetimeLocalValue(date) {
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    function setLogTimeRange(start, end, presetKey) {
+      if ($('logStartTime')) $('logStartTime').value = toDatetimeLocalValue(start);
+      if ($('logEndTime')) $('logEndTime').value = toDatetimeLocalValue(end);
+      document.querySelectorAll('#logTimePresets button').forEach((btn) => {
+        btn.classList.toggle('active', presetKey ? btn.dataset.range === presetKey : false);
+      });
+    }
+
+    function applyLogTimePreset(preset) {
+      const now = new Date();
+      let start;
+      let end;
+
+      switch (preset) {
+        case 'yesterday': {
+          start = new Date(now);
+          start.setDate(start.getDate() - 1);
+          start.setHours(0, 0, 0, 0);
+          end = new Date(start);
+          end.setHours(23, 59, 59, 0);
+          break;
+        }
+        case 'last7': {
+          start = new Date(now);
+          start.setDate(start.getDate() - 6);
+          start.setHours(0, 0, 0, 0);
+          end = new Date(now);
+          end.setHours(23, 59, 59, 0);
+          break;
+        }
+        case 'last30': {
+          start = new Date(now);
+          start.setDate(start.getDate() - 29);
+          start.setHours(0, 0, 0, 0);
+          end = new Date(now);
+          end.setHours(23, 59, 59, 0);
+          break;
+        }
+        case 'thisMonth': {
+          start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+          end = new Date(now);
+          end.setHours(23, 59, 59, 0);
+          break;
+        }
+        case 'lastMonth': {
+          start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+          end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 0);
+          break;
+        }
+        case 'today':
+        default: {
+          start = new Date(now);
+          start.setHours(0, 0, 0, 0);
+          end = new Date(now);
+          end.setHours(23, 59, 59, 0);
+          preset = 'today';
+          break;
+        }
+      }
+
+      setLogTimeRange(start, end, preset);
+    }
+
+    function initLogExportDefaults() {
+      applyLogTimePreset('today');
+    }
+
+    function bindLogTimePresetButtons() {
+      document.querySelectorAll('#logTimePresets button').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          applyLogTimePreset(btn.dataset.range || 'today');
+        });
+      });
+      ['logStartTime', 'logEndTime'].forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.addEventListener('change', () => {
+          document.querySelectorAll('#logTimePresets button').forEach((btn) => {
+            btn.classList.remove('active');
+          });
+        });
+      });
+    }
+
+    function datetimeLocalToUnix(value) {
+      if (!value) return null;
+      const ts = Math.floor(new Date(value).getTime() / 1000);
+      return Number.isFinite(ts) ? ts : null;
+    }
+
+    function parseLogChannelInput() {
+      const raw = ($('logChannel')?.value || '').trim();
+      if (!raw) return '';
+      const value = Number(raw);
+      if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0) {
+        throw new Error('渠道 ID 必须为正整数，不能为 0 或负数');
+      }
+      return String(value);
+    }
+
+    function bindLogChannelValidation() {
+      const el = $('logChannel');
+      if (!el) return;
+      const validate = () => {
+        const raw = el.value.trim();
+        if (!raw) {
+          el.setCustomValidity('');
+          return;
+        }
+        const value = Number(raw);
+        if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0) {
+          el.setCustomValidity('渠道 ID 必须为正整数，不能为 0 或负数');
+        } else {
+          el.setCustomValidity('');
+        }
+      };
+      el.addEventListener('input', validate);
+      el.addEventListener('blur', validate);
+    }
+
+    function buildLogExportPayload() {
+      return {
+        ...getAuthPayload(),
+        format: $('logExportFormat').value || 'csv',
+        log_type: Number($('logType').value || 0),
+        start_timestamp: datetimeLocalToUnix($('logStartTime').value),
+        end_timestamp: datetimeLocalToUnix($('logEndTime').value),
+        token_name: $('logTokenName').value.trim(),
+        model_name: $('logModelName').value.trim(),
+        group: $('logGroup').value.trim(),
+        channel: parseLogChannelInput(),
+      };
+    }
+
+    function getAuthPayload() {
+      const base_url = applyBaseUrlNormalization({ updateInput: true, showStatus: false });
+      const default_key = $('defaultKey').value.trim();
+      const tokenPanelActive = $('authToken').classList.contains('active');
+      if (tokenPanelActive) {
+        return {
+          base_url,
+          default_key,
+          access_token: $('accessToken').value.trim(),
+          user_id: Number($('userId').value),
+          verify_ssl: !($('skipSslVerify') && $('skipSslVerify').checked),
+        };
+      }
+      return {
+        base_url,
+        default_key,
+        username: $('username').value.trim(),
+        password: $('password').value,
+        otp_code: ($('otpCode') && $('otpCode').value || '').trim(),
+        verify_ssl: !($('skipSslVerify') && $('skipSslVerify').checked),
+      };
+    }
+
+    document.querySelectorAll('.module-tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => switchModule(btn.dataset.module));
+    });
+
+    document.querySelectorAll('.auth-tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        switchAuthMode(btn.dataset.auth);
+      });
+    });
+
+    async function loadTypes() {
+      const base_url = $('baseUrl').value.trim();
+      const resp = await fetch(`/api/channel-types?base_url=${encodeURIComponent(base_url)}`);
+      const data = await resp.json();
+      if (data.success) {
+        typeSource.textContent = `${data.source} · ${data.data.length} 类型`;
+        fillStatusTypeSelect(data.data || []);
+      }
+      return data;
+    }
+
+    async function loadChannelModels(showLog = false) {
+      const resp = await fetch('/api/channel-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getAuthPayload()),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.message || '加载失败');
+      cachedGroupModels = data.data.group_models || {};
+      renderModelCatalog(cachedGroupModels);
+      if (showLog) {
+        appendLog(
+          `已加载渠道模型目录：${data.data.channel_count} 个渠道，${Object.keys(cachedGroupModels).length} 个分组`,
+          'info',
+          tokenLogBox,
+        );
+      }
+      return data;
+    }
+
+    $('btnLoadTypes').addEventListener('click', async () => {
+      try {
+        const data = await loadTypes();
+        appendLog(`已加载 ${data.data.length} 个渠道类型 [${data.source}]`, 'info');
+      } catch (err) {
+        appendLog(`加载类型失败: ${err.message}`, 'fail');
+      }
+    });
+
+    $('btnLoadChannelModels').addEventListener('click', async () => {
+      const btn = $('btnLoadChannelModels');
+      setLoading(btn, true);
+      try {
+        await loadChannelModels(true);
+      } catch (err) {
+        appendLog(err.message, 'fail', tokenLogBox);
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    $('btnRefreshGroups').addEventListener('click', async () => {
+      const btn = $('btnRefreshGroups');
+      setLoading(btn, true);
+      try {
+        await loadSiteGroups(true);
+      } catch (err) {
+        appendLog(err.message, 'fail', groupLogBox);
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    function getSwitchIds(kind) {
+      const sel = kind === 'token' ? '#switchTokenList input.switch-check:checked' : '#switchChannelList input.switch-check:checked';
+      return Array.from(document.querySelectorAll(sel)).map((el) => Number(el.value)).filter((id) => id > 0);
+    }
+
+    function syncSwitchButtons() {
+      const chBtn = $('btnSwitchChannels');
+      const tkBtn = $('btnSwitchTokens');
+      if (chBtn) chBtn.disabled = getSwitchIds('channel').length === 0;
+      if (tkBtn) tkBtn.disabled = getSwitchIds('token').length === 0;
+    }
+
+    function renderSwitchList(kind, items) {
+      const listId = kind === 'token' ? 'switchTokenList' : 'switchChannelList';
+      const metaId = kind === 'token' ? 'switchTokenMeta' : 'switchChannelMeta';
+      const list = $(listId);
+      const meta = $(metaId);
+      const noun = kind === 'token' ? '令牌' : '渠道';
+      const rows = items || [];
+      if (meta) meta.textContent = rows.length ? `${rows.length} 条${noun}` : `该分组下无${noun}`;
+      if (!rows.length) {
+        list.innerHTML = `<div class="status-empty">该分组下没有${noun}</div>`;
+        syncSwitchButtons();
+        return;
+      }
+      list.innerHTML = rows.map((item) => {
+        const id = Number(item.id || item.target_id || 0);
+        const name = String(item.name || '').replace(/</g, '&lt;');
+        const group = String(item.group || '').replace(/</g, '&lt;');
+        const status = String(item.status_label || '').replace(/</g, '&lt;');
+        return `<div class="status-row switch-row">
+          <input type="checkbox" class="switch-check" data-kind="${kind}" value="${id}" checked />
+          <span class="muted">${id}</span>
+          <span class="name" title="${name}">${name}</span>
+          <span class="muted" title="${group}">${group}</span>
+          <span class="muted">${status}</span>
+        </div>`;
+      }).join('');
+      syncSwitchButtons();
+    }
+
+    $('switchChannelList')?.addEventListener('change', (e) => {
+      if (e.target && e.target.classList.contains('switch-check')) syncSwitchButtons();
+    });
+    $('switchTokenList')?.addEventListener('change', (e) => {
+      if (e.target && e.target.classList.contains('switch-check')) syncSwitchButtons();
+    });
+    $('btnSwitchChSelectAll')?.addEventListener('click', () => {
+      document.querySelectorAll('#switchChannelList input.switch-check').forEach((el) => { el.checked = true; });
+      syncSwitchButtons();
+    });
+    $('btnSwitchChInvert')?.addEventListener('click', () => {
+      document.querySelectorAll('#switchChannelList input.switch-check').forEach((el) => { el.checked = !el.checked; });
+      syncSwitchButtons();
+    });
+    $('btnSwitchTkSelectAll')?.addEventListener('click', () => {
+      document.querySelectorAll('#switchTokenList input.switch-check').forEach((el) => { el.checked = true; });
+      syncSwitchButtons();
+    });
+    $('btnSwitchTkInvert')?.addEventListener('click', () => {
+      document.querySelectorAll('#switchTokenList input.switch-check').forEach((el) => { el.checked = !el.checked; });
+      syncSwitchButtons();
+    });
+
+    async function reloadGroupMembers(source) {
+      const resp = await fetch('/api/groups-members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...getAuthPayload(), source_group: source }),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.message || '加载失败');
+      renderSwitchList('channel', data.data?.channels || []);
+      renderSwitchList('token', data.data?.tokens || []);
+      return data;
+    }
+
+    $('btnLoadGroupMembers')?.addEventListener('click', async () => {
+      const source = ($('switchSourceGroup')?.value || '').trim();
+      if (!source) {
+        appendLog('请先选择源分组（可点「刷新已有分组」）', 'fail', groupLogBox);
+        return;
+      }
+      const btn = $('btnLoadGroupMembers');
+      setLoading(btn, true);
+      try {
+        const data = await reloadGroupMembers(source);
+        appendLog(data.message || `已加载分组「${source}」`, 'info', groupLogBox);
+      } catch (err) {
+        appendLog(err.message, 'fail', groupLogBox);
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    async function switchSelected(kind) {
+      const source = ($('switchSourceGroup')?.value || '').trim();
+      const target = ($('switchTargetGroup')?.value || '').trim();
+      const ids = getSwitchIds(kind);
+      const noun = kind === 'token' ? '令牌' : '渠道';
+      if (!source) {
+        appendLog('请选择源分组', 'fail', groupLogBox);
+        return;
+      }
+      if (!target) {
+        appendLog('请选择目标分组', 'fail', groupLogBox);
+        return;
+      }
+      if (source === target) {
+        appendLog('源分组与目标分组不能相同', 'fail', groupLogBox);
+        return;
+      }
+      if (!ids.length) {
+        appendLog(`请勾选要切换的${noun}，或点「全选」`, 'fail', groupLogBox);
+        return;
+      }
+      if (!window.confirm(`确定将所选 ${ids.length} 条${noun}从「${source}」切换到「${target}」？`)) return;
+      const btn = kind === 'token' ? $('btnSwitchTokens') : $('btnSwitchChannels');
+      setLoading(btn, true);
+      try {
+        const resp = await fetch('/api/groups-switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...getAuthPayload(),
+            source_group: source,
+            target_group: target,
+            kind,
+            ids,
+            dry_run: false,
+          }),
+        });
+        const data = await resp.json();
+        appendLog(data.message || '切换结束', data.success ? 'ok' : 'fail', groupLogBox);
+        renderBatchItems(data.data?.items || [], groupLogBox);
+        await reloadGroupMembers(source);
+      } catch (err) {
+        appendLog(err.message, 'fail', groupLogBox);
+      } finally {
+        setLoading(btn, false);
+        syncSwitchButtons();
+      }
+    }
+
+    $('btnSwitchChannels')?.addEventListener('click', () => switchSelected('channel'));
+    $('btnSwitchTokens')?.addEventListener('click', () => switchSelected('token'));
+
+    $('btnClearGroupLog').addEventListener('click', () => {
+      clearLog(groupLogBox);
+      appendLog('日志已清空', 'info', groupLogBox);
+    });
+    $('btnClearStatusLog').addEventListener('click', () => {
+      clearLog(statusLogBox);
+      appendLog('日志已清空', 'info', statusLogBox);
+    });
+
+    statusModelText.addEventListener('input', () => {
+      updateStatusModelCount();
+    });
+    statusChannelType.addEventListener('change', () => {
+      const tag = $('statusTypeTag');
+      if (tag) tag.textContent = statusChannelType.value || '渠道启停';
+      statusListItems = [];
+      renderStatusChannelList([]);
+      $('statusChannelList').innerHTML = '<div class="status-empty">类型已切换，请重新加载清单</div>';
+      syncStatusSelectionButtons();
+    });
+    updateStatusModelCount();
+
+    $('btnLoadStatusList').addEventListener('click', async () => {
+      appendLog(`加载类型清单：${statusChannelType.value}`, 'info', statusLogBox);
+      await callChannelStatus({
+        action: 'disable',
+        matchMode: 'type',
+        dryRun: true,
+        btn: $('btnLoadStatusList'),
+      });
+    });
+    $('btnPreviewByModels').addEventListener('click', async () => {
+      appendLog(`按上游模型加载：${statusChannelType.value}`, 'info', statusLogBox);
+      await callChannelStatus({
+        action: 'disable',
+        matchMode: 'upstream',
+        dryRun: true,
+        btn: $('btnPreviewByModels'),
+      });
+    });
+    $('btnTypeDisableAll').addEventListener('click', async () => {
+      const typeLabel = statusChannelType.value.trim() || '该类型';
+      await callChannelStatus({
+        action: 'disable',
+        matchMode: 'type',
+        dryRun: false,
+        btn: $('btnTypeDisableAll'),
+        confirmText: `确定禁用「${typeLabel}」下的全部渠道？`,
+      });
+    });
+    $('btnTypeEnableAll').addEventListener('click', async () => {
+      const typeLabel = statusChannelType.value.trim() || '该类型';
+      await callChannelStatus({
+        action: 'enable',
+        matchMode: 'type',
+        dryRun: false,
+        btn: $('btnTypeEnableAll'),
+        confirmText: `确定启用「${typeLabel}」下的全部渠道？`,
+      });
+    });
+    $('btnDisableSelected').addEventListener('click', async () => {
+      const ids = getSelectedStatusIds();
+      await callChannelStatus({
+        action: 'disable',
+        matchMode: 'ids',
+        dryRun: false,
+        channelIds: ids,
+        btn: $('btnDisableSelected'),
+        confirmText: `确定禁用已选的 ${ids.length} 条渠道？`,
+      });
+    });
+    $('btnEnableSelected').addEventListener('click', async () => {
+      const ids = getSelectedStatusIds();
+      await callChannelStatus({
+        action: 'enable',
+        matchMode: 'ids',
+        dryRun: false,
+        channelIds: ids,
+        btn: $('btnEnableSelected'),
+        confirmText: `确定启用已选的 ${ids.length} 条渠道？`,
+      });
+    });
+    $('btnStatusSelectAll').addEventListener('click', () => {
+      document.querySelectorAll('#statusChannelList input.status-check').forEach((el) => {
+        el.checked = true;
+      });
+      syncStatusSelectionButtons();
+    });
+    $('btnStatusInvert').addEventListener('click', () => {
+      document.querySelectorAll('#statusChannelList input.status-check').forEach((el) => {
+        el.checked = !el.checked;
+      });
+      syncStatusSelectionButtons();
+    });
+    $('statusChannelList').addEventListener('change', (e) => {
+      if (e.target && e.target.classList.contains('status-check')) {
+        syncStatusSelectionButtons();
+      }
+    });
+    $('statusChannelList').addEventListener('click', async (e) => {
+      const enableBtn = e.target.closest('.btn-row-enable');
+      const disableBtn = e.target.closest('.btn-row-disable');
+      const btn = enableBtn || disableBtn;
+      if (!btn) return;
+      const id = Number(btn.dataset.id);
+      if (!id) return;
+      const action = enableBtn ? 'enable' : 'disable';
+      const label = enableBtn ? '启用' : '禁用';
+      await callChannelStatus({
+        action,
+        matchMode: 'ids',
+        dryRun: false,
+        channelIds: [id],
+        btn,
+        confirmText: `确定${label}渠道 ID=${id}？`,
+      });
+    });
+
+    $('btnClearLogExport').addEventListener('click', () => {
+      clearLog(logExportBox);
+      appendLog('日志已清空', 'info', logExportBox);
+      setLogExportDots('idle');
+    });
+
+    function upsertLogExportProgress(fetched, total, extra) {
+      const fetchedNum = Number(fetched) || 0;
+      const totalNum = Number(total) || 0;
+      const totalText = totalNum > 0 ? String(totalNum) : '?';
+      const page = Math.max(1, fetchedNum > 0 ? Math.ceil(fetchedNum / 100) : 1);
+      const stage = (extra && extra.message) ? String(extra.message) : '';
+      const text = stage
+        ? `已拉取 ${fetchedNum} / ${totalText} 条（${stage}）`
+        : `已拉取 ${fetchedNum} / ${totalText} 条（第 ${page} 页，每页最多 100）`;
+      let line = logExportBox.querySelector('[data-role="log-export-progress"]');
+      if (!line) {
+        appendLog(text, 'info', logExportBox);
+        line = logExportBox.lastElementChild;
+        if (line) line.dataset.role = 'log-export-progress';
+        $('logExportTag').textContent = `已拉取 ${fetchedNum} / ${totalText} 条`;
+        return;
+      }
+      const timeEl = line.querySelector('.ts');
+      line.textContent = '';
+      if (timeEl) {
+        timeEl.textContent = ts();
+        line.appendChild(timeEl);
+      }
+      line.appendChild(document.createTextNode(text));
+      logExportBox.scrollTop = logExportBox.scrollHeight;
+      $('logExportTag').textContent = `已拉取 ${fetchedNum} / ${totalText} 条`;
+    }
+
+    function sleepMs(ms, signal) {
+      return new Promise((resolve, reject) => {
+        if (signal && signal.aborted) {
+          reject(new DOMException('Aborted', 'AbortError'));
+          return;
+        }
+        const timer = setTimeout(resolve, ms);
+        if (!signal) return;
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(new DOMException('Aborted', 'AbortError'));
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+      });
+    }
+
+    async function readJsonOrThrow(resp, fallback) {
+      let data = {};
+      try {
+        data = await resp.json();
+      } catch (_) {
+        data = {};
+      }
+      if (!resp.ok || data.success === false) {
+        throw new Error(data.message || fallback || `请求失败 (${resp.status})`);
+      }
+      return data;
+    }
+
+    async function pollLogExportJob(jobId, signal, onProgress) {
+      while (true) {
+        if (signal && signal.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        const resp = await fetch(`/api/logs-export/jobs/${jobId}`, { signal });
+        const data = await readJsonOrThrow(resp, '读取导出进度失败');
+        if (typeof onProgress === 'function') onProgress(data);
+        if (data.state === 'done') return data;
+        if (data.state === 'cancelled') throw new Error(data.error || '已终止导出');
+        if (data.state === 'error') throw new Error(data.error || data.message || '导出失败');
+        await sleepMs(400, signal);
+      }
+    }
+
+    function formatLogExportError(err) {
+      const msg = String((err && err.message) || err || '');
+      if (/failed to fetch|networkerror|network error|load failed|err_invalid_response|err_content_decoding|err_incomplete_chunked/i.test(msg)) {
+        return '进度连接被中断。请确认 run.bat 仍在运行，重启后再强制刷新页面重试。';
+      }
+      return msg;
+    }
+
+    function isLogExportAbortError(err) {
+      if (!err) return false;
+      if (err.name === 'AbortError') return true;
+      const msg = String(err.message || '');
+      return /abort|AbortError|已终止/i.test(msg);
+    }
+
+    let logExportAbort = null;
+    let logExportJobId = null;
+
+    function setLogExportDots(status) {
+      const dots = $('logExportDots');
+      if (!dots) return;
+      dots.dataset.status = status || 'idle';
+    }
+
+    function setLogExportBusy(busy) {
+      const exportBtn = $('btnExportLogs');
+      const stopBtn = $('btnStopExportLogs');
+      const dlBtn = $('btnDownloadLogs');
+      setLoading(exportBtn, busy);
+      if (stopBtn) {
+        stopBtn.hidden = !busy;
+        stopBtn.disabled = !busy;
+      }
+      if (busy) {
+        setLogExportDots('running');
+        if (dlBtn) dlBtn.disabled = true;
+      }
+    }
+
+    async function refreshLogsExportInfo() {
+      const btn = $('btnDownloadLogs');
+      if (!btn) return;
+      try {
+        const resp = await fetch('/api/logs-export/info');
+        const data = await resp.json();
+        const exists = !!data.data?.exists;
+        btn.disabled = !exists;
+        btn.title = exists ? `下载 ${data.data.path || ('excel/' + data.data.filename)}` : '尚未生成使用日志文件';
+      } catch (_) {
+        btn.disabled = true;
+      }
+    }
+
+    $('btnDownloadLogs').addEventListener('click', async () => {
+      try {
+        const name = await NAUi.downloadUrl('/api/logs-export/download');
+        appendLog(`已开始浏览器下载：${name}`, 'ok', logExportBox);
+      } catch (err) {
+        appendLog(err.message || '下载失败', 'fail', logExportBox);
+      }
+    });
+
+    $('btnStopExportLogs').addEventListener('click', () => {
+      setLogExportDots('fail');
+      appendLog('正在终止导出…', 'info', logExportBox);
+      $('logExportTag').textContent = '正在终止';
+      if (logExportJobId) {
+        fetch(`/api/logs-export/jobs/${logExportJobId}/cancel`, { method: 'POST' }).catch(() => {});
+      }
+      if (logExportAbort) logExportAbort.abort();
+    });
+
+    $('btnExportLogs').addEventListener('click', async () => {
+      let payload;
+      try {
+        payload = buildLogExportPayload();
+        if (!payload.start_timestamp || !payload.end_timestamp) {
+          throw new Error('请填写开始时间与结束时间');
+        }
+        if (payload.start_timestamp > payload.end_timestamp) {
+          throw new Error('开始时间不能晚于结束时间');
+        }
+      } catch (err) {
+        clearLog(logExportBox);
+        appendLog(err.message, 'fail', logExportBox);
+        setLogExportDots('fail');
+        return;
+      }
+
+      clearLog(logExportBox);
+      appendLog('开始抓取使用日志…', 'info', logExportBox);
+      upsertLogExportProgress(0, 0, { message: '正在启动导出任务…' });
+      logExportAbort = new AbortController();
+      logExportJobId = null;
+      setLogExportBusy(true);
+      try {
+        const resp = await fetch('/api/logs-export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: logExportAbort.signal,
+        });
+        const started = await readJsonOrThrow(resp, '启动导出失败');
+        logExportJobId = started.job_id;
+        upsertLogExportProgress(started.fetched || 0, started.total || 0, {
+          message: started.message || '正在登录 NA…',
+        });
+        const doneEvent = await pollLogExportJob(logExportJobId, logExportAbort.signal, (ev) => {
+          upsertLogExportProgress(ev.fetched || 0, ev.total || 0, {
+            message: ev.message || '',
+          });
+        });
+        if (!doneEvent.filename && !doneEvent.download) throw new Error('进度完成但没有生成文件');
+        const filename = doneEvent.filename || (
+          payload.format === 'xlsx'
+            ? `usage_logs_${Date.now()}.xlsx`
+            : `usage_logs_${Date.now()}.csv`
+        );
+        const adminHint = doneEvent.is_admin ? '管理员视图' : '用户视图';
+        const gatewayTotal = Number(doneEvent.gateway_total || 0);
+        const modelQuery = String(doneEvent.model_query || '').trim();
+        let extra = '';
+        if (modelQuery && gatewayTotal > Number(doneEvent.total || 0)) {
+          extra = `；网关该条件共 ${gatewayTotal} 条，已按模型名「${modelQuery}」筛到 ${doneEvent.total} 条`;
+        }
+        appendLog(`导出成功：${doneEvent.total} 条（${adminHint}）→ excel/${filename}${extra}。请点「下载 Excel」获取完整文件`, 'ok', logExportBox);
+        $('logExportTag').textContent = `已导出 ${doneEvent.total} 条`;
+        setLogExportDots('ok');
+        await refreshLogsExportInfo();
+        NAUi.notifyArtifactsChanged(['logs']);
+      } catch (err) {
+        if (isLogExportAbortError(err)) {
+          appendLog('已终止导出，不再继续拉取日志', 'fail', logExportBox);
+          $('logExportTag').textContent = '已终止';
+        } else {
+          appendLog(formatLogExportError(err), 'fail', logExportBox);
+        }
+        setLogExportDots('fail');
+      } finally {
+        logExportAbort = null;
+        logExportJobId = null;
+        setLogExportBusy(false);
+        await refreshLogsExportInfo();
+      }
+    });
+
+    $('btnSubmitGroups').addEventListener('click', async () => {
+      if (!groupExampleGuard.assertReady('创建分组')) return;
+      const btn = $('btnSubmitGroups');
+      clearLog(groupLogBox);
+      appendLog('开始创建分组...', 'info', groupLogBox);
+      setLoading(btn, true);
+      try {
+        const resp = await fetch('/api/groups-create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...getAuthPayload(),
+            groups_text: groupBatchText.value,
+            default_ratio: Number($('groupDefaultRatio').value || 1),
+          }),
+        });
+        const data = await resp.json();
+        renderBatchItems((data.data && data.data.items) || [], groupLogBox);
+        if (data.data && data.data.groups) {
+          renderGroupCatalog(data.data.groups);
+        }
+        appendLog(data.message || '完成', data.success ? 'ok' : 'fail', groupLogBox);
+      } catch (err) {
+        appendLog(err.message, 'fail', groupLogBox);
+      } finally {
+        setLoading(btn, false);
+        groupExampleGuard.refreshUI();
+      }
+    });
+
+    $('btnTest').addEventListener('click', async () => {
+      const btn = $('btnTest');
+      clearLog();
+      appendLog('正在测试连接...', 'info');
+      setLoading(btn, true);
+      try {
+        const resp = await fetch('/api/test-connection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(getAuthPayload()),
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.message || '连接失败');
+        if (data.normalized_base_url) {
+          $('baseUrl').value = data.normalized_base_url;
+        }
+        cachedUserId = data.user_id;
+        cachedIsAdmin = !!data.is_admin;
+        switchModule(activeModule);
+        const userGroups = (data.user_groups || []).join(', ');
+        const authHint = data.auth_mode === 'access_token'
+          ? ' · 认证: Access Token'
+          : ' · 认证: 密码';
+        setConnStatus(
+          `已连接 · 用户 ID ${data.user_id}${authHint} · 渠道分组: ${(data.groups || []).join(', ') || '无'} · 令牌分组: ${userGroups || '无'}`,
+          'connected'
+        );
+        typeSource.textContent = `${data.type_source} · ${data.types.length} 类型`;
+        renderGroupCatalog(data.groups || []);
+        appendLog('连接成功', 'ok');
+        saveConnectionConfig();
+        try {
+          await loadChannelModels(false);
+        } catch (_) {
+          appendLog('渠道模型目录加载失败，可在令牌页手动刷新', 'skip');
+        }
+      } catch (err) {
+        setConnStatus(`连接失败: ${err.message}`, 'error');
+        appendLog(err.message, 'fail');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    $('btnLoadExample').addEventListener('click', async () => {
+      const resp = await fetch('/static/example_batch.tsv');
+      batchText.value = await resp.text();
+      updateLineCount();
+      channelExampleGuard.lock('已载入混合示例数据（创建已锁定，修改内容后解锁）');
+    });
+
+    $('btnLoadTokenExample').addEventListener('click', async () => {
+      const resp = await fetch('/static/example_batch_tokens.txt');
+      tokenBatchText.value = await resp.text();
+      updateTokenLineCount();
+      tokenExampleGuard.lock('已载入令牌示例数据（创建已锁定，修改内容后解锁）');
+    });
+
+    $('btnLoadChannelUpdateTemplate').addEventListener('click', async () => {
+      try {
+        const resp = await fetch('/static/example_batch_update.tsv');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        batchText.value = await resp.text();
+        updateLineCount();
+        channelUpdateGuard.invalidate();
+        channelDeleteGuard.invalidate();
+        channelDisableGuard.invalidate();
+        channelEnableGuard.invalidate();
+        channelExampleGuard.lock('已载入渠道更新模板（操作已锁定，修改内容后解锁）');
+        focusChannelModule();
+        const section = $('channelUpdateSection');
+        section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof NAUi !== 'undefined') NAUi.flashEl(section || batchText);
+        appendLog('已载入渠道更新模板；请修改名称、分组、模型和上游映射后再预更新。', 'info');
+      } catch (err) {
+        appendLog(`载入渠道更新模板失败：${err.message}`, 'fail');
+      }
+    });
+
+    $('btnLoadTokenUpdateTemplate').addEventListener('click', async () => {
+      try {
+        const resp = await fetch('/static/example_batch_token_update.txt');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        tokenBatchText.value = await resp.text();
+        updateTokenLineCount();
+        tokenUpdateGuard.invalidate();
+        tokenDeleteGuard.invalidate();
+        tokenDisableGuard.invalidate();
+        tokenEnableGuard.invalidate();
+        tokenExampleGuard.lock('已载入令牌更新模板（操作已锁定，修改内容后解锁）');
+        focusTokenModule();
+        const section = $('tokenUpdateSection');
+        section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof NAUi !== 'undefined') NAUi.flashEl(section || tokenBatchText);
+        tokenLog('已载入令牌更新模板；请修改名称、分组和额度(tokens)后再预更新。', 'info');
+      } catch (err) {
+        tokenLog(`载入令牌更新模板失败：${err.message}`, 'fail');
+      }
+    });
+
+    $('btnLoadGroupExample').addEventListener('click', async () => {
+      const resp = await fetch('/static/example_groups.txt');
+      groupBatchText.value = await resp.text();
+      updateGroupLineCount();
+      groupDeleteGuard.invalidate();
+      groupExampleGuard.lock('已载入分组示例数据（创建已锁定，修改内容后解锁）');
+    });
+
+    $('btnImport').addEventListener('click', () => $('fileInput').click());
+    $('btnImportToken').addEventListener('click', () => $('tokenFileInput').click());
+
+    $('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      batchText.value = await file.text();
+      updateLineCount();
+      channelExampleGuard.unlock();
+      appendLog(`已导入文件: ${file.name}`, 'info');
+      e.target.value = '';
+    });
+
+    $('tokenFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      tokenBatchText.value = await file.text();
+      updateTokenLineCount();
+      tokenExampleGuard.unlock();
+      appendLog(`已导入文件: ${file.name}`, 'info', tokenLogBox);
+      e.target.value = '';
+    });
+
+    $('btnClearLog').addEventListener('click', () => {
+      clearLog(logBox);
+      appendLog('日志已清空', 'info');
+    });
+
+    $('btnClearTokenLog').addEventListener('click', () => {
+      clearLog(tokenLogBox);
+      appendLog('日志已清空', 'info', tokenLogBox);
+    });
+
+    $('btnSubmit').addEventListener('click', async () => {
+      if (!channelExampleGuard.assertReady('批量创建渠道')) return;
+      const btn = $('btnSubmit');
+      clearLog();
+      appendLog('开始批量创建渠道...', 'info');
+      setLoading(btn, true);
+      try {
+        const payload = {
+          ...getAuthPayload(),
+          batch_text: batchText.value,
+        };
+        const resp = await fetch('/api/batch-create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await readApiResult(resp, '批量创建渠道');
+        const items = (data.data && data.data.items) || [];
+        lastCreatedChannels = collectCreatedChannels(items);
+        renderBatchItems(items, logBox);
+        if (data.success) {
+          appendLog(data.message || '完成', 'ok');
+        } else {
+          appendLog(`批量创建失败：${data.message || ('HTTP ' + resp.status)}`, 'fail');
+        }
+        if (lastCreatedChannels.length) {
+          appendLog(`已创建 ${lastCreatedChannels.length} 条，可点右侧「一键测试」按模型探测`, 'info');
+        } else if ((data.data && data.data.success_count) > 0) {
+          appendLog('创建成功但未拿到渠道 ID，无法一键测试。请到网关渠道页手动测试，或重新采集后再试。', 'warn');
+        }
+        refreshTestCreatedBtn();
+        try {
+          window.parent.postMessage({
+            type: 'na-flow-progress',
+            progress: data.success
+              ? { step2: true }
+              : { step2: false, step3: false },
+          }, '*');
+        } catch (_) {}
+      } catch (err) {
+        lastCreatedChannels = [];
+        refreshTestCreatedBtn();
+        appendLog(err.message, 'fail');
+        try { window.parent.postMessage({ type: 'na-flow-progress', progress: { step2: false, step3: false } }, '*'); } catch (_) {}
+      } finally {
+        setLoading(btn, false);
+        channelExampleGuard.refreshUI();
+        refreshTestCreatedBtn();
+      }
+    });
+
+    $('btnTestCreated').addEventListener('click', async () => {
+      const btn = $('btnTestCreated');
+      if (!lastCreatedChannels.length) {
+        appendLog('没有可测试的新建渠道。请先批量创建成功后再测。', 'fail');
+        return;
+      }
+      setLoading(btn, true);
+      refreshTestCreatedBtn();
+      appendLog(`开始一键测试 ${lastCreatedChannels.length} 条新建渠道…`, 'info');
+      let failCount = 0;
+      try {
+        for (const channel of lastCreatedChannels) {
+          const label = `#${channel.index || ''} ${channel.name}`.trim();
+          appendLog(`${label}: 正在测试${channel.models.length ? ' ' + channel.models.join(', ') : ''}…`, 'info');
+          try {
+            const resp = await fetch('/api/channel-test', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...getAuthPayload(),
+                channel_id: channel.channel_id,
+                models: channel.models,
+                name: channel.name,
+              }),
+            });
+            const data = await readApiResult(resp, '一键测试');
+            const pack = data.data || {};
+            const failed = pack.failed || [];
+            if (data.success && !failed.length) {
+              appendLog(data.message || `${label}: 测试成功`, 'ok');
+            } else {
+              failCount += 1;
+              const details = failed.length
+                ? failed.map((item) => `模型 ${item.model || '(默认模型)'}: ${item.message || '测试失败'}`).join('；')
+                : (data.message || '测试失败');
+              appendLog(`${label} 失败：${details}`, 'fail');
+            }
+          } catch (err) {
+            failCount += 1;
+            appendLog(`${label} 失败：${err.message || err}`, 'fail');
+          }
+        }
+        if (failCount) {
+          appendLog(`一键测试结束：${failCount} 条渠道有模型失败，详见上方日志`, 'fail');
+        } else {
+          appendLog('一键测试全部通过', 'ok');
+        }
+      } finally {
+        btn.classList.remove('loading');
+        refreshTestCreatedBtn();
+      }
+    });
+
+    $('btnSubmitToken').addEventListener('click', async () => {
+      if (!tokenExampleGuard.assertReady('批量创建令牌')) return;
+      const btn = $('btnSubmitToken');
+      clearLog(tokenLogBox);
+      appendLog('开始批量创建令牌...', 'info', tokenLogBox);
+      setLoading(btn, true);
+      try {
+        const payload = {
+          ...getAuthPayload(),
+          batch_text: tokenBatchText.value,
+        };
+        const resp = await fetch('/api/token-batch-create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await readApiResult(resp, '批量创建令牌');
+        renderBatchItems((data.data && data.data.items) || [], tokenLogBox);
+        if (data.success) {
+          appendLog(data.message || '完成', 'ok', tokenLogBox);
+        } else {
+          appendLog(`批量创建失败：${data.message || ('HTTP ' + resp.status)}`, 'fail', tokenLogBox);
+        }
+      } catch (err) {
+        appendLog(err.message, 'fail', tokenLogBox);
+      } finally {
+        setLoading(btn, false);
+        tokenExampleGuard.refreshUI();
+      }
+    });
+
+    $('btnPasteKeysFromClipboard').addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text.trim()) {
+          appendLog('剪贴板为空', 'skip', tokenLogBox);
+          return;
+        }
+        $('tokenKeysPaste').value = text.trim();
+        appendLog('已从剪贴板粘贴密钥，请点击「获取全部令牌信息」', 'ok', tokenLogBox);
+      } catch (err) {
+        appendLog('读取剪贴板失败，请手动粘贴: ' + err.message, 'fail', tokenLogBox);
+      }
+    });
+
+    $('btnExportTokens').addEventListener('click', async () => {
+      const btn = $('btnExportTokens');
+      setLoading(btn, true);
+      try {
+        const baseUrl = applyBaseUrlNormalization({ updateInput: true, showStatus: false });
+        const resp = await fetch('/api/token-export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...getAuthPayload(),
+            base_url: baseUrl,
+            pasted_keys: $('tokenKeysPaste').value,
+          }),
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.message || '导出失败');
+        tokenExportOutput.value = (data.data && data.data.text) || '';
+        appendLog(data.message || '导出完成', 'ok', tokenLogBox);
+      } catch (err) {
+        appendLog(err.message, 'fail', tokenLogBox);
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    $('btnCopyTokenExport').addEventListener('click', async () => {
+      const text = tokenExportOutput.value.trim();
+      if (!text) {
+        appendLog('暂无导出内容', 'skip', tokenLogBox);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        appendLog('已复制到剪贴板', 'ok', tokenLogBox);
+      } catch (err) {
+        appendLog('复制失败: ' + err.message, 'fail', tokenLogBox);
+      }
+    });
+
+    $('btnDownloadTokenExport').addEventListener('click', () => {
+      const text = tokenExportOutput.value.trim();
+      if (!text) {
+        appendLog('暂无导出内容', 'skip', tokenLogBox);
+        return;
+      }
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tokens-export-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      appendLog('已下载导出文件', 'ok', tokenLogBox);
+    });
+
+    batchText.addEventListener('input', () => {
+      updateLineCount();
+      channelDeleteGuard.invalidate();
+      channelUpdateGuard.invalidate();
+      channelDisableGuard.invalidate();
+      channelEnableGuard.invalidate();
+    });
+    ['baseUrl', 'username', 'password', 'accessToken', 'userId', 'defaultKey', 'skipSslVerify'].forEach((id) => {
+      const el = $(id);
+      if (el) el.addEventListener('change', () => {
+        saveConnectionConfig();
+        channelRemarkSyncGuard.invalidate();
+      });
+    });
+    tokenBatchText.addEventListener('input', () => {
+      updateTokenLineCount();
+      tokenUpdateGuard.invalidate();
+      tokenDeleteGuard.invalidate();
+      tokenDisableGuard.invalidate();
+      tokenEnableGuard.invalidate();
+    });
+    groupBatchText.addEventListener('input', () => {
+      updateGroupLineCount();
+      groupDeleteGuard.invalidate();
+    });
+    updateLineCount();
+    updateTokenLineCount();
+    updateGroupLineCount();
+    initLogExportDefaults();
+    bindLogTimePresetButtons();
+    bindLogChannelValidation();
+    bindBaseUrlNormalization();
+    refreshLogsExportInfo().catch(() => {});
+    NAUi.onArtifactsChanged(() => { refreshLogsExportInfo().catch(() => {}); });
+    $('btnRefreshLogsExport')?.addEventListener('click', async () => {
+      await refreshLogsExportInfo();
+      NAUi.toast('已刷新下载状态', 'ok', 1600);
+    });
+    window.addEventListener('message', (ev) => {
+      const data = ev.data || {};
+      if (data.type === 'na-theme-change' && data.theme) NATheme.apply(data.theme);
+    });
+    document.querySelectorAll('#envSiteSwitch .env-site-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        applyEnvSite(btn.dataset.env);
+      });
+    });
+
+    switchModule(activeModule);
+    loadDefaultConfig().catch(() => {});
+    loadEnvSites().catch(() => {});
+    loadTypes().catch(() => {});
+  </script>
+</body>
+</html>

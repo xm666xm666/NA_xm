@@ -1,0 +1,28 @@
+# 运行产物
+log/*.txt
+!log/.gitkeep
+excel/*.xlsx
+excel/*.xls
+excel/*.csv
+!excel/.gitkeep
+__pycache__/
+*.pyc
+.Python
+.env
+*.log
+.cache/
+
+# 多环境站点凭据（保留示例，勿提交真实账号）
+env/sites.json
+env/upstream.json
+env/hygiene_policy.json
+env/*.local.json
+excel/_hygiene_status.json
+
+# 本地探测脚本
+excel/_*.py
+excel/_*.txt
+
+# PRD 生成器编译产物
+docs/prd/generator/bin/
+docs/prd/generator/obj/

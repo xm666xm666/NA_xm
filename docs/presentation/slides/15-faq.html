@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>17 · 配置与 FAQ</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@400;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/motion.css">
+<link rel="stylesheet" href="../shared/perf.css">
+<style>
+.faq-layout { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 28px; margin-top: 10px; }
+.config-table { font-size: 14px; }
+.faq-list { display: flex; flex-direction: column; gap: 12px; }
+.faq-item {
+  padding: 16px 20px;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.faq-item .q { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.faq-item .a { font-size: 14px; line-height: 1.6; color: var(--ink-soft); }
+.warn-box {
+  padding: 14px 18px;
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  margin-top: 14px;
+}
+.warn-box strong { color: #b91c1c; }
+</style>
+</head>
+<body>
+<header class="masthead reveal-fade">
+  <div class="masthead-brand"><img src="../shared/logo.svg" alt="" width="26" height="26"> NA Auto Configuration</div>
+  <div class="masthead-meta">17 / 18 · 配置与 FAQ</div>
+</header>
+<main class="content dense">
+  <div class="kicker reveal-up d1">运维须知</div>
+  <h1 class="reveal-up d2">配置说明与<span class="hl">常见问题</span></h1>
+  <div class="faq-layout">
+    <div>
+      <div class="table-wrap reveal-up d3">
+        <table class="compact-table config-table">
+          <tr><th>文件</th><th>用途</th><th>提交</th></tr>
+          <tr><td>agent/config.json</td><td>LLM 配置</td><td>勿提交</td></tr>
+          <tr><td>batch/config.json</td><td>NA 连接</td><td>勿提交</td></tr>
+          <tr><td>env/sites.json</td><td>多环境快捷</td><td>勿提交</td></tr>
+          <tr><td>log/*.txt · excel/</td><td>审计日志 · 汇总</td><td>gitignore</td></tr>
+        </table>
+      </div>
+      <div class="warn-box reveal-up d4">
+        <strong>安全提醒：</strong>勿提交 config.json、sites.json、密码、batch/data/。日志已脱敏，仍勿外传密钥。
+      </div>
+      <div class="note-box reveal-up d5" style="margin-top:14px;font-size:14px;">
+        cp agent/config.example.json agent/config.json<br>
+        cp batch/config.example.json batch/config.json<br>
+        cp env/sites.example.json env/sites.json
+      </div>
+      <div class="stat-row reveal-up d6" style="margin-top:14px;grid-template-columns:1fr 1fr;">
+        <div class="stat-item"><div class="stat-val">7</div><div class="stat-label">localStorage 键</div></div>
+        <div class="stat-item"><div class="stat-val">log/</div><div class="stat-label">启动审计日志</div></div>
+      </div>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item reveal-left d3">
+        <div class="q">提取后怎么创建渠道 / 令牌？</div>
+        <div class="a">渠道模式「填入渠道管理」；令牌模式「填入令牌管理」→ 测试连接 → 批量创建</div>
+      </div>
+      <div class="faq-item reveal-left d4">
+        <div class="q">已有完整渠道行，还要 LLM 吗？</div>
+        <div class="a">不需要。未勾选即规则解析；令牌模式始终无 LLM</div>
+      </div>
+      <div class="faq-item reveal-left d5">
+        <div class="q">数据汇总会追加到旧 Excel 吗？</div>
+        <div class="a">不会。每次采集新时间戳文件；不自动建空模板</div>
+      </div>
+      <div class="faq-item reveal-left d6">
+        <div class="q">test/uat/prod 快捷按钮不显示？</div>
+        <div class="a">需配置 env/sites.json 且至少一环境有有效 base_url</div>
+      </div>
+      <div class="faq-item reveal-left d7">
+        <div class="q">跨 Tab 报模块错误 / 智能体任务丢了？</div>
+        <div class="a">重启 run.bat；Jobs 存进程内存，重启即清空</div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-bar reveal-fade d8">
+    <span>填入 = 替换非追加</span>
+    <span>LLM 仅渠道且勾选</span>
+    <span>ai-cloud-test/ 非本工具</span>
+    <span>改代码须重启</span>
+  </div>
+</main>
+<footer class="footer reveal-fade d9"><span>配置与 FAQ</span><span>17 / 18</span></footer>
+<script src="../shared/slide-boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>04 · 四大模块</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@400;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/motion.css">
+<link rel="stylesheet" href="../shared/perf.css">
+<style>
+.modules-wrap { margin-top: 16px; }
+.module-card {
+  position: relative;
+  padding: 28px 24px 24px;
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+}
+.module-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 20px; right: 20px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+  border-radius: 0 0 2px 2px;
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: revealLineX 0.8s var(--motion-ease) forwards;
+}
+.module-card:nth-child(1)::before { animation-delay: 0.3s; }
+.module-card:nth-child(3)::before { animation-delay: 0.5s; }
+.module-card:nth-child(5)::before { animation-delay: 0.7s; }
+.cap-list { margin-top: auto; padding-top: 16px; }
+.cap-list div {
+  font-size: 15px;
+  padding: 10px 0;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cap-list div::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.flow-arrow-col { font-size: 28px; color: var(--accent); align-self: center; opacity: 0.5; }
+.tab-badge {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 4px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--accent-glow);
+  color: var(--accent-deep);
+  border-radius: 4px;
+}
+</style>
+</head>
+<body>
+<header class="masthead reveal-fade">
+  <div class="masthead-brand"><img src="../shared/logo.svg" alt="" width="26" height="26"> NA Auto Configuration</div>
+  <div class="masthead-meta">04 / 18 · 四大模块</div>
+</header>
+<main class="content dense">
+  <div class="kicker reveal-up d1">产品架构</div>
+  <h1 class="reveal-up d2">单页 Web，<span class="hl">四 Tab</span> 闭环</h1>
+  <p class="subtitle reveal-up d3">共用后端 app.py · 端口 8765 · 顶栏：工作台 / 智能提取 / 批量配置 / 数据汇总 / 上游信息 / 一表总览 / 智能体（无序号）</p>
+  <div class="divider reveal-line d3"></div>
+  <div class="module-flow modules-wrap">
+    <div class="card module-card card-lift reveal-up d4">
+      <div class="card-num">TAB 01</div>
+      <h3>智能提取</h3>
+      <p>渠道或令牌双模式：杂乱文本 / 完整行 / 名-人拼接；渠道可选 LLM。</p>
+      <span class="tab-badge">static/index.html</span>
+      <div class="cap-list">
+        <div>渠道 · 令牌模式切换</div>
+        <div>一键填入对应管理区</div>
+        <div>规则优先，LLM 仅渠道</div>
+      </div>
+    </div>
+    <div class="flow-arrow-col reveal-fade d5">→</div>
+    <div class="card module-card card-lift reveal-up d5">
+      <div class="card-num">TAB 02</div>
+      <h3>批量配置</h3>
+      <p>渠道 / 令牌 / 分组 / 启停 / 日志；env 快捷切 test·uat·prod。</p>
+      <span class="tab-badge">batch/static · embed</span>
+      <div class="cap-list">
+        <div>渠道启停 · 上游/类型/ID</div>
+        <div>预删除 → 确认删除</div>
+        <div>会话缓存 · 降登录 429</div>
+      </div>
+    </div>
+    <div class="flow-arrow-col reveal-fade d6">→</div>
+    <div class="card module-card card-lift reveal-up d6">
+      <div class="card-num">TAB 03</div>
+      <h3>数据汇总</h3>
+      <p>多站点全量采集 + 渠道余额查询；时间戳 Excel，不建空模板。</p>
+      <span class="tab-badge">summary_ui.html · embed</span>
+      <div class="cap-list">
+        <div>已用 / 剩余余额多站查</div>
+        <div>主表全量 · 重复对照</div>
+        <div>env/sites.json 自动填入</div>
+      </div>
+    </div>
+  </div>
+  <div class="card module-card card-lift reveal-up d7" style="margin-top:18px;min-height:auto;">
+    <div class="card-num">TAB 04</div>
+    <h3>全流程智能体</h3>
+    <p>异步 Jobs + SSE：LLM 规划 → 门禁确认 → 提取/批量/令牌/汇总；兼容同步 /api/agent/run。</p>
+    <span class="tab-badge">agent_ui.html · embed</span>
+    <div class="cap-list">
+      <div>可视化计划 · 提取门禁</div>
+      <div>取消 / 失败步重试</div>
+      <div>进程内任务 · 重启清空</div>
+    </div>
+  </div>
+  <div class="bottom-bar reveal-fade d8">
+    <span>单 Flask 服务</span>
+    <span>四 Tab 含智能体</span>
+    <span>postMessage 主题同步</span>
+    <span>localStorage 状态持久</span>
+  </div>
+</main>
+<footer class="footer reveal-fade d9"><span>四大模块</span><span>04 / 18</span></footer>
+<script src="../shared/slide-boot.js"></script>
+</body>
+</html>

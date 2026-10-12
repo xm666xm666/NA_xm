@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="na-brand-bridge">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>上游账单 · NA 自动配置</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=art-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=art-1" />
+  <script src="/static/na-theme.js"></script>
+  <script src="/static/na-ui.js?v=art-1"></script>
+  <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+  <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
+  <style>
+    .bill-switcher {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.65rem 1rem;
+      margin: 0 0 1.1rem;
+    }
+    .bill-tabs {
+      display: inline-flex;
+      width: max-content;
+      max-width: 100%;
+      flex-shrink: 0;
+    }
+    .bill-panel[hidden] { display: none !important; }
+    .bill-panel.is-active {
+      display: grid;
+      gap: 1.1rem;
+      animation: billPanelIn 0.22s var(--na-ease-out) both;
+    }
+    .bill-panel.is-active.from-left { --bill-dx: -16px; }
+    .bill-panel.is-active.from-right { --bill-dx: 16px; }
+    @keyframes billPanelIn {
+      from { opacity: 0; transform: translateX(var(--bill-dx, 12px)); }
+      to { opacity: 1; transform: none; }
+    }
+    .bill-subh {
+      margin: 0 0 0.45rem;
+      font-size: 0.78rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      color: var(--na-accent-2);
+    }
+    .bill-split {
+      border: 0;
+      height: 1px;
+      margin: 1.15rem 0 1rem;
+      background: var(--na-border);
+    }
+    .bill-history {
+      display: grid;
+      gap: 0.35rem;
+      margin-top: 0.7rem;
+    }
+    .bill-history .na-file-pick { margin-top: 0; }
+    .bill-history .na-select-wrap { max-width: 42rem; }
+    .cfg-status {
+      margin: 0.55rem 0 0;
+      font-size: 0.76rem;
+      color: var(--na-text-muted);
+    }
+    .preview-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 0.75rem; }
+    .preview-table th, .preview-table td {
+      border: 1px solid var(--na-border);
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .preview-table th { background: rgba(47, 84, 150, 0.35); }
+    .cred-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .cred-grid label.full { grid-column: 1 / -1; }
+    .cred-grid textarea {
+      width: 100%; min-height: 4.6rem; resize: vertical; font-family: inherit; box-sizing: border-box;
+    }
+  </style>
+</head>
+<body class="na-app">
+  <div class="na-bg" aria-hidden="true">
+    <div class="na-bg-grid"></div>
+    <div class="na-bg-orb na-bg-orb-1"></div>
+    <div class="na-bg-orb na-bg-orb-2"></div>
+    <div class="na-bg-noise"></div>
+  </div>
+
+  <div class="na-wrap">
+    <div id="userBanner" class="na-banner" role="status"></div>
+    <header class="na-hero na-animate-in">
+      <h1>上游<em>账单</em></h1>
+      <p class="na-subtitle">
+        <span class="na-badge"><span class="na-badge-dot"></span>火山云 / Azure</span>
+        按账期拉取上游账单。可选起止月份，<strong>每月各写一份 Excel</strong>（不把多月并进同一文件）。可一次采集<strong>火山云 + Azure</strong>写入同一工作簿（四张费用表），也可按厂商单独导出。
+        费用列标注 <code>费用（¥）</code>，表末行为 <code>SUM</code> 合计。
+        火山云列：日期、项目名、产品、配置名称、分拆项ID、费用（¥）。
+        Azure 列：日期、项目名、项目负责人、模型名、配置名称、地区、订阅、费用（¥）。
+      </p>
+      <p class="na-hint" style="margin-top:0.5rem">
+        导出：<span class="na-file-chip" id="excelNameHint">excel/上游账单_汇总_9月_年月日时分秒.xlsx</span>
+      </p>
+    </header>
+
+    <div class="bill-switcher">
+      <div class="na-nav-tabs bill-tabs" role="tablist" aria-label="账单范围" id="providerTabs">
+        <div class="na-nav-indicator" id="providerIndicator"></div>
+        <button type="button" role="tab" id="tabAll" data-provider="all" class="active" aria-selected="true" aria-controls="panelAll">全部汇总</button>
+        <button type="button" role="tab" id="tabVolc" data-provider="volc" aria-selected="false" aria-controls="panelVolc">火山云</button>
+        <button type="button" role="tab" id="tabAzure" data-provider="azure" aria-selected="false" aria-controls="panelAzure">Azure OpenAI</button>
+      </div>
+    </div>
+
+    <div class="bill-stage">
+    <div id="panelAll" class="bill-panel is-active" data-provider="all" role="tabpanel" aria-labelledby="tabAll" aria-hidden="false">
+      <section class="na-panel na-panel-static">
+        <h2>全部账单汇总</h2>
+        <p class="na-hint">
+          依次采集<strong>火山云</strong>与<strong>Azure OpenAI</strong>，写入同一工作簿
+          （<code>火山云-按天</code>、<code>火山云-按月</code>、<code>Azure-按天</code>、<code>Azure-按月</code>）。
+          凭证用各厂商页已填内容或 <code>env/sites.json</code>。一侧失败仍保留另一侧。
+          账期起止相同则只导出一个月；跨月则<strong>每月一份</strong>汇总表，一次最多 24 个月。
+        </p>
+        <div class="cred-grid">
+          <label>账期起
+            <input id="allPeriodFrom" type="month" />
+          </label>
+          <label>账期止
+            <input id="allPeriodTo" type="month" />
+          </label>
+        </div>
+        <div class="na-meta" id="allFileMeta"></div>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-primary" id="btnCollectAll">
+            <span class="na-spinner" aria-hidden="true"></span>
+            <span class="na-btn-label">一键采集全部账单</span>
+          </button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnDownloadAll" disabled>下载汇总 Excel</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnLoadCfgAll">从 env 载入</button>
+        </div>
+        <div class="bill-history">
+          <div class="na-file-pick">
+            <label class="na-field"><span class="na-field-label">历史文件</span>
+              <div class="na-select-wrap">
+                <select id="selCombinedBillFile" class="na-select" aria-label="历史汇总账单"></select>
+                <span class="na-select-chevron" aria-hidden="true"></span>
+              </div>
+            </label>
+            <button type="button" class="na-btn na-btn-ghost na-file-refresh" id="btnRefreshCombinedBillFiles" title="其它页导出后点此同步文件列表">刷新</button>
+          </div>
+          <p class="na-hint">下载前先选文件。建议保留 30 天，系统不自动删除。</p>
+        </div>
+        <div id="allPreviewWrap" hidden>
+          <h3 style="margin:1rem 0 0.4rem;font-size:0.9rem">预览（各表前几行）</h3>
+          <p class="na-hint" id="allPreviewHint"></p>
+          <p class="na-hint" style="margin:0.6rem 0 0.2rem">工作表 · 火山云-按天</p>
+          <div style="overflow:auto"><table class="preview-table" id="allVolcDayTable"></table></div>
+          <p class="na-hint" style="margin:0.8rem 0 0.2rem">工作表 · Azure-按天</p>
+          <div style="overflow:auto"><table class="preview-table" id="allAzDayTable"></table></div>
+        </div>
+        <details class="na-log-debug"><summary>详细日志</summary><div class="na-log" id="allLog" aria-live="polite"></div></details>
+      </section>
+    </div>
+
+    <div id="panelVolc" class="bill-panel" data-provider="volc" role="tabpanel" aria-labelledby="tabVolc" hidden inert aria-hidden="true">
+      <section class="na-panel na-panel-static">
+        <h2>火山云</h2>
+        <h3 class="bill-subh">凭证与账期</h3>
+        <p class="na-hint">
+          使用 IAM <strong>Access Key</strong>（<code>AKLT…</code>），调用费用中心 OpenAPI，不是控制台爬取。
+          可本页手填，或在 <code>env/sites.json</code> 填写 <code>upstream.volc</code>。
+          账期起止跨月时<strong>每月各写一份 Excel</strong>，一次最多 24 个月。
+        </p>
+        <div class="cred-grid">
+          <label>Access Key ID
+            <input id="akId" type="text" autocomplete="off" placeholder="AKLT… 可留空则用 env" />
+          </label>
+          <label>Secret Access Key
+            <input id="akSecret" type="password" autocomplete="off" placeholder="已配置 env 时可留空" />
+          </label>
+          <label>Region
+            <input id="region" type="text" value="cn-beijing" autocomplete="off" />
+          </label>
+          <label>账期起
+            <input id="billPeriodFrom" type="month" />
+          </label>
+          <label>账期止
+            <input id="billPeriodTo" type="month" />
+          </label>
+        </div>
+        <p class="cfg-status" id="cfgHint"></p>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-ghost" id="btnLoadCfg">从 env 载入</button>
+        </div>
+        <hr class="bill-split" />
+        <h3 class="bill-subh">采集与导出</h3>
+        <div class="na-meta" id="fileMeta"></div>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-primary" id="btnCollect">
+            <span class="na-spinner" aria-hidden="true"></span>
+            <span class="na-btn-label">一键采集火山云</span>
+          </button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnDownload" disabled>下载 Excel</button>
+        </div>
+        <div class="bill-history">
+          <div class="na-file-pick">
+            <label class="na-field"><span class="na-field-label">历史文件</span>
+              <div class="na-select-wrap">
+                <select id="selBillFile" class="na-select" aria-label="历史火山云账单"></select>
+                <span class="na-select-chevron" aria-hidden="true"></span>
+              </div>
+            </label>
+            <button type="button" class="na-btn na-btn-ghost na-file-refresh" id="btnRefreshBillFiles" title="其它页导出后点此同步文件列表">刷新</button>
+          </div>
+        </div>
+        <details class="na-log-debug">
+          <summary>采集规则与列说明</summary>
+          <p class="na-hint">
+            调用 <code>ListSplitBillDetail</code> / <code>ListBillDetail</code>。
+            密钥须有账单查询权限；分拆项ID 还须开通
+            <a href="https://console.volcengine.com/finance/bill/detail" target="_blank" rel="noopener">分账账单</a>。
+            导出工作表 <code>按天</code>、<code>按月</code>。列：日期、项目名、产品、配置名称、分拆项ID、<strong>费用（¥）</strong>；末行 <code>SUM</code> 合计。
+          </p>
+        </details>
+        <div id="previewWrap" hidden>
+          <h3 style="margin:1rem 0 0.4rem;font-size:0.9rem">预览（前 20 行）</h3>
+          <p class="na-hint" id="previewHint"></p>
+          <p class="na-hint" style="margin:0.6rem 0 0.2rem">按天</p>
+          <div style="overflow:auto"><table class="preview-table" id="dayTable"></table></div>
+          <p class="na-hint" style="margin:0.8rem 0 0.2rem">按月</p>
+          <div style="overflow:auto"><table class="preview-table" id="monthTable"></table></div>
+        </div>
+        <details class="na-log-debug"><summary>详细日志</summary><div class="na-log" id="log" aria-live="polite"></div></details>
+      </section>
+    </div>
+
+    <div id="panelAzure" class="bill-panel" data-provider="azure" role="tabpanel" aria-labelledby="tabAzure" hidden inert aria-hidden="true">
+      <section class="na-panel na-panel-static">
+        <h2>Azure OpenAI</h2>
+        <h3 class="bill-subh">服务主体与账期</h3>
+        <p class="na-hint">
+          使用 Entra ID <strong>应用注册</strong>，调用 Cost Management Query API（分组依据资源）。
+          可本页手填，或在 <code>env/sites.json</code> 填写 <code>upstream.azure</code>。
+          账期起止跨月时<strong>每月各写一份 Excel</strong>，一次最多 24 个月。
+        </p>
+        <div class="cred-grid">
+          <label>Tenant ID
+            <input id="azTenant" type="text" autocomplete="off" placeholder="目录 ID，可留空则用 env" />
+          </label>
+          <label>Client ID
+            <input id="azClient" type="text" autocomplete="off" placeholder="应用 ID" />
+          </label>
+          <label>Client Secret
+            <input id="azSecret" type="password" autocomplete="off" placeholder="已配置 env 时可留空" />
+          </label>
+          <label>账期起
+            <input id="azBillPeriodFrom" type="month" />
+          </label>
+          <label>账期止
+            <input id="azBillPeriodTo" type="month" />
+          </label>
+          <label class="full">订阅 ID（每行一个，顺序=订阅1、订阅2…）
+            <textarea id="azSub" placeholder="可留空则用 env/sites.json 的 subscription_ids"></textarea>
+          </label>
+        </div>
+        <p class="cfg-status" id="azCfgHint"></p>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-ghost" id="btnAzLoadCfg">从 env 载入</button>
+        </div>
+        <hr class="bill-split" />
+        <h3 class="bill-subh">采集与导出</h3>
+        <div class="na-meta" id="azFileMeta"></div>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-primary" id="btnAzCollect">
+            <span class="na-spinner" aria-hidden="true"></span>
+            <span class="na-btn-label">一键采集 Azure OpenAI</span>
+          </button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnAzDownload" disabled>下载 Excel</button>
+        </div>
+        <div class="bill-history">
+          <div class="na-file-pick">
+            <label class="na-field"><span class="na-field-label">历史文件</span>
+              <div class="na-select-wrap">
+                <select id="selAzBillFile" class="na-select" aria-label="历史 Azure 账单"></select>
+                <span class="na-select-chevron" aria-hidden="true"></span>
+              </div>
+            </label>
+            <button type="button" class="na-btn na-btn-ghost na-file-refresh" id="btnRefreshAzBillFiles" title="其它页导出后点此同步文件列表">刷新</button>
+          </div>
+        </div>
+        <details class="na-log-debug">
+          <summary>采集规则与列说明</summary>
+          <p class="na-hint">
+            对照
+            <a href="https://portal.azure.com/#view/Microsoft_Azure_CostManagement/Menu/~/costanalysis" target="_blank" rel="noopener">成本分析</a>
+            ：分组依据<strong>资源</strong>，粒度每天；按月由按天汇总。不是下载门户 xlsx。
+            项目名、项目负责人来自账号标记 <code>1</code>（按最后一个 <code>-</code> 拆开，负责人在最后一段）。
+            每个订阅须给该应用加「成本管理读取者」。
+            列：日期、项目名、项目负责人、模型名、配置名称、地区、订阅、<strong>费用（¥）</strong>；末行 <code>SUM</code>。
+          </p>
+        </details>
+        <div id="azPreviewWrap" hidden>
+          <h3 style="margin:1rem 0 0.4rem;font-size:0.9rem">预览（前 20 行）</h3>
+          <p class="na-hint" id="azPreviewHint"></p>
+          <p class="na-hint" style="margin:0.6rem 0 0.2rem">按天</p>
+          <div style="overflow:auto"><table class="preview-table" id="azDayTable"></table></div>
+          <p class="na-hint" style="margin:0.8rem 0 0.2rem">按月</p>
+          <div style="overflow:auto"><table class="preview-table" id="azMonthTable"></table></div>
+        </div>
+        <details class="na-log-debug"><summary>详细日志</summary><div class="na-log" id="azLog" aria-live="polite"></div></details>
+      </section>
+    </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let fileReady = false;
+    let azureFileReady = false;
+    let combinedFileReady = false;
+    let currentProvider = "all";
+    const PROVIDER_ORDER = ["all", "volc", "azure"];
+    const VOLC_HEADERS = ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用（¥）"];
+    const AZURE_HEADERS = ["日期", "项目名", "项目负责人", "模型名", "配置名称", "地区", "订阅", "费用（¥）"];
+
+    function updateProviderIndicator() {
+      const tabs = $("providerTabs");
+      const indicator = $("providerIndicator");
+      const active = tabs?.querySelector("button.active");
+      if (!tabs || !indicator || !active) return;
+      const tabsRect = tabs.getBoundingClientRect();
+      const activeRect = active.getBoundingClientRect();
+      if (!tabsRect.width) return;
+      indicator.style.width = `${activeRect.width}px`;
+      indicator.style.transform = `translateX(${activeRect.left - tabsRect.left}px)`;
+      indicator.style.opacity = "1";
+    }
+
+    function switchProvider(name) {
+      if (!PROVIDER_ORDER.includes(name)) return;
+      if (name === currentProvider) {
+        updateProviderIndicator();
+        return;
+      }
+      const dir = PROVIDER_ORDER.indexOf(name) - PROVIDER_ORDER.indexOf(currentProvider);
+      currentProvider = name;
+      document.querySelectorAll("#providerTabs button").forEach((btn) => {
+        const on = btn.dataset.provider === name;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+        btn.tabIndex = on ? 0 : -1;
+      });
+      document.querySelectorAll(".bill-panel").forEach((panel) => {
+        const on = panel.dataset.provider === name;
+        panel.hidden = !on;
+        panel.toggleAttribute("inert", !on);
+        panel.setAttribute("aria-hidden", on ? "false" : "true");
+        panel.classList.remove("is-active", "from-right", "from-left");
+        if (!on) return;
+        panel.classList.add("is-active");
+        if (dir !== 0) {
+          panel.classList.add(dir > 0 ? "from-right" : "from-left");
+          panel.style.animation = "none";
+          void panel.offsetWidth;
+          panel.style.animation = "";
+        }
+      });
+      updateProviderIndicator();
+      if (name === "azure") refreshAzInfo();
+      else if (name === "volc") refreshInfo();
+      else refreshCombinedInfo();
+    }
+
+    function addLog(msg, cls, logId = "log") {
+      const el = $(logId);
+      if (!el) return;
+      const line = document.createElement("div");
+      if (cls) line.className = cls;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      el.prepend(line);
+    }
+    function addAllLog(msg, cls) { addLog(msg, cls, "allLog"); }
+    function addAzLog(msg, cls) { addLog(msg, cls, "azLog"); }
+
+    function setLoading(btn, on) {
+      if (!btn) return;
+      btn.classList.toggle("loading", on);
+      btn.disabled = on;
+    }
+
+    function credPayload() {
+      return {
+        access_key_id: $("akId").value.trim(),
+        secret_access_key: $("akSecret").value.trim(),
+        region: $("region").value.trim() || "cn-beijing",
+        ...periodRangePayload("billPeriodFrom", "billPeriodTo"),
+      };
+    }
+
+    function azurePayload() {
+      const payload = {};
+      const tenant = ($("azTenant").value || "").trim();
+      const clientId = ($("azClient").value || "").trim();
+      const secret = ($("azSecret").value || "").trim();
+      const sub = ($("azSub").value || "").trim();
+      if (tenant) payload.tenant_id = tenant;
+      if (clientId) payload.client_id = clientId;
+      if (secret) payload.client_secret = secret;
+      if (sub) payload.subscription_ids = sub.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+      Object.assign(payload, periodRangePayload("azBillPeriodFrom", "azBillPeriodTo"));
+      return payload;
+    }
+
+    function fillTable(table, rows, headers) {
+      if (!table) return;
+      const cols = headers || VOLC_HEADERS;
+      if (!rows || !rows.length) {
+        table.innerHTML = "<tr><td>无数据</td></tr>";
+        return;
+      }
+      const cellText = (row, h) => {
+        const key = h === "费用（¥）" ? "费用" : h;
+        const v = row[h] ?? row[key];
+        if ((h === "费用（¥）" || h === "费用") && v !== "" && v != null && v !== undefined) {
+          const n = Number(v);
+          if (!Number.isNaN(n)) return `¥${n}`;
+        }
+        return String(v ?? "");
+      };
+      table.innerHTML = "<tr>" + cols.map((h) => `<th>${h}</th>`).join("") + "</tr>" +
+        rows.map((row) => "<tr>" + cols.map((h) => `<td>${cellText(row, h)}</td>`).join("") + "</tr>").join("");
+    }
+
+    async function readJson(resp) {
+      const text = await resp.text();
+      try {
+        return JSON.parse(text);
+      } catch (_) {
+        throw new Error(
+          resp.status === 404
+            ? "账单接口不存在，请重启服务后再试"
+            : `服务器未返回 JSON（HTTP ${resp.status}）。请重启服务后重试。`
+        );
+      }
+    }
+
+    function monthLabelFromPeriod(value) {
+      const found = String(value || "").match(/(\d{4})-(\d{1,2})/);
+      if (!found) return "月";
+      return `${Number(found[2])}月`;
+    }
+
+    function periodRangePayload(fromId, toId) {
+      const from = ($(fromId)?.value || "").trim();
+      const to = ($(toId)?.value || "").trim();
+      if (from && to) return { bill_period_from: from, bill_period_to: to };
+      if (from || to) return { bill_period: from || to };
+      return {};
+    }
+
+    function fillDefaultPeriod(fromId, toId, period) {
+      if (!period) return;
+      if ($(fromId) && !$(fromId).value) $(fromId).value = period;
+      if ($(toId) && !$(toId).value) $(toId).value = period;
+    }
+
+    function billNameHint(stem, fromEl, toEl) {
+      const from = fromEl && fromEl.value;
+      const to = (toEl && toEl.value) || from;
+      if (from && to && from !== to) {
+        return `excel/${stem}_${monthLabelFromPeriod(from)}_…、${stem}_${monthLabelFromPeriod(to)}_…（每月一份）`;
+      }
+      return `excel/${stem}_${monthLabelFromPeriod(from || to)}_年月日时分秒.xlsx`;
+    }
+
+    function allPayload() {
+      const payload = {
+        ...credPayload(),
+        ...azurePayload(),
+      };
+      delete payload.bill_period;
+      delete payload.bill_period_from;
+      delete payload.bill_period_to;
+      Object.assign(payload, periodRangePayload("allPeriodFrom", "allPeriodTo"));
+      return payload;
+    }
+
+    async function loadSelectFiles(el, kind, preferred) {
+      if (!el) return [];
+      try {
+        const resp = await fetch(`/api/artifacts?kind=${encodeURIComponent(kind)}&limit=20`);
+        const data = await readJson(resp);
+        const items = (data.data && data.data.items) || [];
+        const prev = preferred || el.value;
+        el.innerHTML = "";
+        if (!items.length) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "暂无文件";
+          el.appendChild(opt);
+          el.disabled = true;
+        } else {
+          el.disabled = false;
+          items.forEach((item) => {
+            const opt = document.createElement("option");
+            opt.value = item.filename;
+            opt.textContent = item.filename;
+            el.appendChild(opt);
+          });
+          if (prev && [...el.options].some((o) => o.value === prev)) el.value = prev;
+        }
+        return items;
+      } catch (e) {
+        addLog("读取历史表失败: " + (e.message || e), "warn");
+        return [];
+      }
+    }
+
+    async function loadCfg() {
+      try {
+        const resp = await fetch("/api/upstream/config");
+        const data = await readJson(resp);
+        const volc = data.volc || {};
+        if (volc.access_key_id && !$("akId").value) $("akId").value = volc.access_key_id;
+        if (volc.region) $("region").value = volc.region;
+        const hint = volc.has_secret || (volc.access_key_id && data.configured)
+          ? `已读取 ${data.source || "env 配置"}（Secret 已配置，页面可不填 Secret）。采集走费用中心 API，须有账单查询权限。`
+          : (data.error || "未找到 env/sites.json。请复制 env/sites.example.json → env/sites.json 填写 upstream.volc，或本页手填 IAM 密钥。");
+        $("cfgHint").textContent = hint;
+        addLog(hint, volc.has_secret ? "ok" : "");
+      } catch (e) {
+        $("cfgHint").textContent = "读取 env 配置失败";
+        addLog(String(e.message || e), "warn");
+      }
+    }
+
+    async function loadAzCfg() {
+      try {
+        const resp = await fetch("/api/upstream/config");
+        const data = await readJson(resp);
+        const azure = data.azure || {};
+        if (azure.tenant_id && !$("azTenant").value) $("azTenant").value = azure.tenant_id;
+        if (azure.client_id && !$("azClient").value) $("azClient").value = azure.client_id;
+        const subs = Array.isArray(azure.subscription_ids) && azure.subscription_ids.length
+          ? azure.subscription_ids
+          : (azure.subscription_id ? [azure.subscription_id] : []);
+        if (subs.length && !$("azSub").value) $("azSub").value = subs.join("\n");
+        const hint = azure.ready
+          ? `已读取 ${data.source || "env 配置"}（Secret 已配置，页面可不填）。采集走 Cost Management，分组资源；须有成本管理读取者权限。`
+          : (data.error || "未配置 Azure 服务主体。请在 env/sites.json 的 upstream.azure 填写 tenant_id / client_id / client_secret，或本页手填。");
+        $("azCfgHint").textContent = hint;
+        addAzLog(hint, azure.ready ? "ok" : "");
+      } catch (e) {
+        $("azCfgHint").textContent = "读取 env 配置失败";
+        addAzLog(String(e.message || e), "warn");
+      }
+    }
+
+    async function loadBillFiles(preferred) {
+      const items = await loadSelectFiles($("selBillFile"), "bill", preferred);
+      fileReady = Boolean($("selBillFile")?.value);
+      $("btnDownload").disabled = !fileReady;
+      return items;
+    }
+
+    async function loadAzBillFiles(preferred) {
+      const items = await loadSelectFiles($("selAzBillFile"), "bill_azure", preferred);
+      azureFileReady = Boolean($("selAzBillFile")?.value);
+      $("btnAzDownload").disabled = !azureFileReady;
+      return items;
+    }
+
+    async function loadCombinedBillFiles(preferred) {
+      const items = await loadSelectFiles($("selCombinedBillFile"), "bill_combined", preferred);
+      combinedFileReady = Boolean($("selCombinedBillFile")?.value);
+      $("btnDownloadAll").disabled = !combinedFileReady;
+      return items;
+    }
+
+    async function refreshInfo() {
+      try {
+        const resp = await fetch("/api/upstream/bill/info");
+        const data = await readJson(resp);
+        const info = data.data || {};
+        if (info.default_period) {
+          fillDefaultPeriod("billPeriodFrom", "billPeriodTo", info.default_period);
+          fillDefaultPeriod("allPeriodFrom", "allPeriodTo", info.default_period);
+        }
+        $("excelNameHint").textContent = info.exists
+          ? (info.path || info.filename)
+          : billNameHint("上游账单_火山云", $("billPeriodFrom"), $("billPeriodTo"));
+        const s = info.summary || {};
+        $("fileMeta").textContent = info.exists
+          ? `最新：${info.filename} · 按天 ${s.sheets && s.sheets["按天"] || s.rows || 0} 行 · 按月 ${s.sheets && s.sheets["按月"] || 0} 行`
+          : "尚未生成账单表。选账期起止后点「一键采集火山云」（跨月则每月一份）。";
+        await loadBillFiles(info.filename);
+      } catch (e) {
+        addLog("读取文件信息失败: " + (e.message || e), "warn");
+      }
+    }
+
+    async function refreshAzInfo() {
+      try {
+        const resp = await fetch("/api/upstream/azure/bill/info");
+        const data = await readJson(resp);
+        const info = data.data || {};
+        if (info.default_period) {
+          fillDefaultPeriod("azBillPeriodFrom", "azBillPeriodTo", info.default_period);
+          fillDefaultPeriod("allPeriodFrom", "allPeriodTo", info.default_period);
+        }
+        $("excelNameHint").textContent = info.exists
+          ? (info.path || info.filename)
+          : billNameHint("上游账单_Azure", $("azBillPeriodFrom"), $("azBillPeriodTo"));
+        const s = info.summary || {};
+        $("azFileMeta").textContent = info.exists
+          ? `最新：${info.filename} · 按天 ${s.sheets && s.sheets["按天"] || s.rows || 0} 行 · 按月 ${s.sheets && s.sheets["按月"] || 0} 行`
+          : "尚未生成 Azure 账单表。选账期起止后点「一键采集 Azure OpenAI」（跨月则每月一份）。";
+        await loadAzBillFiles(info.filename);
+      } catch (e) {
+        addAzLog("读取 Azure 文件信息失败: " + (e.message || e), "warn");
+      }
+    }
+
+    async function refreshCombinedInfo() {
+      try {
+        const resp = await fetch("/api/upstream/bill/combined/info");
+        const data = await readJson(resp);
+        const info = data.data || {};
+        if (info.default_period) {
+          fillDefaultPeriod("allPeriodFrom", "allPeriodTo", info.default_period);
+          fillDefaultPeriod("billPeriodFrom", "billPeriodTo", info.default_period);
+          fillDefaultPeriod("azBillPeriodFrom", "azBillPeriodTo", info.default_period);
+        }
+        $("excelNameHint").textContent = info.exists
+          ? (info.path || info.filename)
+          : billNameHint("上游账单_汇总", $("allPeriodFrom"), $("allPeriodTo"));
+        const s = info.summary || {};
+        $("allFileMeta").textContent = info.exists
+          ? `最新：${info.filename} · 火山按天 ${s.volc_day_rows || 0} 行 · Azure 按天 ${s.azure_day_rows || 0} 行`
+          : "尚未生成汇总账单。选账期起止后点「一键采集全部账单」（跨月则每月一份）。";
+        await loadCombinedBillFiles(info.filename);
+      } catch (e) {
+        addAllLog("读取汇总账单信息失败: " + (e.message || e), "warn");
+      }
+    }
+
+    $("btnLoadCfg").addEventListener("click", () => loadCfg());
+    $("btnLoadCfgAll").addEventListener("click", () => { loadCfg(); loadAzCfg(); });
+    $("btnCollect").addEventListener("click", async () => {
+      const btn = $("btnCollect");
+      setLoading(btn, true);
+      $("btnDownload").disabled = true;
+      NAUi.showBanner("userBanner", "正在按月拉取火山云费用中心…", "info");
+      addLog("开始采集账单明细…");
+      try {
+        const resp = await fetch("/api/upstream/bill/collect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(credPayload()),
+        });
+        const data = await readJson(resp);
+        if (!resp.ok || !data.success) throw new Error(data.message || `HTTP ${resp.status}`);
+        const pack = data.data || {};
+        fillTable($("dayTable"), pack.preview_day || [], pack.headers || VOLC_HEADERS);
+        fillTable($("monthTable"), pack.preview_month || [], pack.headers || VOLC_HEADERS);
+        $("previewWrap").hidden = false;
+        $("previewHint").textContent = `${(pack.bill_periods || [pack.bill_period]).filter(Boolean).join("～") || pack.bill_period || ""} · ${pack.source_action || ""} · 原始 ${pack.raw_count || 0} 条`;
+        (pack.errors || []).forEach((err) => addLog(err, "warn"));
+        (pack.failed || []).forEach((row) => addLog(`${row.bill_period}：${row.error}`, "warn"));
+        (pack.files || []).forEach((row) => addLog(`已写入 ${row.filename}`, "ok"));
+        addLog(data.message || "采集完成", "ok");
+        NAUi.showBanner("userBanner", (data.message || "采集完成") + "。请点「下载 Excel」", "ok");
+        NAUi.toast("采集完成，请点「下载 Excel」", "ok");
+        await loadBillFiles(pack.filename);
+        await refreshInfo();
+        NAUi.notifyArtifactsChanged(["bill"]);
+      } catch (e) {
+        addLog(String(e.message || e), "warn");
+        NAUi.showBanner("userBanner", String(e.message || e), "err");
+        NAUi.toast(String(e.message || e), "err");
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    $("btnDownload").addEventListener("click", async () => {
+      const file = $("selBillFile").value;
+      if (!file) return;
+      try {
+        const name = await NAUi.downloadUrl(`/api/upstream/bill/download?file=${encodeURIComponent(file)}`, file);
+        addLog(`已开始浏览器下载：${name}`, "ok");
+      } catch (e) {
+        NAUi.showBanner("userBanner", e.message || "下载失败", "err");
+      }
+    });
+
+    $("btnAzLoadCfg").addEventListener("click", () => loadAzCfg());
+    $("btnAzCollect").addEventListener("click", async () => {
+      const btn = $("btnAzCollect");
+      setLoading(btn, true);
+      $("btnAzDownload").disabled = true;
+      NAUi.showBanner("userBanner", "正在按月拉取 Azure 成本分析…", "info");
+      addAzLog("开始采集 Azure Cost Management（分组：资源）…");
+      try {
+        const resp = await fetch("/api/upstream/azure/bill/collect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(azurePayload()),
+        });
+        const data = await readJson(resp);
+        if (!resp.ok || !data.success) throw new Error(data.message || `HTTP ${resp.status}`);
+        const pack = data.data || {};
+        fillTable($("azDayTable"), pack.preview_day || [], pack.headers || AZURE_HEADERS);
+        fillTable($("azMonthTable"), pack.preview_month || [], pack.headers || AZURE_HEADERS);
+        $("azPreviewWrap").hidden = false;
+        $("azPreviewHint").textContent = `${(pack.bill_periods || [pack.bill_period]).filter(Boolean).join("～") || pack.bill_period || ""} · ${pack.source_action || ""} · 原始 ${pack.raw_count || 0} 条`;
+        (pack.errors || []).forEach((err) => addAzLog(err, "warn"));
+        (pack.failed || []).forEach((row) => addAzLog(`${row.bill_period}：${row.error}`, "warn"));
+        (pack.files || []).forEach((row) => addAzLog(`已写入 ${row.filename}`, "ok"));
+        addAzLog(data.message || "采集完成", "ok");
+        NAUi.showBanner("userBanner", (data.message || "采集完成") + "。请点「下载 Excel」", "ok");
+        NAUi.toast("采集完成，请点「下载 Excel」", "ok");
+        await loadAzBillFiles(pack.filename);
+        await refreshAzInfo();
+        NAUi.notifyArtifactsChanged(["bill_azure"]);
+      } catch (e) {
+        addAzLog(String(e.message || e), "warn");
+        NAUi.showBanner("userBanner", String(e.message || e), "err");
+        NAUi.toast(String(e.message || e), "err");
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    $("btnAzDownload").addEventListener("click", async () => {
+      const file = $("selAzBillFile").value;
+      if (!file) return;
+      try {
+        const name = await NAUi.downloadUrl(`/api/upstream/azure/bill/download?file=${encodeURIComponent(file)}`, file);
+        addAzLog(`已开始浏览器下载：${name}`, "ok");
+      } catch (e) {
+        NAUi.showBanner("userBanner", e.message || "下载失败", "err");
+      }
+    });
+
+    document.querySelectorAll("#providerTabs button").forEach((btn) => {
+      btn.tabIndex = btn.classList.contains("active") ? 0 : -1;
+      btn.addEventListener("click", () => switchProvider(btn.dataset.provider));
+    });
+    $("providerTabs")?.addEventListener("keydown", (ev) => {
+      if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+      ev.preventDefault();
+      const i = PROVIDER_ORDER.indexOf(currentProvider);
+      const next = ev.key === "ArrowRight"
+        ? PROVIDER_ORDER[(i + 1) % PROVIDER_ORDER.length]
+        : PROVIDER_ORDER[(i - 1 + PROVIDER_ORDER.length) % PROVIDER_ORDER.length];
+      switchProvider(next);
+      document.querySelector(`#providerTabs button[data-provider="${next}"]`)?.focus();
+    });
+    if (window.ResizeObserver && $("providerTabs")) {
+      new ResizeObserver(() => updateProviderIndicator()).observe($("providerTabs"));
+    }
+    requestAnimationFrame(updateProviderIndicator);
+
+    $("btnCollectAll").addEventListener("click", async () => {
+      const btn = $("btnCollectAll");
+      setLoading(btn, true);
+      $("btnDownloadAll").disabled = true;
+      NAUi.showBanner("userBanner", "正在按月采集火山云与 Azure 账单…", "info");
+      addAllLog("开始采集全部账单：按月依次 火山云 → Azure…");
+      try {
+        const resp = await fetch("/api/upstream/bill/collect-all", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(allPayload()),
+        });
+        const data = await readJson(resp);
+        const pack = data.data || {};
+        if (!resp.ok || !pack.file) throw new Error(data.message || `HTTP ${resp.status}`);
+        fillTable($("allVolcDayTable"), pack.preview_volc_day || [], pack.headers_volc || VOLC_HEADERS);
+        fillTable($("allAzDayTable"), pack.preview_azure_day || [], pack.headers_azure || AZURE_HEADERS);
+        $("allPreviewWrap").hidden = false;
+        $("allPreviewHint").textContent =
+          `${(pack.bill_periods || [pack.bill_period]).filter(Boolean).join("～") || pack.bill_period || ""} · 火山按天 ${pack.volc_day_rows || 0} 行 · Azure 按天 ${pack.azure_day_rows || 0} 行（预览为最近一月）`;
+        (pack.errors || []).forEach((err) => addAllLog(err, "warn"));
+        (pack.failed || []).forEach((row) => addAllLog(`${row.bill_period}：${row.error}`, "warn"));
+        (pack.files || []).forEach((row) => addAllLog(`已写入 ${row.filename}`, "ok"));
+        addAllLog(data.message || "汇总采集完成", "ok");
+        NAUi.showBanner("userBanner", (data.message || "汇总采集完成") + "。请点「下载汇总 Excel」", "ok");
+        NAUi.toast("汇总完成，请点「下载汇总 Excel」", data.success ? "ok" : "warn");
+        await loadCombinedBillFiles(pack.filename);
+        await refreshCombinedInfo();
+        NAUi.notifyArtifactsChanged(["bill", "bill_azure", "bill_combined"]);
+      } catch (e) {
+        addAllLog(String(e.message || e), "warn");
+        NAUi.showBanner("userBanner", String(e.message || e), "err");
+        NAUi.toast(String(e.message || e), "err");
+        await refreshCombinedInfo();
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    $("btnDownloadAll").addEventListener("click", async () => {
+      const file = $("selCombinedBillFile")?.value || "";
+      if (!file && !combinedFileReady) return;
+      try {
+        const url = file
+          ? `/api/upstream/bill/combined/download?file=${encodeURIComponent(file)}`
+          : "/api/upstream/bill/combined/download";
+        const name = await NAUi.downloadUrl(url, file);
+        addAllLog(`已开始浏览器下载：${name}`, "ok");
+      } catch (e) {
+        NAUi.showBanner("userBanner", e.message || "下载失败", "err");
+      }
+    });
+
+    NAUi.onArtifactsChanged(() => {
+      refreshCombinedInfo();
+      refreshInfo();
+      refreshAzInfo();
+    });
+    $("btnRefreshCombinedBillFiles")?.addEventListener("click", async () => {
+      await refreshCombinedInfo();
+      NAUi.toast("已刷新文件列表", "ok", 1600);
+    });
+    $("btnRefreshBillFiles")?.addEventListener("click", async () => {
+      await refreshInfo();
+      NAUi.toast("已刷新文件列表", "ok", 1600);
+    });
+    $("btnRefreshAzBillFiles")?.addEventListener("click", async () => {
+      await refreshAzInfo();
+      NAUi.toast("已刷新文件列表", "ok", 1600);
+    });
+    ["allPeriodFrom", "allPeriodTo", "billPeriodFrom", "billPeriodTo", "azBillPeriodFrom", "azBillPeriodTo"].forEach((id) => {
+      $(id)?.addEventListener("change", () => {
+        if (currentProvider === "volc") {
+          $("excelNameHint").textContent = billNameHint("上游账单_火山云", $("billPeriodFrom"), $("billPeriodTo"));
+        } else if (currentProvider === "azure") {
+          $("excelNameHint").textContent = billNameHint("上游账单_Azure", $("azBillPeriodFrom"), $("azBillPeriodTo"));
+        } else {
+          $("excelNameHint").textContent = billNameHint("上游账单_汇总", $("allPeriodFrom"), $("allPeriodTo"));
+        }
+      });
+    });
+    window.addEventListener("message", (ev) => {
+      const data = ev.data || {};
+      if (data.type === "na-theme-change" && data.theme) NATheme.apply(data.theme);
+    });
+
+    loadCfg().then(() => Promise.all([refreshCombinedInfo(), refreshInfo(), refreshAzInfo()]));
+    loadAzCfg();
+  </script>
+</body>
+</html>

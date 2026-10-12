@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="na-brand-bridge">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>数据汇总 · NA 自动配置</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=auth-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
+  <script src="/static/na-theme.js"></script>
+  <script src="/static/na-ui.js?v=auth-1"></script>
+  <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+  <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
+  <style>
+    .na-modal-backdrop {
+      position: fixed; inset: 0; z-index: 1200;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; background: rgba(7, 11, 18, 0.55); backdrop-filter: blur(4px);
+    }
+    .na-modal-backdrop[hidden] { display: none !important; }
+    .na-modal {
+      width: min(480px, 100%);
+      background: var(--panel-solid, #0f172a);
+      border: 1px solid var(--border, rgba(148,163,184,.25));
+      border-radius: 14px;
+      padding: 22px 22px 18px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.35);
+      color: var(--text, #e2e8f0);
+    }
+    .na-modal h3 { margin: 0 0 8px; font-size: 1.1rem; }
+    .na-otp-fields { display: grid; gap: 12px; margin: 16px 0; }
+    .na-otp-fields label { display: grid; gap: 6px; font-size: 0.85rem; color: var(--text-muted, #94a3b8); }
+    .na-otp-fields input {
+      font-size: 1.15rem; letter-spacing: 0.2em; font-family: var(--font-mono, ui-monospace, monospace);
+      padding: 10px 12px; border-radius: 8px;
+      border: 1px solid var(--border, rgba(148,163,184,.3));
+      background: rgba(15,23,42,.5); color: var(--text, #f8fafc);
+    }
+    .na-review-row {
+      display: grid; gap: 4px;
+      padding: 10px 12px; border-radius: 8px;
+      border: 1px solid var(--border, rgba(148,163,184,.25));
+      font-size: 0.85rem;
+    }
+    .na-review-row strong { letter-spacing: 0.04em; }
+    .na-review-row span { color: var(--text-muted, #94a3b8); }
+    .na-review-row.ready { border-color: rgba(34,197,94,.4); }
+    .na-review-row.need_otp { border-color: rgba(251,191,36,.45); }
+    .na-review-row.error, .na-review-row.setup, .na-review-row.rate_limited {
+      border-color: rgba(248,113,113,.45);
+    }
+    .na-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+    html[data-theme="light"] .na-modal {
+      background: #fff; color: #0f172a; border-color: #e2e8f0;
+    }
+    html[data-theme="light"] .na-otp-fields input {
+      background: #f8fafc; color: #0f172a; border-color: #cbd5e1;
+    }
+  </style>
+</head>
+<body class="na-app">
+  <div class="na-bg" aria-hidden="true">
+    <div class="na-bg-grid"></div>
+    <div class="na-bg-orb na-bg-orb-1"></div>
+    <div class="na-bg-orb na-bg-orb-2"></div>
+    <div class="na-bg-noise"></div>
+  </div>
+
+  <div class="na-wrap">
+    <div id="userBanner" class="na-banner" role="status"></div>
+    <header class="na-hero na-animate-in">
+      <h1>数据<em>汇总</em></h1>
+      <p class="na-subtitle">
+        <span class="na-badge"><span class="na-badge-dot"></span>Step 3</span>
+        多站点采集渠道/令牌写入 Excel；并支持跨站<strong>渠道余额查询</strong>（已用/剩余），导出时按 test / uat / prod 分表。
+        文件一律存放在 <code>excel/</code>。采集过程中不会自动下载；全部站点完成后请点「下载 Excel」获取完整文件。
+      </p>
+      <p class="na-hint" style="margin-top:0.5rem">输出文件：<span class="na-file-chip" id="excelNameHint">excel/ai网关令牌及渠道列表_年月日时分秒.xlsx</span></p>
+    </header>
+
+    <div class="summary-grid" style="display:grid;gap:1.25rem">
+      <section class="na-panel na-panel-static na-animate-in na-animate-in-1">
+        <h2>网站列表</h2>
+        <p class="na-hint">每卡片一个站点。环境留空则根据 URL 自动识别 test / uat / prod。若已配置 <code>env/sites.json</code>，首次进入会自动填入。</p>
+        <div class="na-site-list" id="siteList" aria-live="polite"></div>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-ghost" id="btnAddSite">+ 添加站点</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnLoadEnvSites" hidden title="从 env/sites.json 重新载入 test/uat/prod">从 env 载入</button>
+        </div>
+      </section>
+
+      <section class="na-panel na-panel-static na-animate-in na-animate-in-2">
+        <h2>采集与导出</h2>
+        <div class="na-progress-wrap" id="progressWrap" hidden>
+          <div class="na-progress-label" id="progressLabel">准备采集…</div>
+          <div class="na-progress-bar"><div class="na-progress-fill" id="progressFill"></div></div>
+        </div>
+        <div class="na-stats" id="statsBar"><div class="na-stats-empty">采集后将显示各环境渠道/令牌统计</div></div>
+        <div class="na-meta" id="fileMeta"></div>
+        <label class="na-check" style="display:inline-flex;align-items:center;gap:8px;margin:8px 0 4px;">
+          <input type="checkbox" id="includeKeys" />
+          包含渠道密钥（需二次验证，Root 账号）
+        </label>
+        <p class="na-hint" style="margin:0 0 10px;">
+          采集与「继续补全密钥」会先检查各站登录会话。工作台「全局站点认证」成功后不再弹审查窗。
+          已预置 <code>totp_secret</code> 的站点自动生成验证码；未预置时才弹窗填写当前 6 位码（约 30 秒有效，<strong>回车确认</strong>）。
+          每次「一键采集」会<strong>新建</strong>一份带时间戳 Excel（同一次多站写入同一新文件）；「继续补全密钥」才更新最新那份。
+          若某环境工作表为空（例如只采过部分站点），点「继续补全密钥」会<strong>从该站拉取渠道、令牌和密钥，追加进已有文件</strong>，不覆盖其它环境。
+          勾选「包含渠道密钥」时，即使登录无需 2FA 仍需二次验证（需 Root）。
+          含密钥时会<strong>一直拉取直到上游返回 429</strong> 再停；遇 429 后请等待窗口恢复再「继续补全密钥」。
+        </p>
+        <div class="na-toolbar">
+          <button type="button" class="na-btn na-btn-primary" id="btnCollect"><span class="na-spinner"></span><span class="na-btn-label">一键采集并写入 Excel</span></button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnFillKeys" title="对最新 Excel 补拉空密钥；某环境表为空时会拉取该站渠道/令牌/密钥并追加进已有文件">
+            <span class="na-spinner" aria-hidden="true"></span>
+            <svg class="na-btn-glyph" viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="5.5" cy="5.5" r="2.6"></circle>
+              <path d="M7.4 7.4 14 14"></path>
+              <path d="M11 11h3M12.5 12.5v2.2"></path>
+            </svg>
+            <span class="na-btn-label">继续补全密钥</span>
+          </button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnDownload" disabled>下载 Excel</button>
+        </div>
+        <div class="na-file-pick">
+          <label class="na-field"><span class="na-field-label">历史盘点表</span><div class="na-select-wrap"><select id="selSummaryFile" class="na-select"></select><span class="na-select-chevron" aria-hidden="true"></span></div></label>
+          <button type="button" class="na-btn na-btn-ghost na-file-refresh" id="btnRefreshSummaryFiles" title="其它页导出后点此同步文件列表">刷新</button>
+        </div>
+        <p class="na-hint">请选择要下载的文件，不会静默改用另一份。含密钥须二次确认。建议保留 30 天，系统不自动删除。</p>
+        <details class="na-log-debug"><summary>详细日志</summary><div class="na-log" id="log" aria-live="polite"></div></details>
+      </section>
+
+      <section class="na-panel na-panel-static na-animate-in na-animate-in-3" id="balancePanel">
+        <h2>渠道余额查询</h2>
+        <p class="na-hint">
+          使用上方<strong>同一套网站列表</strong>，可同时查询 test / uat / prod 等多个站点的已用与剩余额度。
+          查询前会先检查登录会话；工作台已认证或无需验证码的站点直接查询，未预置 TOTP 时再弹窗填写约 30 秒有效的 6 位码。
+          「配置时间段」按渠道创建/配置时间筛选；快捷项为<strong>含今天在内</strong>的近 N 个自然日，也可自定义起止。不选或点「全部」表示不限时间。
+          「导出 Excel」只写入 <code>excel/渠道余额_时间戳.xlsx</code>，再点「下载 Excel」获取完整文件。工作表名为 <code>test-渠道余额</code>、<code>uat-渠道余额</code>、<code>prod-渠道余额</code> 等。
+          <strong>近一月活跃</strong>按渠道已配置模型逐项填写（与网关渠道列表同一接口）；多个模型多行；抓取失败或没有模型写 <code>N/A</code>。
+        </p>
+
+        <div class="balance-metrics" style="display:flex;flex-wrap:wrap;gap:12px 18px;margin:12px 0;">
+          <label class="na-check"><input type="checkbox" id="balQueryUsed" checked /> 查询已用</label>
+          <label class="na-check"><input type="checkbox" id="balQueryRemain" checked /> 查询剩余</label>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;">
+          <label>状态
+            <select id="balStatus">
+              <option value="">全部</option>
+              <option value="1">已启用</option>
+              <option value="2">已禁用</option>
+              <option value="3">自动禁用</option>
+            </select>
+          </label>
+          <label>渠道类型（可选）
+            <input id="balChannelType" placeholder="如 自定义渠道，留空=全部" />
+          </label>
+          <label>分组（可选）
+            <input id="balGroup" placeholder="留空不限" />
+          </label>
+          <label>关键词（可选）
+            <input id="balKeyword" placeholder="ID / 名称 / 分组" />
+          </label>
+        </div>
+
+        <div style="margin-top:12px;" id="balTimeWrap">
+          <div class="na-hint" style="margin-bottom:6px;">配置时间段</div>
+          <div class="bal-presets" id="balTimePresets">
+            <button type="button" class="active" data-preset="all">全部</button>
+            <button type="button" data-preset="1d">1天</button>
+            <button type="button" data-preset="3d">3天</button>
+            <button type="button" data-preset="5d">5天</button>
+            <button type="button" data-preset="15d">15天</button>
+            <button type="button" data-preset="30d">30天</button>
+            <button type="button" data-preset="60d">60天</button>
+            <button type="button" data-preset="180d">180天</button>
+            <button type="button" data-preset="365d">365天</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px;">
+            <label>开始时间
+              <input id="balStartTime" type="datetime-local" step="1" />
+            </label>
+            <label>结束时间
+              <input id="balEndTime" type="datetime-local" step="1" />
+            </label>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;" id="balUsedWrap">
+          <div class="na-hint" style="margin-bottom:6px;">已用 · 常用区间</div>
+          <div class="bal-presets" id="balUsedPresets">
+            <button type="button" class="active" data-preset="all">全部</button>
+            <button type="button" data-preset="eq0">= $0</button>
+            <button type="button" data-preset="gt0">&gt; $0</button>
+            <button type="button" data-preset="le1">≤ $1</button>
+            <button type="button" data-preset="le5">≤ $5</button>
+            <button type="button" data-preset="ge1">≥ $1</button>
+            <button type="button" data-preset="ge10">≥ $10</button>
+            <button type="button" data-preset="ge50">≥ $50</button>
+            <button type="button" data-preset="ge100">≥ $100</button>
+            <button type="button" data-preset="r1_10">$1~$10</button>
+            <button type="button" data-preset="r10_100">$10~$100</button>
+            <button type="button" data-preset="ge1000">≥ $1000</button>
+          </div>
+        </div>
+        <div style="margin-top:12px;" id="balRemainWrap">
+          <div class="na-hint" style="margin-bottom:6px;">剩余 · 常用区间</div>
+          <div class="bal-presets" id="balRemainPresets">
+            <button type="button" class="active" data-preset="all">全部</button>
+            <button type="button" data-preset="eq0">= $0（耗尽）</button>
+            <button type="button" data-preset="gt0">&gt; $0</button>
+            <button type="button" data-preset="le1">≤ $1</button>
+            <button type="button" data-preset="le5">≤ $5</button>
+            <button type="button" data-preset="lt1">&lt; $1</button>
+            <button type="button" data-preset="lt10">&lt; $10</button>
+            <button type="button" data-preset="ge1">≥ $1</button>
+            <button type="button" data-preset="ge10">≥ $10</button>
+            <button type="button" data-preset="ge100">≥ $100</button>
+          </div>
+        </div>
+
+        <div class="na-toolbar" style="margin-top:14px;">
+          <button type="button" class="na-btn na-btn-primary" id="btnBalQuery"><span class="na-spinner"></span><span class="na-btn-label">多站点查询余额</span></button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnBalExport" disabled><span class="na-spinner"></span><span class="na-btn-label">导出 Excel</span></button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnBalDownload" disabled>下载 Excel</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnBalExcludeDisabled" disabled>排除已禁用</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnBalSelectAll" disabled>全选</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnBalInvert" disabled>反选</button>
+        </div>
+        <div class="na-file-pick">
+          <label class="na-field"><span class="na-field-label">历史余额表</span><div class="na-select-wrap"><select id="selBalanceFile" class="na-select"></select><span class="na-select-chevron" aria-hidden="true"></span></div></label>
+          <button type="button" class="na-btn na-btn-ghost na-file-refresh" id="btnRefreshBalanceFiles" title="其它页导出后点此同步文件列表">刷新</button>
+        </div>
+        <div class="na-meta" id="balMeta">尚未查询</div>
+        <div class="bal-table-wrap">
+          <table class="bal-table" id="balTable">
+            <thead>
+              <tr>
+                <th style="width:36px"><input type="checkbox" id="balCheckAll" disabled /></th>
+                <th>环境</th>
+                <th>站点</th>
+                <th>ID</th>
+                <th>名称</th>
+                <th>分组</th>
+                <th>状态</th>
+                <th class="col-used">已用</th>
+                <th class="col-remain">剩余</th>
+                <th class="col-activity">近一月活跃</th>
+                <th>配置时间</th>
+              </tr>
+            </thead>
+            <tbody id="balBody">
+              <tr><td colspan="11" class="bal-empty">配置上方站点后点击「多站点查询余额」</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <details class="na-log-debug" style="margin-top:12px"><summary>余额查询日志</summary><div class="na-log" id="balLog" aria-live="polite"></div></details>
+      </section>
+    </div>
+  </div>
+
+  <style>
+    .na-check { display:inline-flex; align-items:center; gap:6px; font-size:0.88rem; cursor:pointer; }
+    .bal-presets { display:flex; flex-wrap:wrap; gap:6px; }
+    .bal-presets button {
+      border:1px solid var(--na-border, rgba(148,163,184,.28));
+      background: transparent; color: var(--na-muted, #94a3b8);
+      border-radius:999px; padding:4px 10px; font-size:0.74rem; cursor:pointer;
+    }
+    .bal-presets button.active {
+      background: var(--na-accent-soft, rgba(99,102,241,.15));
+      color: var(--na-accent, #818cf8); border-color: rgba(129,140,248,.4); font-weight:600;
+    }
+    .bal-table-wrap {
+      margin-top:10px; border:1px solid var(--na-border, rgba(148,163,184,.22));
+      border-radius:10px; overflow:auto; max-height:420px;
+    }
+    .bal-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+    .bal-table th, .bal-table td {
+      padding:8px 10px; border-bottom:1px solid var(--na-border, rgba(148,163,184,.16));
+      white-space:nowrap; text-align:left;
+    }
+    .bal-table th {
+      position:sticky; top:0; background: var(--na-panel-2, #121826); z-index:1;
+      color: var(--na-muted, #94a3b8); font-size:0.72rem;
+    }
+    .bal-table .col-activity { white-space: pre-line; min-width: 11rem; }
+    .bal-empty { text-align:center; color: var(--na-muted,#94a3b8); padding:24px !important; }
+    .bal-badge { display:inline-flex; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:600; }
+    .bal-badge.on { color:#34d399; background:rgba(52,211,153,.12); }
+    .bal-badge.off { color:#f87171; background:rgba(248,113,113,.12); }
+    .bal-env { font-weight:700; text-transform:uppercase; font-size:0.72rem; }
+    .bal-env.test { color:#38bdf8; }
+    .bal-env.uat { color:#a78bfa; }
+    .bal-env.prod { color:#fbbf24; }
+    html[data-theme="light"] .bal-table th { background:#f8fafc; }
+    html[data-theme="light"] .bal-presets button { background:#fff; border-color:#cbd5e1; color:#475569; }
+    html[data-theme="light"] .bal-presets button.active { background:#eef2ff; color:#4338ca; border-color:#a5b4fc; }
+    #balTimeWrap input[type="datetime-local"] { width:100%; box-sizing:border-box; margin-top:4px; }
+  </style>
+
+  <script>
+    const STORAGE_KEY = "na_data_summary_sites";
+    const CONN_KEY = "na_batch_connection_config";
+    const $ = (id) => document.getElementById(id);
+    document.querySelectorAll(".na-panel h2").forEach((h2, i) => {
+      const icons = [NAUi.icon("globe"), NAUi.icon("chart"), NAUi.icon("wallet") || NAUi.icon("chart")];
+      if (icons[i]) h2.insertAdjacentHTML("afterbegin", icons[i]);
+    });
+
+    function envPillClass(env) {
+      if (env === "test") return "test";
+      if (env === "uat") return "uat";
+      if (env === "prod") return "prod";
+      return "auto";
+    }
+
+    function addLog(msg, cls = "") {
+      const div = document.createElement("div");
+      if (cls) div.className = cls;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      $("log").prepend(div);
+    }
+
+    const DEFAULT_USERNAME = "admin";
+    const ENV_ORDER = ["test", "uat", "prod"];
+    let envSitesConfigured = false;
+
+    function connectionVerifySsl() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(CONN_KEY) || "{}");
+        if (saved && saved.verify_ssl != null) return !!saved.verify_ssl;
+      } catch (_) {}
+      return true;
+    }
+
+    function withVerifySsl(sites) {
+      const verify_ssl = connectionVerifySsl();
+      return (sites || []).map((s) => ({ ...s, verify_ssl }));
+    }
+
+    function emptySite(env = "") { return { label: "", base_url: "", username: DEFAULT_USERNAME, password: "", env }; }
+    function normalizeSite(site) {
+      return { label: String(site?.label || "").trim(), base_url: String(site?.base_url || "").trim(), username: String(site?.username || DEFAULT_USERNAME).trim() || DEFAULT_USERNAME, password: site?.password || "", env: String(site?.env || "").trim() };
+    }
+    function loadSitesFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const data = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(data) && data.length) return data.map(normalizeSite);
+      } catch (_) {}
+      return null;
+    }
+    function hasFilledBaseUrl(sites) {
+      return Array.isArray(sites) && sites.some((s) => String(s?.base_url || "").trim());
+    }
+    function defaultEmptySites() {
+      return [emptySite("test"), emptySite("uat"), emptySite("prod")];
+    }
+    function saveSites(sites) { localStorage.setItem(STORAGE_KEY, JSON.stringify(sites.map(normalizeSite))); }
+
+    function envSitesToSummaryCards(payload) {
+      const sitesMap = payload?.sites || {};
+      const available = payload?.available || ENV_ORDER.filter((k) => sitesMap[k]);
+      const rows = [];
+      ENV_ORDER.forEach((key) => {
+        if (!available.includes(key)) return;
+        const site = sitesMap[key];
+        if (!site?.base_url) return;
+        rows.push(normalizeSite({
+          label: key,
+          base_url: site.base_url,
+          username: site.username || DEFAULT_USERNAME,
+          password: site.password || "",
+          env: key,
+        }));
+      });
+      // 非标准键：若 API 将来扩展，按 available 追加
+      available.forEach((key) => {
+        if (ENV_ORDER.includes(key)) return;
+        const site = sitesMap[key];
+        if (!site?.base_url) return;
+        rows.push(normalizeSite({
+          label: key,
+          base_url: site.base_url,
+          username: site.username || DEFAULT_USERNAME,
+          password: site.password || "",
+          env: key,
+        }));
+      });
+      return rows;
+    }
+
+    async function fetchEnvSitesPayload() {
+      try {
+        const resp = await fetch("/api/env-sites");
+        const data = await resp.json();
+        if (!data.success) return null;
+        return data;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function applyEnvSitesToUi(rows, { toast = true } = {}) {
+      if (!rows.length) return false;
+      renderSites(rows);
+      saveSites(rows);
+      if (toast) {
+        const names = rows.map((s) => s.env || s.label || "site").join(" / ");
+        NAUi.showBanner("userBanner", `已从 env/sites.json 载入：${names}`, "ok");
+        NAUi.toast("已载入 env 站点", "ok", 2200);
+        addLog(`已从 env/sites.json 载入 ${rows.length} 个站点`, "ok");
+      }
+      return true;
+    }
+
+    async function initSiteList() {
+      const envPayload = await fetchEnvSitesPayload();
+      envSitesConfigured = Boolean(envPayload?.configured && (envPayload.available || []).length);
+      const btnEnv = $("btnLoadEnvSites");
+      if (btnEnv) btnEnv.hidden = !envSitesConfigured;
+
+      const stored = loadSitesFromStorage();
+      if (hasFilledBaseUrl(stored)) {
+        renderSites(stored);
+        return;
+      }
+
+      if (envSitesConfigured) {
+        const rows = envSitesToSummaryCards(envPayload);
+        if (applyEnvSitesToUi(rows, { toast: true })) return;
+      }
+
+      renderSites(stored && stored.length ? stored : defaultEmptySites());
+    }
+
+    function readSitesFromCards(onlyWithUrl = false) {
+      const rows = [];
+      $("siteList").querySelectorAll(".na-site-card").forEach((card) => {
+        const site = normalizeSite({
+          label: card.querySelector('[data-field="label"]').value,
+          base_url: card.querySelector('[data-field="base_url"]').value,
+          username: card.querySelector('[data-field="username"]').value,
+          password: card.querySelector('[data-field="password"]').value,
+          env: card.querySelector('[data-field="env"]').value,
+        });
+        if (onlyWithUrl && !site.base_url) return;
+        rows.push(site);
+      });
+      return rows;
+    }
+
+    function bindCard(card) {
+      card.querySelectorAll("input,select").forEach((el) => {
+        el.addEventListener("input", () => { saveSites(readSitesFromCards()); updateEnvPill(card); });
+        el.addEventListener("change", () => { saveSites(readSitesFromCards()); updateEnvPill(card); });
+      });
+      card.querySelector("[data-remove]")?.addEventListener("click", () => {
+        const sites = readSitesFromCards();
+        const idx = Number(card.dataset.index);
+        sites.splice(idx, 1);
+        renderSites(sites.length ? sites : [emptySite()]);
+        saveSites(sites.length ? sites : [emptySite()]);
+      });
+    }
+
+    function updateEnvPill(card) {
+      const env = card.querySelector('[data-field="env"]').value;
+      const pill = card.querySelector(".env-pill");
+      if (pill) { pill.textContent = env || "auto"; pill.className = "env-pill " + envPillClass(env); }
+    }
+
+    function renderSites(sites) {
+      const list = $("siteList");
+      list.innerHTML = "";
+      sites.forEach((site, index) => {
+        const card = document.createElement("div");
+        card.className = "na-site-card";
+        card.dataset.index = String(index);
+        const env = site.env || "";
+        card.innerHTML = `
+          <div class="na-site-card-head">
+            <span class="env-pill ${envPillClass(env)}">${env || "auto"}</span>
+            <button type="button" class="na-btn na-btn-ghost" style="padding:0.3rem 0.55rem;font-size:0.72rem" data-remove aria-label="删除站点">删除</button>
+          </div>
+          <div class="na-site-card-body">
+            <label>备注<input data-field="label" value="${site.label || ""}" placeholder="可选" /></label>
+            <label class="full">站点地址<input data-field="base_url" value="${site.base_url || ""}" placeholder="https://na-test.example.com" /></label>
+            <label>用户名<input data-field="username" value="${site.username || ""}" placeholder="admin" /></label>
+            <label>密码<input data-field="password" type="password" value="${site.password || ""}" placeholder="密码" autocomplete="off" /></label>
+            <label>环境<select data-field="env">
+              <option value="" ${!env ? "selected" : ""}>自动</option>
+              <option value="test" ${env === "test" ? "selected" : ""}>test</option>
+              <option value="uat" ${env === "uat" ? "selected" : ""}>uat</option>
+              <option value="prod" ${env === "prod" ? "selected" : ""}>prod</option>
+            </select></label>
+          </div>`;
+        list.appendChild(card);
+        bindCard(card);
+      });
+    }
+
+    function renderStats(summary, envs) {
+      const bar = $("statsBar");
+      bar.innerHTML = "";
+      if (!summary) { bar.innerHTML = '<div class="na-stats-empty">采集后将显示各环境渠道/令牌统计</div>'; return; }
+      envs.forEach((env, i) => {
+        [["渠道", summary.channels?.[env] || 0], ["令牌", summary.tokens?.[env] || 0]].forEach(([label, val], j) => {
+          const chip = document.createElement("span");
+          chip.className = "na-stat-chip";
+          chip.style.animationDelay = `${(i * 2 + j) * 0.05}s`;
+          chip.textContent = `${env} ${label} ${val}`;
+          bar.appendChild(chip);
+        });
+      });
+      if (summary.duplicate_channels || summary.duplicate_tokens) {
+        const dup = document.createElement("span");
+        dup.className = "na-stat-chip warn";
+        dup.textContent = `重复 ${(summary.duplicate_channels || 0) + (summary.duplicate_tokens || 0)} 条`;
+        bar.appendChild(dup);
+      }
+    }
+
+    function setProgress(pct, label) {
+      $("progressWrap").hidden = false;
+      $("progressFill").style.width = `${Math.min(100, Math.max(0, pct))}%`;
+      if (label) $("progressLabel").textContent = label;
+    }
+    function hideProgress() { $("progressWrap").hidden = true; $("progressFill").style.width = "0%"; }
+
+    async function fillArtifactSelect(id, kind) {
+      const el = $(id);
+      if (!el) return [];
+      const resp = await fetch(`/api/artifacts?kind=${encodeURIComponent(kind)}&limit=20`);
+      const data = await resp.json();
+      const items = (data.data && data.data.items) || [];
+      const prev = el.value;
+      el.innerHTML = "";
+      items.forEach((item) => {
+        const opt = document.createElement("option");
+        opt.value = item.filename;
+        opt.dataset.secrets = item.has_secrets ? "1" : "0";
+        opt.textContent = `${item.filename}${item.has_secrets ? " · 含密钥" : ""}`;
+        el.appendChild(opt);
+      });
+      if (prev && [...el.options].some((o) => o.value === prev)) el.value = prev;
+      return items;
+    }
+    async function loadSummaryFiles() { await fillArtifactSelect("selSummaryFile", "summary"); }
+    async function loadBalanceFiles() { await fillArtifactSelect("selBalanceFile", "balance"); }
+
+    let summaryExcelBusy = false;
+    let balanceExcelBusy = false;
+
+    async function refreshInfo() {
+      try {
+        const resp = await fetch("/api/data-summary/info");
+        const data = await resp.json();
+        if (!data.success) return;
+        const info = data.data;
+        $("fileMeta").innerHTML = "";
+        const file = document.createElement("span");
+        file.textContent = info.exists ? "文件已就绪" : "尚未生成";
+        file.className = info.exists ? "ok" : "warn";
+        $("fileMeta").appendChild(file);
+        if (info.filename) $("excelNameHint").textContent = `excel/${info.filename}`;
+        renderStats(info.summary, info.envs || ["test", "uat", "prod"]);
+        $("btnDownload").disabled = summaryExcelBusy || !info.exists;
+        const balInfo = info.balance || {};
+        if ($("btnBalDownload")) $("btnBalDownload").disabled = balanceExcelBusy || !balInfo.exists;
+        await loadSummaryFiles();
+        await loadBalanceFiles();
+      } catch (_) {}
+    }
+
+    $("btnAddSite").onclick = () => { const sites = readSitesFromCards(); sites.push(emptySite()); renderSites(sites); saveSites(sites); };
+
+    $("btnLoadEnvSites").onclick = async () => {
+      const payload = await fetchEnvSitesPayload();
+      if (!payload?.configured) {
+        NAUi.showBanner("userBanner", "未配置 env/sites.json（可复制 env/sites.example.json）", "warn");
+        return;
+      }
+      const rows = envSitesToSummaryCards(payload);
+      if (!rows.length) {
+        NAUi.showBanner("userBanner", "env/sites.json 中没有有效的 base_url", "warn");
+        return;
+      }
+      applyEnvSitesToUi(rows, { toast: true });
+    };
+
+    async function inspectSitesAuth(sites, includeKeys) {
+      const payloadSites = sites.map((s) => ({ ...s, otp_code: "" }));
+      const resp = await fetch("/api/data-summary/inspect-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sites: withVerifySsl(payloadSites), include_keys: !!includeKeys }),
+      });
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.message || "审查登录验证码失败");
+      return data.data?.items || [];
+    }
+
+    function isInspectCollectable(item) {
+      return !!item?.collectable;
+    }
+
+    function siteNeedsOtpPrompt(item) {
+      return !!item?.needs_otp_prompt;
+    }
+
+    async function confirmInspect(items) {
+      const collectable = (items || []).filter(isInspectCollectable);
+      if (!collectable.length) {
+        NAUi.showBanner("userBanner", "没有可继续的站点。请先在工作台完成全局认证，或修正账号 / 等待限流解除。", "warn");
+        return false;
+      }
+      const needOtp = collectable.filter(siteNeedsOtpPrompt);
+      if (!needOtp.length) {
+        addLog(`工作台会话或 TOTP 已就绪，跳过验证弹窗（${collectable.length} 站）`, "ok");
+        return true;
+      }
+      addLog(`有 ${needOtp.length} 个站点需要临时 6 位验证码（约 30 秒有效）`, "warn");
+      return true;
+    }
+
+    function logInspectItems(items) {
+      (items || []).forEach((item) => {
+        const env = String(item.env || "站点").toUpperCase();
+        const cls = item.collectable ? (item.needs_otp_prompt ? "warn" : "ok") : "warn";
+        addLog(`[${env}] ${item.message || item.status || "审查完成"}`, cls);
+      });
+    }
+
+    function promptAuthReview(items, opts = {}) {
+      return new Promise((resolve) => {
+        const modal = $("otpModal");
+        const fields = $("otpFields");
+        const confirmBtn = $("otpConfirm");
+        const cancelBtn = $("otpCancel");
+        const collectable = (items || []).filter(isInspectCollectable);
+        const needOtp = collectable.filter(siteNeedsOtpPrompt);
+        const skipOtp = collectable.length - needOtp.length;
+        $("otpModalTitle").textContent = opts.title || "审查登录验证码";
+        const hintEl = $("otpModalHint") || modal.querySelector(".na-hint");
+        if (hintEl) {
+          hintEl.textContent = opts.hint || (
+            collectable.length
+              ? `无需验证码 ${skipOtp} 个，需要验证码 ${needOtp.length} 个。确认后仅对需要的站点弹窗；无验证码的站点将直接${opts.actionLabel || "继续"}。`
+              : "没有可继续的站点，请先修正账号、完成 MFA 绑定，或等待限流解除。"
+          );
+        }
+        if (confirmBtn) confirmBtn.textContent = collectable.length
+          ? (opts.confirmLabel || "确认并继续")
+          : "关闭";
+        fields.innerHTML = "";
+        (items || []).forEach((item) => {
+          const row = document.createElement("div");
+          const status = String(item.status || "error");
+          row.className = `na-review-row ${status}`;
+          const env = String(item.env || "站点").toUpperCase();
+          const url = item.base_url || item.label || "";
+          row.innerHTML = `<strong>${env}</strong><span>${item.message || status}${url ? ` · ${url}` : ""}</span>`;
+          fields.appendChild(row);
+        });
+        modal.hidden = false;
+
+        const cleanup = (result) => {
+          modal.hidden = true;
+          confirmBtn.onclick = null;
+          cancelBtn.onclick = null;
+          modal.removeEventListener("keydown", onKey);
+          resolve(result);
+        };
+        const submit = () => cleanup(collectable.length > 0);
+        const onKey = (ev) => {
+          if (modal.hidden) return;
+          if (ev.key === "Escape") {
+            ev.preventDefault();
+            cleanup(false);
+            return;
+          }
+          if (ev.key === "Enter") {
+            ev.preventDefault();
+            submit();
+          }
+        };
+        modal.addEventListener("keydown", onKey);
+        cancelBtn.onclick = () => cleanup(false);
+        confirmBtn.onclick = () => submit();
+        confirmBtn.focus();
+      });
+    }
+
+    $("btnCollect").onclick = async () => {
+      const sites = readSitesFromCards(true);
+      if (!sites.length) { NAUi.showBanner("userBanner", "请至少填写一个站点地址", "warn"); return; }
+      saveSites(sites);
+      const includeKeys = !!$("includeKeys")?.checked;
+      const btn = $("btnCollect");
+      btn.disabled = true;
+      btn.classList.add("loading");
+      addLog("正在审查各站是否需要登录验证码…");
+      NAUi.showBanner("userBanner", "正在审查各站登录验证码要求…", "info");
+      let inspectItems = [];
+      try {
+        inspectItems = await inspectSitesAuth(sites, includeKeys);
+      } catch (e) {
+        addLog("审查失败: " + (e.message || e), "warn");
+        NAUi.showBanner("userBanner", "审查失败: " + (e.message || e), "err");
+        btn.disabled = false;
+        btn.classList.remove("loading");
+        return;
+      }
+      btn.disabled = false;
+      btn.classList.remove("loading");
+      logInspectItems(inspectItems);
+      const confirmed = await confirmInspect(inspectItems);
+      if (!confirmed) {
+        addLog("已取消采集", "warn");
+        return;
+      }
+      summaryExcelBusy = true;
+      $("btnDownload").disabled = true;
+      let okCount = 0;
+      let failCount = 0;
+      let collectOutputPath = "";
+      try {
+      for (let i = 0; i < sites.length; i++) {
+        const site = sites[i];
+        const inspect = inspectItems[i] || {};
+        const envLabel = String(site.env || inspect.env || "站点").toUpperCase();
+        if (!isInspectCollectable(inspect)) {
+          addLog(`[${envLabel}] 跳过：${inspect.message || "审查未通过"}`, "warn");
+          failCount += 1;
+          continue;
+        }
+        const collectOpts = { quietOtpError: true, outputPath: collectOutputPath, staging: true };
+        let result;
+        if (siteNeedsOtpPrompt(inspect)) {
+          result = await promptOtpRetryOnce(site, {
+            title: includeKeys
+              ? `二次验证 · ${envLabel}（${i + 1}/${sites.length}）`
+              : `登录两步验证 · ${envLabel}（${i + 1}/${sites.length}）`,
+            hint: includeKeys
+              ? "请输入该站点认证器当前 6 位码（约 30 秒有效）。输入后按 Enter 立即采集本站。"
+              : "请输入该站点认证器当前 6 位码或 8 位备用码（约 30 秒有效）。输入后按 Enter 立即采集本站。",
+            confirmLabel: "确认并采集",
+            logSkip: `[${envLabel}] 已跳过（未填写验证码）`,
+            run: (s) => runCollect([s], includeKeys, collectOpts),
+          });
+        } else {
+          addLog(`[${envLabel}] 无需验证码，直接采集`);
+          result = await runCollect([site], includeKeys, collectOpts);
+        }
+        if (result?.ok && result.file) collectOutputPath = result.file;
+        if (result?.ok) okCount += 1;
+        else {
+          failCount += 1;
+          if (!result?.skipped) {
+            addLog(
+              `[${envLabel}] 采集失败，继续下一环境（各站限流独立；若本站 429 请约 15～20 分钟后再试）`,
+              "warn"
+            );
+          }
+        }
+      }
+      } finally {
+        if (collectOutputPath) {
+          try {
+            const fin = await fetch("/api/data-summary/finalize", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ path: collectOutputPath }),
+            });
+            const finData = await fin.json().catch(() => ({}));
+            if (fin.ok && finData.success && finData.data?.file) {
+              collectOutputPath = finData.data.file;
+              addLog(`已发布完整文件 ${collectOutputPath}`, "ok");
+            } else if (!fin.ok || finData.success === false) {
+              addLog(finData.message || "发布完整 Excel 失败，请稍后点「下载 Excel」重试", "warn");
+            }
+          } catch (e) {
+            addLog("发布完整 Excel 失败: " + (e.message || e), "warn");
+          }
+        }
+        summaryExcelBusy = false;
+        await refreshInfo();
+        NAUi.notifyArtifactsChanged(["summary"]);
+      }
+      const kind = includeKeys ? "含密钥采集" : "采集";
+      if (failCount && okCount) {
+        NAUi.showBanner("userBanner", `${kind}结束：成功 ${okCount} 个站点，失败/跳过 ${failCount} 个。请点「下载 Excel」获取已写入的完整文件`, "warn");
+        addLog("请点「下载 Excel」下载完整文件（采集过程不会自动下载）", "ok");
+      } else if (failCount && !okCount) {
+        NAUi.showBanner("userBanner", `${kind}全部未成功（${failCount}）。若为 429，请等待约 15～20 分钟后再试。`, "err");
+      } else if (okCount) {
+        NAUi.showBanner("userBanner", `${kind}完成：成功 ${okCount} 个站点。请点「下载 Excel」获取完整文件`, "ok");
+        addLog("请点「下载 Excel」下载完整文件（采集过程不会自动下载）", "ok");
+      }
+    };
+
+    async function runFillKeys(site, opts = {}) {
+      const btn = $("btnFillKeys");
+      const envLabel = String(site.env || "站点").toUpperCase();
+      btn.disabled = true;
+      btn.classList.add("loading");
+      btn.setAttribute("aria-busy", "true");
+      NAUi.showBanner("userBanner", `正在补全 ${envLabel} 缺失密钥…`, "info");
+      addLog(`[${envLabel}] 继续补全密钥…`);
+      let ok = false;
+      let errorText = "";
+      try {
+        const resp = await fetch("/api/data-summary/fill-keys", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sites: withVerifySsl([site]) }),
+        });
+        const data = await resp.json();
+        (data.data?.warnings || []).forEach((w) => addLog(w, "warn"));
+        addLog(data.message || (data.success ? "补全完成" : "补全失败"), data.success ? "ok" : "warn");
+        ok = !!data.success;
+        errorText = collectErrorText(data);
+        const otpError = !ok && isOtpError(errorText);
+        if (!(opts.quietOtpError && otpError)) {
+          NAUi.showBanner(
+            "userBanner",
+            data.message || (data.success ? "补全完成" : "补全失败"),
+            data.success ? "ok" : "err"
+          );
+        }
+        await refreshInfo();
+        return { ok, otpError, errorText };
+      } catch (e) {
+        errorText = e.message || "";
+        addLog(`[${envLabel}] 补全失败: ` + errorText, "warn");
+        const otpError = isOtpError(errorText);
+        if (!(opts.quietOtpError && otpError)) {
+          NAUi.showBanner("userBanner", "补全失败: " + errorText, "err");
+        }
+        return { ok: false, otpError, errorText };
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove("loading");
+        btn.removeAttribute("aria-busy");
+      }
+    }
+
+    $("btnFillKeys").onclick = async () => {
+      const sites = readSitesFromCards(true);
+      if (!sites.length) { NAUi.showBanner("userBanner", "请至少填写一个站点", "warn"); return; }
+      saveSites(sites);
+      const btn = $("btnFillKeys");
+      btn.disabled = true;
+      btn.classList.add("loading");
+      btn.setAttribute("aria-busy", "true");
+      addLog("正在审查各站补全密钥验证要求…");
+      NAUi.showBanner("userBanner", "正在审查各站登录/二次验证要求…", "info");
+      let inspectItems = [];
+      try {
+        inspectItems = await inspectSitesAuth(sites, true);
+      } catch (e) {
+        addLog("审查失败: " + (e.message || e), "warn");
+        NAUi.showBanner("userBanner", "审查失败: " + (e.message || e), "err");
+        btn.disabled = false;
+        btn.classList.remove("loading");
+        btn.removeAttribute("aria-busy");
+        return;
+      }
+      btn.disabled = false;
+      btn.classList.remove("loading");
+      btn.removeAttribute("aria-busy");
+      logInspectItems(inspectItems);
+      const confirmed = await confirmInspect(inspectItems);
+      if (!confirmed) {
+        addLog("已取消补全密钥", "warn");
+        return;
+      }
+      summaryExcelBusy = true;
+      $("btnDownload").disabled = true;
+      let okCount = 0;
+      let failCount = 0;
+      try {
+      for (let i = 0; i < sites.length; i++) {
+        const site = sites[i];
+        const inspect = inspectItems[i] || {};
+        const envLabel = String(site.env || inspect.env || "站点").toUpperCase();
+        if (!isInspectCollectable(inspect)) {
+          addLog(`[${envLabel}] 跳过补全：${inspect.message || "审查未通过"}`, "warn");
+          failCount += 1;
+          continue;
+        }
+        let result;
+        if (siteNeedsOtpPrompt(inspect)) {
+          result = await promptOtpRetryOnce(site, {
+            title: `继续补全密钥 · ${envLabel}（${i + 1}/${sites.length}）`,
+            hint: "该环境表已有数据则只补空密钥；表为空则拉取渠道、令牌和密钥并追加进已有 Excel。请输入当前 6 位码（约 30 秒有效）。",
+            confirmLabel: "确认并补全",
+            logSkip: `[${envLabel}] 已跳过补全（未填写验证码）`,
+            run: (s) => runFillKeys(s, { quietOtpError: true }),
+          });
+        } else {
+          addLog(`[${envLabel}] 已预置 TOTP 或无需弹窗，直接补全密钥`);
+          result = await runFillKeys(site, { quietOtpError: true });
+        }
+        if (result?.ok) okCount += 1;
+        else failCount += 1;
+      }
+      } finally {
+        summaryExcelBusy = false;
+        await refreshInfo();
+      }
+      if (okCount) {
+        NAUi.notifyArtifactsChanged(["summary"]);
+        addLog("补全已写入最新 Excel，请点「下载 Excel」获取完整文件", "ok");
+      }
+      NAUi.showBanner(
+        "userBanner",
+        okCount
+          ? `补全结束：成功 ${okCount}，失败/跳过 ${failCount}。请点「下载 Excel」`
+          : `补全结束：成功 ${okCount}，失败/跳过 ${failCount}`,
+        okCount ? (failCount ? "warn" : "ok") : "err"
+      );
+    };
+
+    function isOtpError(text) {
+      const t = String(text || "");
+      if (!t) return false;
+      if (/429|限流|Too Many Requests|尚未绑定/i.test(t)) return false;
+      return /验证码|两步验证|二次验证|备用码|2fa|otp|VERIFICATION_/i.test(t);
+    }
+
+    function collectErrorText(data, extra) {
+      const parts = [];
+      if (data?.message) parts.push(String(data.message));
+      (data?.data?.errors || []).forEach((err) => parts.push(String(err || "")));
+      (data?.data?.warnings || []).forEach((w) => parts.push(String(w || "")));
+      (data?.data?.site_results || []).forEach((s) => {
+        if (s && s.success === false && s.message) parts.push(String(s.message));
+      });
+      if (extra) parts.push(String(extra));
+      return parts.filter(Boolean).join(" ");
+    }
+
+    async function promptOtpRetryOnce(site, opts = {}) {
+      const envLabel = String(site.env || "站点").toUpperCase();
+      const first = await promptOtpForSites([site], opts);
+      if (!first) {
+        addLog(opts.logSkip || `[${envLabel}] 已跳过（未填写验证码）`, "warn");
+        return { ok: false, skipped: true };
+      }
+      let result = await opts.run(site);
+      if (result?.ok || !result?.otpError) return result || { ok: false };
+      addLog(`[${envLabel}] 验证码不正确或已过期，请再输入一次`, "warn");
+      NAUi.showBanner("userBanner", `${envLabel} 验证码错误，请再输入一次`, "warn");
+      const second = await promptOtpForSites([site], {
+        ...opts,
+        title: `验证码错误，请重试 · ${envLabel}`,
+        hint: "刚才的验证码不正确或已过期。请输入认证器当前 6 位码（或 8 位备用码）后按 Enter。仅可再试一次。",
+      });
+      if (!second) {
+        addLog(`[${envLabel}] 已跳过（未重新填写验证码）`, "warn");
+        return { ok: false, skipped: true, otpError: true };
+      }
+      return opts.run(site);
+    }
+
+    function promptOtpForSites(sites, opts = {}) {
+      return new Promise((resolve) => {
+        const modal = $("otpModal");
+        const fields = $("otpFields");
+        const confirmBtn = $("otpConfirm");
+        const cancelBtn = $("otpCancel");
+        $("otpModalTitle").textContent = opts.title || "登录两步验证";
+        const hintEl = $("otpModalHint") || modal.querySelector(".na-hint");
+        if (hintEl) {
+          hintEl.textContent = opts.hint
+            || "请输入认证器中的 6 位验证码（或 8 位备用码）。输入后按 Enter 确认。";
+        }
+        if (confirmBtn) confirmBtn.textContent = opts.confirmLabel || "确认并继续";
+        fields.innerHTML = "";
+        sites.forEach((site, idx) => {
+          const env = (site.env || "").trim() || "站点";
+          const label = document.createElement("label");
+          label.innerHTML = `${env.toUpperCase()} · ${site.base_url || site.label || ""}`
+            + `<input type="text" autocomplete="one-time-code" maxlength="128" `
+            + `placeholder="6 位码或 TOTP 原始密钥，回车确认" data-otp-idx="${idx}" />`;
+          fields.appendChild(label);
+        });
+        modal.hidden = false;
+        const inputs = () => Array.from(fields.querySelectorAll("input[data-otp-idx]"));
+        const first = fields.querySelector("input");
+        if (first) first.focus();
+
+        const applyCodes = () => {
+          const list = inputs();
+          for (const input of list) {
+            const code = String(input.value || "").trim();
+            if (!code) {
+              NAUi.toast("请填写验证码", "warn");
+              input.focus();
+              return false;
+            }
+            const idx = Number(input.dataset.otpIdx);
+            if (sites[idx]) sites[idx].otp_code = code;
+          }
+          return true;
+        };
+
+        const submit = () => {
+          if (!applyCodes()) return;
+          cleanup(true);
+        };
+
+        const focusNextOrSubmit = (current) => {
+          const list = inputs();
+          const i = list.indexOf(current);
+          const nextEmpty = list.find((el, idx) => idx > i && !String(el.value || "").trim());
+          if (nextEmpty) {
+            nextEmpty.focus();
+            nextEmpty.select?.();
+            return;
+          }
+          if (list.every((el) => String(el.value || "").trim())) {
+            submit();
+            return;
+          }
+          const firstEmpty = list.find((el) => !String(el.value || "").trim());
+          if (firstEmpty) firstEmpty.focus();
+        };
+
+        const onKey = (ev) => {
+          if (modal.hidden) return;
+          if (ev.key === "Escape") {
+            ev.preventDefault();
+            cleanup(false);
+            return;
+          }
+          if (ev.key !== "Enter") return;
+          ev.preventDefault();
+          const current = ev.target?.matches?.("input[data-otp-idx]") ? ev.target : null;
+          if (current && String(current.value || "").trim()) {
+            focusNextOrSubmit(current);
+            return;
+          }
+          submit();
+        };
+
+        const onInput = (ev) => {
+          const input = ev.target;
+          if (!input?.matches?.("input[data-otp-idx]")) return;
+          const digits = String(input.value || "").replace(/\D/g, "");
+          if (digits !== input.value) input.value = digits;
+          if (digits.length !== 6) return;
+          const list = inputs();
+          const next = list[list.indexOf(input) + 1];
+          if (next) {
+            next.focus();
+            next.select?.();
+          }
+        };
+
+        const cleanup = (result) => {
+          modal.hidden = true;
+          confirmBtn.onclick = null;
+          cancelBtn.onclick = null;
+          modal.removeEventListener("keydown", onKey);
+          fields.removeEventListener("input", onInput);
+          resolve(result);
+        };
+        modal.addEventListener("keydown", onKey);
+        fields.addEventListener("input", onInput);
+        cancelBtn.onclick = () => cleanup(false);
+        confirmBtn.onclick = () => submit();
+      });
+    }
+
+    async function runCollect(sites, includeKeys, opts = {}) {
+      const btn = $("btnCollect");
+      btn.disabled = true;
+      btn.classList.add("loading");
+      setProgress(8, `准备采集 ${sites.length} 个站点…`);
+      NAUi.showBanner(
+        "userBanner",
+        includeKeys ? "正在二次验证并采集渠道密钥…" : "正在采集渠道与令牌…",
+        "info"
+      );
+      addLog(includeKeys ? "含密钥采集：先验证再拉取渠道 key…" : "正在采集渠道与令牌…");
+      let ok = false;
+      let errorText = "";
+      try {
+        setProgress(35, includeKeys ? "正在验证并拉取密钥…" : "正在连接各站点…");
+        const resp = await fetch("/api/data-summary/collect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sites: withVerifySsl(sites),
+            include_keys: !!includeKeys,
+            ...(opts.outputPath ? { output_path: opts.outputPath } : {}),
+            ...(opts.staging ? { staging: true } : {}),
+          }),
+        });
+        setProgress(75, "正在写入 Excel…");
+        const data = await resp.json();
+        if (data.data?.errors?.length) data.data.errors.forEach((err) => addLog(err, "warn"));
+        if (data.data?.warnings?.length) data.data.warnings.forEach((w) => addLog(w, "warn"));
+        addLog(data.message, data.success ? "ok" : "warn");
+        if (data.data) {
+          (data.data.site_results || []).forEach((site, i) => {
+            setProgress(75 + ((i + 1) / (data.data.site_results.length || 1)) * 20, `[${site.env}] ${site.base_url || site.label}`);
+            const keyHint = includeKeys
+              ? ` · 密钥 ${site.keys_fetched || 0}` + (site.keys_failed ? `（失败 ${site.keys_failed}）` : "")
+              : "";
+            addLog(`[${site.env}] ${site.base_url || site.label} → 渠道 ${site.channels_fetched} / 令牌 ${site.tokens_fetched}${keyHint}`, "ok");
+          });
+        }
+        setProgress(100, data.success ? "采集完成" : "采集结束（有失败）");
+        ok = !!data.success;
+        errorText = collectErrorText(data);
+        const otpError = !ok && isOtpError(errorText);
+        if (data.success) {
+          NAUi.showBanner("userBanner", data.message || "本站采集完成", "ok");
+          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: true } }, "*"); } catch (_) {}
+        } else if (!(opts.quietOtpError && otpError)) {
+          const rateLimited = /429|限流|Too Many Requests/i.test(errorText);
+          NAUi.showBanner(
+            "userBanner",
+            rateLimited
+              ? (data.message || "登录/拉密钥被限流（429），请等待约 15～20 分钟后再试")
+              : (data.message || "采集失败"),
+            "err"
+          );
+          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: false } }, "*"); } catch (_) {}
+        }
+        await refreshInfo();
+        return { ok, otpError, errorText, file: data.data?.file || "" };
+      } catch (e) {
+        errorText = e.message || "";
+        const otpError = isOtpError(errorText);
+        addLog("采集失败: " + errorText, "warn");
+        if (!(opts.quietOtpError && otpError)) {
+          NAUi.showBanner("userBanner", "采集失败: " + errorText, "err");
+          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: false } }, "*"); } catch (_) {}
+        }
+        return { ok: false, otpError, errorText, file: "" };
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove("loading");
+        setTimeout(hideProgress, 1200);
+      }
+    }
+
+    $("btnDownload").onclick = async () => {
+      try {
+        const file = $("selSummaryFile")?.value || "";
+        const url = file ? `/api/data-summary/download?file=${encodeURIComponent(file)}` : "/api/data-summary/download";
+        const name = await NAUi.downloadUrl(url, file, { confirmSecrets: true });
+        addLog(`已开始浏览器下载：${name}`, "ok");
+      } catch (e) {
+        if (String(e.message || e) !== "已取消下载") NAUi.showBanner("userBanner", e.message || "下载失败", "err");
+      }
+    };
+    initSiteList().catch(() => renderSites(defaultEmptySites()));
+    refreshInfo();
+    NAUi.onArtifactsChanged(() => { refreshInfo(); });
+    async function refreshFileListManual() {
+      await refreshInfo();
+      NAUi.toast("已刷新文件列表", "ok", 1600);
+    }
+    $("btnRefreshSummaryFiles")?.addEventListener("click", refreshFileListManual);
+    $("btnRefreshBalanceFiles")?.addEventListener("click", refreshFileListManual);
+    window.addEventListener("message", (ev) => {
+      const data = ev.data || {};
+      if (data.type === "na-theme-change" && data.theme) NATheme.apply(data.theme);
+    });
+
+    /* ── 渠道余额多站点查询 ── */
+    let balItems = [];
+    let balExcludeDisabled = false;
+    let balUsedPreset = "all";
+    let balRemainPreset = "all";
+    let balTimePreset = "all";
+
+    function balAddLog(msg, cls = "") {
+      const div = document.createElement("div");
+      if (cls) div.className = cls;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      $("balLog").prepend(div);
+    }
+
+    function bindBalPresets(id, setter) {
+      const box = $(id);
+      if (!box) return;
+      box.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("button[data-preset]");
+        if (!btn) return;
+        setter(btn.dataset.preset || "all");
+        box.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+      });
+    }
+    bindBalPresets("balUsedPresets", (k) => { balUsedPreset = k; });
+    bindBalPresets("balRemainPresets", (k) => { balRemainPreset = k; });
+
+    function pad2(n) { return String(n).padStart(2, "0"); }
+    function toDatetimeLocalValue(d) {
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    }
+    function datetimeLocalToUnix(value) {
+      if (!value) return null;
+      const ts = Math.floor(new Date(value).getTime() / 1000);
+      return Number.isFinite(ts) ? ts : null;
+    }
+    function setBalTimeInputs(start, end) {
+      if ($("balStartTime")) $("balStartTime").value = start ? toDatetimeLocalValue(start) : "";
+      if ($("balEndTime")) $("balEndTime").value = end ? toDatetimeLocalValue(end) : "";
+    }
+    function markBalTimePreset(preset) {
+      const box = $("balTimePresets");
+      if (!box) return;
+      box.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.preset === preset));
+    }
+    function applyBalTimePreset(preset) {
+      balTimePreset = preset || "all";
+      markBalTimePreset(balTimePreset);
+      if (balTimePreset === "all") {
+        setBalTimeInputs(null, null);
+        return;
+      }
+      const days = Number(String(balTimePreset).replace(/d$/i, ""));
+      if (!Number.isFinite(days) || days <= 0) {
+        setBalTimeInputs(null, null);
+        return;
+      }
+      const now = new Date();
+      const start = new Date(now);
+      start.setDate(start.getDate() - (days - 1));
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(now);
+      end.setHours(23, 59, 59, 0);
+      setBalTimeInputs(start, end);
+    }
+    function balTimeHint() {
+      const start = $("balStartTime")?.value || "";
+      const end = $("balEndTime")?.value || "";
+      if (!start && !end) return "配置时间：全部";
+      const pretty = (v) => (v || "不限").replace("T", " ");
+      return `配置时间：${pretty(start)} ~ ${pretty(end)}`;
+    }
+    $("balTimePresets")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button[data-preset]");
+      if (!btn) return;
+      applyBalTimePreset(btn.dataset.preset || "all");
+    });
+    ["balStartTime", "balEndTime"].forEach((id) => {
+      $(id)?.addEventListener("change", () => {
+        balTimePreset = "all";
+        markBalTimePreset("");
+      });
+    });
+
+    function syncBalMetricUI() {
+      const usedOn = $("balQueryUsed")?.checked;
+      const remainOn = $("balQueryRemain")?.checked;
+      if ($("balUsedWrap")) $("balUsedWrap").style.opacity = usedOn ? "1" : "0.45";
+      if ($("balRemainWrap")) $("balRemainWrap").style.opacity = remainOn ? "1" : "0.45";
+      document.querySelectorAll("#balTable .col-used").forEach((el) => { el.style.display = usedOn ? "" : "none"; });
+      document.querySelectorAll("#balTable .col-remain").forEach((el) => { el.style.display = remainOn ? "" : "none"; });
+    }
+
+    function getVisibleBalItems() {
+      if (!balExcludeDisabled) return balItems.slice();
+      return balItems.filter((it) => Number(it.status) === 1);
+    }
+
+    function getSelectedBalIds() {
+      return Array.from(document.querySelectorAll("#balBody input.bal-check:checked"))
+        .map((el) => el.value)
+        .filter(Boolean);
+    }
+
+    function balRowKey(item) {
+      return `${item.env || ""}|${item.base_url || ""}|${item.id}`;
+    }
+
+    function syncBalButtons() {
+      const visible = getVisibleBalItems();
+      const selected = getSelectedBalIds();
+      const has = visible.length > 0;
+      ["btnBalExcludeDisabled", "btnBalSelectAll", "btnBalInvert", "btnBalExport"].forEach((id) => {
+        if ($(id)) $(id).disabled = id === "btnBalExcludeDisabled" ? balItems.length === 0 : !has;
+      });
+      if ($("btnBalExcludeDisabled")) {
+        $("btnBalExcludeDisabled").textContent = balExcludeDisabled ? "显示已禁用" : "排除已禁用";
+      }
+      if ($("balCheckAll")) {
+        $("balCheckAll").disabled = !has;
+        const checks = Array.from(document.querySelectorAll("#balBody input.bal-check"));
+        $("balCheckAll").checked = checks.length > 0 && checks.every((c) => c.checked);
+      }
+      const byEnv = {};
+      visible.forEach((it) => {
+        const e = it.env || "other";
+        byEnv[e] = (byEnv[e] || 0) + 1;
+      });
+      const envHint = Object.keys(byEnv).sort().map((e) => `${e}:${byEnv[e]}`).join(" · ") || "—";
+      if ($("balMeta")) {
+        $("balMeta").textContent = has
+          ? `显示 ${visible.length} 条 · 已选 ${selected.length} · 分环境 ${envHint}`
+          : (balItems.length ? "排除后无数据" : "尚未查询");
+      }
+    }
+
+    function renderBalTable(keepSelection = false) {
+      const body = $("balBody");
+      const prev = keepSelection ? new Set(getSelectedBalIds()) : null;
+      const usedOn = !!$("balQueryUsed")?.checked;
+      const remainOn = !!$("balQueryRemain")?.checked;
+      const visible = getVisibleBalItems();
+      if (!visible.length) {
+        body.innerHTML = `<tr><td colspan="11" class="bal-empty">${balItems.length ? "排除已禁用后无剩余渠道" : "无匹配渠道"}</td></tr>`;
+        syncBalButtons();
+        syncBalMetricUI();
+        return;
+      }
+      body.innerHTML = visible.map((item) => {
+        const key = balRowKey(item);
+        const on = Number(item.status) === 1;
+        const checked = prev ? (prev.has(key) ? "checked" : "") : "checked";
+        const env = item.env || "other";
+        return `<tr>
+          <td><input type="checkbox" class="bal-check" value="${key.replace(/"/g, "&quot;")}" ${checked} data-id="${item.id}" data-env="${env}" data-url="${String(item.base_url || "").replace(/"/g, "&quot;")}" /></td>
+          <td><span class="bal-env ${env}">${env}</span></td>
+          <td title="${String(item.site_label || "").replace(/"/g, "&quot;")}">${item.site_label || "—"}</td>
+          <td class="num">${item.id ?? ""}</td>
+          <td>${item.name || ""}</td>
+          <td class="num">${item.group || ""}</td>
+          <td><span class="bal-badge ${on ? "on" : "off"}">${item.status_label || ""}</span></td>
+          <td class="num col-used">${usedOn ? (item.used_usd_label || "") : ""}</td>
+          <td class="num col-remain">${remainOn ? (item.remain_usd_label || "") : ""}</td>
+          <td class="col-activity">${String(item.activity_label || "N/A").replace(/</g, "&lt;")}</td>
+          <td class="num">${item.created_time_label || "—"}</td>
+        </tr>`;
+      }).join("");
+      syncBalButtons();
+      syncBalMetricUI();
+    }
+
+    $("btnBalDownload").onclick = async () => {
+      try {
+        const file = $("selBalanceFile")?.value || "";
+        const url = file ? `/api/channel-balance/download?file=${encodeURIComponent(file)}` : "/api/channel-balance/download";
+        const name = await NAUi.downloadUrl(url, file);
+        balAddLog(`已开始浏览器下载：${name}`, "ok");
+      } catch (e) {
+        NAUi.showBanner("userBanner", e.message || "下载失败", "err");
+      }
+    };
+
+    $("balQueryUsed")?.addEventListener("change", syncBalMetricUI);
+    $("balQueryRemain")?.addEventListener("change", syncBalMetricUI);
+    $("btnBalExcludeDisabled")?.addEventListener("click", () => {
+      balExcludeDisabled = !balExcludeDisabled;
+      balAddLog(balExcludeDisabled ? "已排除禁用渠道" : "已恢复显示禁用渠道", "ok");
+      renderBalTable();
+    });
+    $("btnBalSelectAll")?.addEventListener("click", () => {
+      document.querySelectorAll("#balBody input.bal-check").forEach((el) => { el.checked = true; });
+      syncBalButtons();
+    });
+    $("btnBalInvert")?.addEventListener("click", () => {
+      document.querySelectorAll("#balBody input.bal-check").forEach((el) => { el.checked = !el.checked; });
+      syncBalButtons();
+    });
+    $("balCheckAll")?.addEventListener("change", () => {
+      const on = !!$("balCheckAll").checked;
+      document.querySelectorAll("#balBody input.bal-check").forEach((el) => { el.checked = on; });
+      syncBalButtons();
+    });
+    $("balBody")?.addEventListener("change", (ev) => {
+      if (ev.target?.classList?.contains("bal-check")) syncBalButtons();
+    });
+
+    $("btnBalQuery").onclick = async () => {
+      const sites = readSitesFromCards(true);
+      if (!sites.length) { NAUi.showBanner("userBanner", "请至少填写一个站点地址", "warn"); return; }
+      const queryUsed = !!$("balQueryUsed")?.checked;
+      const queryRemain = !!$("balQueryRemain")?.checked;
+      if (!queryUsed && !queryRemain) {
+        NAUi.showBanner("userBanner", "请至少勾选「已用」或「剩余」", "warn");
+        return;
+      }
+      saveSites(readSitesFromCards());
+      const btn = $("btnBalQuery");
+      btn.disabled = true;
+      btn.classList.add("loading");
+      balAddLog("正在审查各站是否需要登录验证码…");
+      NAUi.showBanner("userBanner", "正在审查各站登录验证码要求…", "info");
+      let inspectItems = [];
+      try {
+        inspectItems = await inspectSitesAuth(sites, false);
+      } catch (e) {
+        balAddLog("审查失败: " + (e.message || e), "warn");
+        NAUi.showBanner("userBanner", "审查失败: " + (e.message || e), "err");
+        btn.disabled = false;
+        btn.classList.remove("loading");
+        return;
+      }
+      btn.disabled = false;
+      btn.classList.remove("loading");
+      logInspectItems(inspectItems);
+      const confirmed = await confirmInspect(inspectItems);
+      if (!confirmed) return;
+      const workSites = sites.filter((_, i) => isInspectCollectable(inspectItems[i]));
+      const needOtpSites = sites.filter((_, i) => (
+        isInspectCollectable(inspectItems[i]) && siteNeedsOtpPrompt(inspectItems[i])
+      ));
+      (sites || []).forEach((site, i) => {
+        if (!isInspectCollectable(inspectItems[i])) {
+          balAddLog(`[${String(site.env || "站点").toUpperCase()}] 跳过：${inspectItems[i]?.message || "审查未通过"}`, "warn");
+        }
+      });
+      if (!workSites.length) {
+        NAUi.showBanner("userBanner", "没有可查询的站点", "warn");
+        return;
+      }
+      const otpOpts = {
+        title: `登录两步验证 · 余额查询（${needOtpSites.length} 个站点）`,
+        hint: "各环境认证器相互独立。填当前 6 位码（约 30 秒有效）。填完一格按 Enter 跳到下一站，全部填完后再回车开始查询。",
+        confirmLabel: "确认并查询",
+      };
+      if (needOtpSites.length) {
+        const prompted = await promptOtpForSites(needOtpSites, otpOpts);
+        if (!prompted) return;
+      } else {
+        balAddLog("各站均无需登录验证码，直接查询", "ok");
+      }
+      const payloadOf = (querySites) => ({
+        sites: withVerifySsl(querySites),
+        query_used: queryUsed,
+        query_remain: queryRemain,
+        channel_type: ($("balChannelType")?.value || "").trim(),
+        group: ($("balGroup")?.value || "").trim(),
+        keyword: ($("balKeyword")?.value || "").trim(),
+        status: ($("balStatus")?.value || "").trim(),
+        used_preset: balUsedPreset,
+        remain_preset: balRemainPreset,
+        time_preset: balTimePreset,
+        start_timestamp: datetimeLocalToUnix($("balStartTime")?.value || ""),
+        end_timestamp: datetimeLocalToUnix($("balEndTime")?.value || ""),
+        sort_by: queryUsed ? "used_usd" : "remain_usd",
+        sort_desc: true,
+      });
+      const fetchBal = async (querySites) => {
+        const resp = await fetch("/api/channel-balance-query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payloadOf(querySites)),
+        });
+        const data = await resp.json();
+        if (!resp.ok && !data.data) throw new Error(data.message || `HTTP ${resp.status}`);
+        return data;
+      };
+      const applyBal = (data) => {
+        (data.data?.errors || []).forEach((err) => balAddLog(err, "warn"));
+        (data.data?.site_results || []).forEach((s) => {
+          balAddLog(
+            `[${s.env}] ${s.label || s.base_url} → ${s.success ? `命中 ${s.matched}` : s.message}`,
+            s.success ? "ok" : "warn",
+          );
+        });
+        balItems = data.data?.items || [];
+        balExcludeDisabled = false;
+        renderBalTable();
+        const sheets = (data.data?.sheet_names || []).join(" / ") || "—";
+        const rangeLabel = data.data?.time_range?.label || balTimeHint();
+        balAddLog(`${data.message || "完成"}；${rangeLabel}；导出表名：${sheets}`, data.success ? "ok" : "warn");
+        NAUi.showBanner("userBanner", data.message || "查询完成", data.success ? "ok" : "warn");
+      };
+      btn.disabled = true;
+      btn.classList.add("loading");
+      balAddLog(`正在查询 ${workSites.length} 个站点…（${balTimeHint()}）`);
+      NAUi.showBanner("userBanner", "多站点渠道余额查询中…", "info");
+      try {
+        let data = await fetchBal(workSites);
+        const otpFailed = !data.success && isOtpError(collectErrorText(data));
+        if (otpFailed && needOtpSites.length) {
+          (data.data?.errors || []).forEach((err) => balAddLog(err, "warn"));
+          addLog("余额查询验证码错误，请再输入一次", "warn");
+          NAUi.showBanner("userBanner", "验证码错误，请再输入一次", "warn");
+          btn.disabled = false;
+          btn.classList.remove("loading");
+          const retried = await promptOtpForSites(needOtpSites, {
+            ...otpOpts,
+            title: "验证码错误，请重试 · 余额查询",
+            hint: "刚才的验证码不正确或已过期。请重新输入各站当前验证码后按 Enter。仅可再试一次。",
+          });
+          if (!retried) return;
+          btn.disabled = true;
+          btn.classList.add("loading");
+          NAUi.showBanner("userBanner", "正在重新查询…", "info");
+          data = await fetchBal(workSites);
+        }
+        applyBal(data);
+      } catch (e) {
+        balAddLog("查询失败: " + e.message, "warn");
+        NAUi.showBanner("userBanner", "查询失败: " + e.message, "err");
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove("loading");
+      }
+    };
+
+    $("btnBalExport").onclick = async () => {
+      const selected = new Set(getSelectedBalIds());
+      let rows = getVisibleBalItems();
+      if (selected.size) rows = rows.filter((it) => selected.has(balRowKey(it)));
+      if (!rows.length) {
+        NAUi.showBanner("userBanner", "没有可导出的渠道", "warn");
+        return;
+      }
+      const btn = $("btnBalExport");
+      btn.disabled = true;
+      btn.classList.add("loading");
+      balanceExcelBusy = true;
+      if ($("btnBalDownload")) $("btnBalDownload").disabled = true;
+      balAddLog(`正在导出 Excel（${rows.length} 条，按环境分表）…`);
+      try {
+        const resp = await fetch("/api/channel-balance-export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: rows,
+            query_used: !!$("balQueryUsed")?.checked,
+            query_remain: !!$("balQueryRemain")?.checked,
+            by_env: true,
+          }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.success) {
+          throw new Error(data.message || `HTTP ${resp.status}`);
+        }
+        const filename = data.data?.filename || "";
+        balAddLog(`已写入 excel/${filename || "渠道余额.xlsx"}。请点「下载 Excel」获取完整文件`, "ok");
+        NAUi.showBanner("userBanner", data.message || `已导出 ${rows.length} 条，请点「下载 Excel」`, "ok");
+        NAUi.notifyArtifactsChanged(["balance"]);
+      } catch (e) {
+        balAddLog("导出失败: " + e.message, "warn");
+        NAUi.showBanner("userBanner", "导出失败: " + e.message, "err");
+      } finally {
+        balanceExcelBusy = false;
+        btn.disabled = false;
+        btn.classList.remove("loading");
+        await refreshInfo();
+      }
+    };
+
+    syncBalMetricUI();
+    syncBalButtons();
+  </script>
+
+  <!-- 二次验证弹窗（登录 2FA / 导出渠道密钥） -->
+  <div class="na-modal-backdrop" id="otpModal" hidden>
+    <div class="na-modal" role="dialog" aria-modal="true" aria-labelledby="otpModalTitle">
+      <h3 id="otpModalTitle">登录两步验证</h3>
+      <p class="na-hint" id="otpModalHint">请输入认证器中的 6 位验证码（约 30 秒刷新），或使用 8 位备用码。输入后按 Enter 确认。</p>
+      <div id="otpFields" class="na-otp-fields"></div>
+      <div class="na-modal-actions">
+        <button type="button" class="na-btn na-btn-ghost" id="otpCancel">取消</button>
+        <button type="button" class="na-btn na-btn-primary" id="otpConfirm">确认并继续</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

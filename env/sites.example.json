@@ -1,0 +1,46 @@
+{
+  "_comment": "复制本文件为 sites.json 后填写真实值。未配置时②连接配置的 test/uat/prod 按钮自动隐藏。⑤上游信息请填写下方 upstream.volc（IAM Access Key）和 upstream.azure（Entra 服务主体）。Azure 的 subscription_ids 填写顺序即订阅1、订阅2、订阅3、订阅4。勿提交真实密钥。",
+  "_comment_totp": "登录/导出二次验证：把认证器原始密钥（Base32）写入 totp_secret，请求时自动生成当前 6 位码。也可把同一密钥或 otpauth:// 写在 otp_code。6 位码或 8 位备用码仍可直接填写。",
+  "test": {
+    "base_url": "https://na-test.example.com",
+    "username": "admin",
+    "password": "change-me",
+    "default_key": "",
+    "totp_secret": ""
+  },
+  "uat": {
+    "base_url": "https://na-uat.example.com",
+    "username": "admin",
+    "password": "change-me",
+    "default_key": "",
+    "totp_secret": ""
+  },
+  "prod": {
+    "base_url": "https://na-prod.example.com",
+    "username": "admin",
+    "password": "change-me",
+    "default_key": "",
+    "totp_secret": ""
+  },
+  "upstream": {
+      "_comment": "⑤上游信息·火山云。必须是 IAM「Access Key」（Access Key ID 通常以 AKLT 开头），不要填方舟推理 API Key。获取：https://console.volcengine.com/iam/keymanage 。上游账单页复用本密钥，另需账单查询权限（billing:ListBillDetail；分拆项ID 需开通分账并授权 ListSplitBillDetail）。",
+    "volc": {
+      "access_key_id": "AKLT************************",
+      "secret_access_key": "********************************",
+      "region": "cn-beijing"
+    },
+    "azure": {
+      "_comment": "⑤上游信息·Azure OpenAI。一个应用注册扫全部订阅。每个订阅 IAM 都要给该应用加「读者」+「认知服务用户」（Cognitive Services User）。上游账单（成本分析）另需「成本管理读取者」（Cost Management Reader）。",
+      "_comment_subscription_ids": "点进该订阅（或其中任一资源）后，从浏览器地址栏 /subscriptions/ 后面复制 GUID；不要停在订阅列表页、不要抄显示名或整段 URL。填写顺序 = Excel「订阅」列：数组第1项 → 订阅1，第2项 → 订阅2，第3项 → 订阅3，第4项 → 订阅4。请按内部订阅顺序填入，不要打乱。",
+      "tenant_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "client_secret": "********************************",
+      "subscription_ids": [
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002",
+        "00000000-0000-0000-0000-000000000003",
+        "00000000-0000-0000-0000-000000000004"
+      ]
+    }
+  }
+}

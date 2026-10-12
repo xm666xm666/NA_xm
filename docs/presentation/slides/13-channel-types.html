@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>07 · 渠道类型</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+SC:wght@400;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/motion.css">
+<link rel="stylesheet" href="../shared/perf.css">
+<style>
+.type-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 12px; }
+.type-card {
+  padding: 20px 22px;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-height: 160px;
+}
+.type-card h3 { font-family: var(--serif); font-size: 20px; margin-bottom: 8px; }
+.type-card .feat { font-size: 13px; color: var(--accent); font-family: var(--mono); margin-bottom: 10px; }
+.type-card p { font-size: 14px; line-height: 1.6; color: var(--ink-soft); }
+.mode-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 16px; }
+.mode-box {
+  padding: 16px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.5);
+}
+.mode-box .m { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--accent-deep); }
+.mode-box .d { font-size: 13px; color: var(--ink-muted); margin-top: 6px; line-height: 1.45; }
+</style>
+</head>
+<body>
+<header class="masthead reveal-fade">
+  <div class="masthead-brand"><img src="../shared/logo.svg" alt="" width="26" height="26"> NA Auto Configuration</div>
+  <div class="masthead-meta">07 / 18 · 渠道类型</div>
+</header>
+<main class="content dense">
+  <div class="kicker reveal-up d1">紧接智能提取 · 类型识别</div>
+  <h1 class="reveal-up d2">支持的<span class="hl">渠道类型</span>与输入模式</h1>
+  <div class="split-60-40">
+    <div>
+      <div class="type-grid">
+        <div class="type-card card-lift reveal-up d3">
+          <h3>火山方舟 / 豆包</h3>
+          <div class="feat">含 ep- 模型 ID · ark- 密钥</div>
+          <p>自动补全类型与 https://ark.cn-beijing.volces.com；识别 RPM/TPM 噪声行</p>
+        </div>
+        <div class="type-card card-lift reveal-up d4">
+          <h3>Azure OpenAI</h3>
+          <div class="feat">*.openai.azure.com</div>
+          <p>解析 Base URL 与 api-version；支持门户链接格式输入</p>
+        </div>
+        <div class="type-card card-lift reveal-up d5">
+          <h3>自定义渠道</h3>
+          <div class="feat">sk- 密钥 + URL</div>
+          <p>识别部署模型与 base_url；适配 OpenAI 兼容接口</p>
+        </div>
+        <div class="type-card card-lift reveal-up d6">
+          <h3>已格式化行</h3>
+          <div class="feat">空格 / Tab 分隔</div>
+          <p>完整渠道行直接解析，无需 LLM；支持模型→上游重定向</p>
+        </div>
+      </div>
+      <div class="mode-row reveal-up d7">
+        <div class="mode-box"><div class="m">rules</div><div class="d">仅规则引擎<br>离线可用</div></div>
+        <div class="mode-box"><div class="m">llm</div><div class="d">勾选 LLM<br>AI 结果优先</div></div>
+        <div class="mode-box"><div class="m">llm_failed</div><div class="d">配置缺失<br>或调用失败</div></div>
+      </div>
+    </div>
+    <div>
+      <p style="font-size:14px;color:var(--ink-muted);margin-bottom:8px;" class="reveal-fade d3">标准输出格式（无需表头）</p>
+      <div class="code-block reveal-scale d4" style="font-size:12px;line-height:1.65;">名称 分组 类型 模型 模型->上游 base_url [API版本] 秘钥</div>
+      <div class="note-box reveal-up d5" style="margin-top:14px;">
+        <strong style="color:var(--ink);">分组推导：</strong>始终从第一个字段（渠道名称）推导，如 demo-alpha-test-gpt-x → 分组 demo-alpha-test
+      </div>
+      <div class="table-wrap reveal-up d6" style="margin-top:14px;">
+        <table class="compact-table">
+          <tr><th>分隔方式</th><th>说明</th></tr>
+          <tr><td>空行</td><td>多条记录之间分隔</td></tr>
+          <tr><td>Tab / 空格</td><td>字段内可混用</td></tr>
+          <tr><td>版本标注行</td><td>GLM-5.2｜260617 标志新块</td></tr>
+        </table>
+      </div>
+      <div class="pill-grid reveal-up d7">
+        <span class="pill">载入示例</span>
+        <span class="pill">DeepSeek + GLM</span>
+        <span class="pill">多条批量</span>
+        <span class="pill">未勾选不调 AI</span>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-bar reveal-fade d8">
+    <span>examples/agent/volcano</span>
+    <span>examples/agent/azure</span>
+    <span>examples/agent/multi</span>
+  </div>
+  <div class="case-section reveal-up d9">
+    <div class="case-section-head">
+      <span class="label">案例 · 类型识别对照</span>
+      <span class="path">同一输出格式 · 不同输入特征</span>
+    </div>
+    <div class="case-grid-3">
+      <div class="case-card">
+        <h4>火山 · ep- 模型 ID</h4>
+        <div class="case-pre">ep-20260101000000-demo1
+→ 类型：字节火山·方舟通用
+→ base_url 自动补全 ark.cn-beijing.volces.com</div>
+      </div>
+      <div class="case-card">
+        <h4>Azure · 门户链接</h4>
+        <div class="case-pre">…openai.azure.com/…?api-version=2025-04-01-preview
+→ 拆出 base_url + api-version 字段</div>
+      </div>
+      <div class="case-card">
+        <h4>自定义 · sk- + URL</h4>
+        <div class="case-pre">examples/agent/custom/input.txt
+→ 识别 sk- 密钥与 chat/completions 地址</div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="footer reveal-fade d10"><span>渠道类型</span><span>07 / 18</span></footer>
+<script src="../shared/slide-boot.js"></script>
+</body>
+</html>
