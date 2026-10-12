@@ -148,11 +148,11 @@ def test_extract_channel_lines_with_blank_gaps():
             "",
             "demo-alpha-uat-gpt-x demo-alpha-uat OpenAI demo-alpha-uat-gpt-x "
             "demo-alpha-uat-gpt-x->gpt-4o https://example.com/v1 "
-            "sk-abcdefghijklmnopqrstuvwxyz0123456789",
+            "EXAMPLE_API_KEY",
             "",
             "demo-alpha-uat-gpt-y demo-alpha-uat OpenAI demo-alpha-uat-gpt-y "
             "demo-alpha-uat-gpt-y->gpt-4o https://example.com/v1 "
-            "sk-abcdefghijklmnopqrstuvwxyz0123456789",
+            "EXAMPLE_API_KEY",
         ]
     )
     result = extract_tokens(text)

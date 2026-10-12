@@ -39,7 +39,7 @@ def test_update_extract_omits_key():
 
 
 def test_update_extract_ignores_existing_key():
-    text = UPGRADE_SAMPLE.rstrip() + "\nark-00000000-0000-4000-8000-000000000001-demo\n"
+    text = UPGRADE_SAMPLE.rstrip() + "\nEXAMPLE_ARK_KEY\n"
     result = extract_channels(text, use_llm=False, require_key=False)
     assert result.success is True
     assert "ark-" not in result.channel_line

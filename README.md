@@ -21,6 +21,8 @@
 >
 > 不要混用分支部署文件：`run.bat` / `run.sh` 属于 `stand-alone`；`Dockerfile`、`compose.yaml`、`deploy/k8s/` 属于 `container`。切换分支后，请继续阅读下方完整项目说明与该分支内的部署章节。
 
+> **安全说明：** 示例密钥、验证码和令牌均使用低熵、不可用占位符；仅验证格式的测试数据使用固定的短前缀，绝不构成可用凭据。真实凭据只能通过本地环境变量或部署 Secret 注入，严禁提交到 Git。
+
 ---
 
 # NA 自动配置工具
@@ -948,7 +950,7 @@ demo-gamma-uat-agent-gpt-x        → 分组 demo-gamma-uat
 ```text
 demo-alpha-test-model-a
 Model-A｜260101
-ark-REDACTED-EXAMPLE-KEY
+EXAMPLE_ARK_KEY
 ep-20260101000000-demo1
         15,000 RPM1,500,000 TPM
 

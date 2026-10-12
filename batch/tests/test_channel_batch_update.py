@@ -168,13 +168,13 @@ def test_run_update_dry_run_and_confirm():
         assert "key" not in sent
 
         client.update_channel.reset_mock()
-        line_with_key = line + " sk-should-be-ignored"
+        line_with_key = line + " EXAMPLE_API_KEY"
         ignored = run_channel_batch_update(
             base_url="https://na.example.com",
             batch_text=line_with_key,
             auth={"username": "a", "password": "b"},
             dry_run=False,
-            default_key="sk-global-should-be-ignored",
+            default_key="EXAMPLE_API_KEY",
             overwrite_remark=True,
         )
         assert ignored.updated_count == 1

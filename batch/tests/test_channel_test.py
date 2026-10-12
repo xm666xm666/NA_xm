@@ -89,7 +89,7 @@ def test_batch_create_attaches_channel_id_for_test():
     ]
     line = (
         "demo-alpha-test-qwen-z demo-alpha-test OpenAI demo-alpha-test-qwen-z "
-        "demo-alpha-test-qwen-z->qwen-z https://llm.example.com/compatible-mode sk-demo-key-replace-me"
+        "demo-alpha-test-qwen-z->qwen-z https://llm.example.com/compatible-mode EXAMPLE_API_KEY"
     )
     with patch("lib.batch_processor.NewAPIClient", return_value=client), patch(
         "lib.batch_processor.authenticate_client"

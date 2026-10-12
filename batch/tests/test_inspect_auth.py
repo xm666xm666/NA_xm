@@ -111,7 +111,7 @@ def test_inspect_include_keys_totp_skips_prompt(mock_client, mock_auth):
         username="admin",
         password="x",
         env="prod",
-        totp_secret="ZDNVM5SXU3MYGNGUKIVITQ4ZA5BL2RGO",
+        totp_secret="AAAAAAAAAAAAAAAA",
     )
     items = inspect_summary_sites_auth([site], include_keys=True)
     assert items[0]["needs_verify_otp"] is True

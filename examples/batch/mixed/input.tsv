@@ -1,5 +1,5 @@
-demo-alpha-test-glm-x demo-alpha-test OpenAI demo-alpha-test-glm-x demo-alpha-test-glm-x->glm-x https://llm.example.com/compatible-mode sk-demo-key-replace-me
-demo-alpha-test-glm-y demo-alpha-test OpenAI demo-alpha-test-glm-y demo-alpha-test-glm-y->glm-y https://llm.example.com/compatible-mode sk-demo-key-replace-me
-demo-alpha-test-qwen-z demo-alpha-test OpenAI demo-alpha-test-qwen-z demo-alpha-test-qwen-z->qwen-z https://llm.example.com/compatible-mode sk-demo-key-replace-me
-demo-beta-test-ds-v3 demo-beta-test 自定义渠道 demo-beta-test-ds-v3 demo-beta-test-ds-v3->ds-v3 https://gateway.example.com/v1/chat/completions sk-demo-key-replace-me
-sample-azure-test-gpt-x sample-azure-test Azure OpenAI sample-azure-test-gpt-x sample-azure-test-gpt-x->gpt-x https://sample-azure.example.com 2025-04-01-preview sk-demo-key-replace-me
+demo-alpha-test-glm-x demo-alpha-test OpenAI demo-alpha-test-glm-x demo-alpha-test-glm-x->glm-x https://llm.example.com/compatible-mode EXAMPLE_API_KEY
+demo-alpha-test-glm-y demo-alpha-test OpenAI demo-alpha-test-glm-y demo-alpha-test-glm-y->glm-y https://llm.example.com/compatible-mode EXAMPLE_API_KEY
+demo-alpha-test-qwen-z demo-alpha-test OpenAI demo-alpha-test-qwen-z demo-alpha-test-qwen-z->qwen-z https://llm.example.com/compatible-mode EXAMPLE_API_KEY
+demo-beta-test-ds-v3 demo-beta-test 自定义渠道 demo-beta-test-ds-v3 demo-beta-test-ds-v3->ds-v3 https://gateway.example.com/v1/chat/completions EXAMPLE_API_KEY
+sample-azure-test-gpt-x sample-azure-test Azure OpenAI sample-azure-test-gpt-x sample-azure-test-gpt-x->gpt-x https://sample-azure.example.com 2025-04-01-preview EXAMPLE_API_KEY
