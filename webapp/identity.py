@@ -63,6 +63,19 @@ FEATURE_AGENT = "agent"
 FEATURE_EXTRACTION = "extraction"
 FEATURE_USER_ADMIN = "user_admin"
 
+# 可由超管逐账户授予的功能；角色标签不再隐式授予这些权限。
+FEATURE_OPTIONS = (
+    (FEATURE_WORKSPACE, "工作台", "查看工作台、任务进度和产物"),
+    (FEATURE_EXTRACTION, "智能提取", "使用渠道与令牌提取"),
+    (FEATURE_BATCH, "批量配置", "连接站点并管理渠道、令牌和分组"),
+    (FEATURE_DATA_SUMMARY, "数据汇总", "采集站点数据并导出汇总"),
+    (FEATURE_UPSTREAM, "上游信息", "采集火山云与 Azure 上游资源"),
+    (FEATURE_UPSTREAM_BILL, "上游账单", "采集和导出云厂商账单"),
+    (FEATURE_OVERVIEW, "一表总览", "查看总览、卫生策略和智能分析"),
+    (FEATURE_AGENT, "智能体", "创建并执行智能体任务"),
+)
+FEATURE_KEYS = frozenset(feature for feature, _label, _description in FEATURE_OPTIONS)
+
 # 产物不共享一个笼统的“下载”权限：同一个通用接口会服务于数据汇总、
 # 上游信息、账单和一表总览。按类型归属，才能既让管理员正常使用其已获
 # 授权的历史文件，又不会借下载接口读取超管专属文件。
@@ -109,32 +122,6 @@ def artifact_feature(kind: str | None) -> str | None:
     """返回某类 Excel 产物所需能力；未知类型必须由调用方拒绝。"""
     return ARTIFACT_KIND_FEATURES.get(str(kind or "").strip().lower())
 
-ROLE_FEATURES = {
-    ROLE_SUPERADMIN: {
-        FEATURE_WORKSPACE,
-        FEATURE_BATCH,
-        FEATURE_DATA_SUMMARY,
-        FEATURE_UPSTREAM,
-        FEATURE_UPSTREAM_BILL,
-        FEATURE_OVERVIEW,
-        FEATURE_AGENT,
-        FEATURE_EXTRACTION,
-        FEATURE_USER_ADMIN,
-    },
-    ROLE_ADMIN: {
-        FEATURE_WORKSPACE,
-        FEATURE_BATCH,
-        FEATURE_DATA_SUMMARY,
-        FEATURE_UPSTREAM,
-        FEATURE_EXTRACTION,
-    },
-    ROLE_USER: {
-        FEATURE_BATCH,
-        FEATURE_EXTRACTION,
-    },
-}
-
-
 class Base(DeclarativeBase):
     pass
 
@@ -147,6 +134,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(512))
     role: Mapped[str] = mapped_column(String(24), default=ROLE_USER, index=True)
+    features_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -582,7 +570,23 @@ class IdentityManager:
 
     def has_feature(self, feature: str, user: User | None = None) -> bool:
         principal = user or self.current_user()
-        return bool(principal and principal.role in ROLE_FEATURES and feature in ROLE_FEATURES[principal.role])
+        if not principal:
+            return False
+        if principal.role == ROLE_SUPERADMIN:
+            return feature in FEATURE_KEYS or feature == FEATURE_USER_ADMIN
+        return feature in self.user_features(principal)
+
+    @staticmethod
+    def user_features(user: User) -> set[str]:
+        if user.role == ROLE_SUPERADMIN:
+            return set(FEATURE_KEYS) | {FEATURE_USER_ADMIN}
+        try:
+            values = json.loads(user.features_json or "[]")
+        except (TypeError, ValueError):
+            return set()
+        if not isinstance(values, list):
+            return set()
+        return {str(value) for value in values if str(value) in FEATURE_KEYS}
 
     def api_feature(self, path: str) -> str | None:
         """将每一个业务 API 收敛到唯一能力；未知 API 一律不自动放行。
@@ -778,7 +782,7 @@ class IdentityManager:
                 {
                     "authenticated": True,
                     "user": self.public_user(user),
-                    "features": sorted(ROLE_FEATURES.get(user.role, set())),
+                    "features": sorted(self.user_features(user)),
                     "csrf_token": self.csrf_token(),
                 }
             )
@@ -828,11 +832,24 @@ class IdentityManager:
             if blocked:
                 return blocked
             users = self.store.session().scalars(select(User).where(User.is_deleted.is_(False)).order_by(User.created_at.desc())).all()
-            return render_template("admin_users.html", users=users, roles=ROLES, csrf_token=self.csrf_token(), current_user=self.current_user())
+            permission_map = {user.id: self.user_features(user) for user in users}
+            return render_template(
+                "admin_users.html",
+                users=users,
+                roles=(ROLE_ADMIN, ROLE_USER),
+                feature_options=FEATURE_OPTIONS,
+                permission_map=permission_map,
+                csrf_token=self.csrf_token(),
+                current_user=self.current_user(),
+            )
 
         @bp.post("/admin/users/<int:user_id>/role")
         def admin_user_role(user_id: int):
             return self._admin_user_action(user_id, "role")
+
+        @bp.post("/admin/users/<int:user_id>/permissions")
+        def admin_user_permissions(user_id: int):
+            return self._admin_user_action(user_id, "permissions")
 
         @bp.post("/admin/users/<int:user_id>/status")
         def admin_user_status(user_id: int):
@@ -870,13 +887,22 @@ class IdentityManager:
             abort(400, "不能修改当前登录账号")
         if target.is_bootstrap_superadmin:
             abort(400, "默认超管 admin 不能被降权、停用或删除")
+        if target.role == ROLE_SUPERADMIN:
+            abort(400, "超管账户不能通过普通用户管理操作修改")
         if action == "role":
             role = str(request.form.get("role") or "")
-            if role not in ROLES:
+            if role not in {ROLE_ADMIN, ROLE_USER}:
                 abort(400, "角色无效")
             target.role = role
             detail = {"role": role}
             event = "user.role_changed"
+        elif action == "permissions":
+            selected = {str(value) for value in request.form.getlist("feature")}
+            if not selected <= FEATURE_KEYS:
+                abort(400, "功能权限无效")
+            target.features_json = json.dumps(sorted(selected), ensure_ascii=False)
+            detail = {"features": sorted(selected)}
+            event = "user.permissions_changed"
         elif action == "status":
             target.is_active = str(request.form.get("is_active") or "") == "true"
             detail = {"is_active": target.is_active}

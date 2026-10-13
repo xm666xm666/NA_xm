@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/static/na-components.css?v=auth-3" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=auth-1"></script>
-  <script src="/static/auth-shell.js?v=web-6"></script>
+  <script src="/static/auth-shell.js?v=web-7"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <style>
     .na-llm-panel h3 { margin: 0 0 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--na-accent-2); font-family: var(--na-font-display); }
@@ -50,7 +50,8 @@
     .na-auth-menu a, .na-auth-menu button { padding: .45rem .55rem; color: var(--na-text-muted); text-decoration: none; background: transparent; border: 0; text-align: left; font: inherit; cursor: pointer; border-radius: .35rem; }
     .na-auth-menu a:hover, .na-auth-menu button:hover { background: var(--na-panel-hover); color: var(--na-text); }
     html.na-permissions-pending .na-nav-tabs,
-    html.na-permissions-pending .na-view { visibility: hidden; pointer-events: none; }
+    html.na-permissions-pending .na-view,
+    html.na-permissions-pending .na-no-permissions { visibility: hidden; pointer-events: none; }
   </style>
 </head>
 <body class="na-app">
@@ -90,6 +91,13 @@
       <span class="na-theme-toggle-label">明亮</span>
     </button>
   </nav>
+
+  <section id="noPermissionNotice" class="na-no-permissions" role="status" hidden>
+    <div class="na-empty">
+      <div class="na-empty-title">尚未分配功能权限</div>
+      <div class="na-empty-desc">请联系超管在「管理用户」中为你的账户开启所需功能。</div>
+    </div>
+  </section>
 
   <div id="viewWorkspace" class="na-view active" role="tabpanel" aria-labelledby="tabWorkspace">
     <div class="na-wrap">

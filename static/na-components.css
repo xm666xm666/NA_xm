@@ -190,6 +190,8 @@ html.na-bg-simple .bg-layer::before {
 .na-empty-icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; }
 .na-empty-title { font-weight: 600; font-size: 0.92rem; margin-bottom: 0.35rem; }
 .na-empty-desc { font-size: 0.8rem; color: var(--na-text-muted); line-height: 1.55; max-width: 280px; margin: 0 auto; }
+.na-no-permissions { position: relative; z-index: 1; display: grid; min-height: min(58vh, 34rem); place-items: center; padding: 2rem 1rem; }
+.na-no-permissions .na-empty { max-width: 28rem; }
 
 /* ── 示例卡片 ── */
 .na-example-cards {

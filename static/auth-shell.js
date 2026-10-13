@@ -49,6 +49,12 @@
       if (!view || permitted) return;
       view.hidden = true;
     });
+    const hasVisibleTab = Array.from(document.querySelectorAll("#navTabs [role=tab]"))
+      .some((node) => !node.hidden && allowed.has(node.dataset.permission));
+    const navTabs = document.getElementById("navTabs");
+    const notice = document.getElementById("noPermissionNotice");
+    if (navTabs) navTabs.hidden = !hasVisibleTab;
+    if (notice) notice.hidden = hasVisibleTab;
     const active = document.querySelector("[role=tab].active[hidden]");
     if (active) document.querySelector("[role=tab]:not([hidden])")?.click();
   }

@@ -14,7 +14,7 @@
         <div>
           <p class="admin-section-label">账户与权限</p>
           <h1 id="auth-page-title">用户目录</h1>
-          <p>管理角色、访问状态与账户生命周期。系统保留的 <code>admin</code> 超管始终受保护。</p>
+          <p>按账户逐项决定可访问的功能。角色名称不会自动授予功能权限；系统保留的 <code>admin</code> 超管始终受保护并拥有完整权限。</p>
         </div>
         <div class="admin-count" aria-label="当前用户数量"><strong>{{ users|length }}</strong><span>个有效账户</span></div>
       </header>
@@ -22,11 +22,11 @@
       <div class="admin-table-wrap" tabindex="0" aria-label="用户列表，窄屏可横向查看">
         <table class="admin-users-table">
           <thead>
-            <tr><th scope="col">用户</th><th scope="col">角色与权限</th><th scope="col">访问状态</th><th scope="col">创建时间</th><th scope="col">账户操作</th></tr>
+            <tr><th scope="col">用户</th><th scope="col">角色</th><th scope="col">功能权限</th><th scope="col">访问状态</th><th scope="col">创建时间</th><th scope="col">账户操作</th></tr>
           </thead>
           <tbody>
             {% for user in users %}
-              {% set protected = user.id == current_user.id or user.is_bootstrap_superadmin %}
+              {% set protected = user.id == current_user.id or user.is_bootstrap_superadmin or user.role == 'superadmin' %}
               <tr>
                 <td data-label="用户">
                   <div class="admin-user-cell">
@@ -34,10 +34,10 @@
                     <div><strong>{{ user.username }}</strong><small>{{ user.email }}</small></div>
                   </div>
                 </td>
-                <td data-label="角色与权限">
+                <td data-label="角色">
                   {% if protected %}
                     <span class="admin-role-chip admin-role-{{ user.role }}">{{ '超管' if user.role == 'superadmin' else ('管理员' if user.role == 'admin' else '普通用户') }}</span>
-                    <small class="admin-cell-note">{{ '系统保留账户' if user.is_bootstrap_superadmin else '当前登录账户' }}</small>
+                    <small class="admin-cell-note">{{ '系统保留账户' if user.is_bootstrap_superadmin else ('超管账户' if user.role == 'superadmin' else '当前登录账户') }}</small>
                   {% else %}
                     <form method="post" action="/admin/users/{{ user.id }}/role" class="admin-role-form">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -47,6 +47,31 @@
                       </select>
                       <button class="admin-button admin-button-quiet" type="submit">保存</button>
                     </form>
+                  {% endif %}
+                </td>
+                <td data-label="功能权限">
+                  {% if user.role == 'superadmin' %}
+                    <span class="admin-permission-summary">全部功能与用户管理</span>
+                    <small class="admin-cell-note">超管权限固定，不在此处撤销</small>
+                  {% elif protected %}
+                    <span class="admin-permission-summary">{{ permission_map[user.id]|length }} / {{ feature_options|length }} 项已授权</span>
+                  {% else %}
+                    <details class="admin-permissions">
+                      <summary>配置权限 <span>{{ permission_map[user.id]|length }} / {{ feature_options|length }}</span></summary>
+                      <form method="post" action="/admin/users/{{ user.id }}/permissions" class="admin-permissions-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <fieldset>
+                          <legend>{{ user.username }} 可访问的功能</legend>
+                          {% for feature, label, description in feature_options %}
+                            <label class="admin-permission-option">
+                              <input type="checkbox" name="feature" value="{{ feature }}" {% if feature in permission_map[user.id] %}checked{% endif %}>
+                              <span><strong>{{ label }}</strong><small>{{ description }}</small></span>
+                            </label>
+                          {% endfor %}
+                        </fieldset>
+                        <button class="admin-button admin-button-primary" type="submit">保存权限</button>
+                      </form>
+                    </details>
                   {% endif %}
                 </td>
                 <td data-label="访问状态"><span class="admin-status {{ 'is-active' if user.is_active else 'is-inactive' }}"><i aria-hidden="true"></i>{{ '已启用' if user.is_active else '已停用' }}</span></td>
@@ -71,7 +96,7 @@
           </tbody>
         </table>
       </div>
-      <footer class="admin-workspace-foot"><p>角色变更、启停和删除均会写入安全审计日志。</p><a href="/">返回控制台 <span aria-hidden="true">→</span></a></footer>
+      <footer class="admin-workspace-foot"><p>角色只作账户分类；功能访问按账户单独配置。权限变更、角色变更、启停和删除都会写入安全审计日志。</p><a href="/">返回控制台 <span aria-hidden="true">→</span></a></footer>
     </section>
   </main>
 {% endblock %}

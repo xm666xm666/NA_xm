@@ -139,13 +139,30 @@ body.auth-page {
 .admin-count { display: flex; flex: 0 0 auto; align-items: baseline; gap: .42rem; padding: .7rem .85rem; border: 1px solid #c7d2fe; border-radius: .65rem; color: var(--auth-muted); background: var(--auth-primary-soft); font-size: .78rem; white-space: nowrap; }
 .admin-count strong { color: var(--auth-primary-strong); font: 760 1.28rem/1 "Cascadia Mono", Consolas, monospace; }
 .admin-table-wrap { overflow-x: auto; }.admin-table-wrap:focus-visible { outline: 2px solid var(--auth-primary); outline-offset: -2px; }
-.admin-users-table { width: 100%; min-width: 960px; border-collapse: collapse; font-size: .86rem; }
+.admin-users-table { width: 100%; min-width: 1080px; border-collapse: collapse; font-size: .86rem; }
 .admin-users-table th { padding: .9rem 1.15rem; color: #64748b; background: #f8fafc; font-size: .72rem; font-weight: 800; letter-spacing: .025em; text-align: left; }
 .admin-users-table td { padding: 1rem 1.15rem; border-block-start: 1px solid var(--auth-line); vertical-align: middle; }
 .admin-users-table tbody tr { transition: background .16s ease; }.admin-users-table tbody tr:hover { background: #f8fafc; }
 .admin-user-cell { display: flex; align-items: center; gap: .78rem; min-inline-size: 13rem; }.admin-user-cell strong { display: block; color: #1e293b; font-size: .9rem; }.admin-user-cell small, .admin-cell-note { display: block; margin-top: .26rem; color: var(--auth-muted); font-size: .73rem; }
 .admin-avatar { display: grid; flex: 0 0 auto; place-items: center; inline-size: 2.35rem; block-size: 2.35rem; border: 1px solid #c7d2fe; border-radius: .68rem; color: var(--auth-primary-strong); background: var(--auth-primary-soft); font: 760 .95rem/1 Georgia, "Noto Serif SC", serif; }
 .admin-role-form { display: flex; align-items: center; gap: .48rem; }.admin-role-form select { min-inline-size: 7.8rem; min-block-size: 2.25rem; padding: .45rem .55rem; }
+.admin-permission-summary { color: #334155; font-size: .78rem; font-weight: 680; }
+.admin-permissions { min-inline-size: 11rem; }
+.admin-permissions > summary { display: inline-flex; align-items: center; gap: .55rem; min-block-size: 2.25rem; padding: .45rem .65rem; border: 1px solid #c7d2fe; border-radius: .5rem; color: var(--auth-primary-strong); background: var(--auth-primary-soft); font-size: .76rem; font-weight: 700; cursor: pointer; list-style-position: inside; }
+.admin-permissions > summary:hover { border-color: #818cf8; background: #e0e7ff; }
+.admin-permissions > summary span { color: #475569; font: 650 .7rem/1 "Cascadia Mono", Consolas, monospace; }
+.admin-permissions-form { min-inline-size: 20rem; margin-block-start: .7rem; padding: .8rem; border: 1px solid var(--auth-line); border-radius: .65rem; background: #ffffff; box-shadow: 0 8px 20px rgba(15, 23, 42, .07); }
+.admin-permissions-form fieldset { display: grid; gap: .22rem; margin: 0 0 .7rem; padding: 0; border: 0; }
+.admin-permissions-form legend { margin-block-end: .4rem; color: #334155; font-size: .75rem; font-weight: 750; }
+.admin-permission-option { display: flex; align-items: flex-start; gap: .55rem; padding: .4rem .35rem; border-radius: .4rem; cursor: pointer; }
+.admin-permission-option:hover { background: #f8fafc; }
+.admin-permission-option input { flex: 0 0 auto; inline-size: 1rem; block-size: 1rem; margin: .1rem 0 0; accent-color: var(--auth-primary); }
+.admin-permission-option input:focus-visible { outline: 2px solid var(--auth-primary); outline-offset: 2px; }
+.admin-permission-option span { display: grid; gap: .12rem; }
+.admin-permission-option strong { color: #1e293b; font-size: .76rem; font-weight: 700; }
+.admin-permission-option small { color: #475569; font-size: .68rem; line-height: 1.4; }
+.admin-button-primary { border-color: var(--auth-primary); color: #ffffff; background: var(--auth-primary); }
+.admin-button-primary:hover { border-color: var(--auth-primary-strong); background: var(--auth-primary-strong); }
 .admin-role-chip, .admin-status { display: inline-flex; align-items: center; inline-size: fit-content; min-block-size: 1.9rem; padding: .36rem .6rem; border-radius: 999px; font-size: .76rem; font-weight: 740; }
 .admin-role-chip { border: 1px solid #cbd5e1; color: #475569; background: #f8fafc; }.admin-role-superadmin { border-color: #fde68a; color: #a16207; background: #fffbeb; }.admin-role-admin { border-color: #a7f3d0; color: #047857; background: #ecfdf5; }.admin-role-user { color: #475569; }
 .admin-status { gap: .45rem; color: #047857; background: #ecfdf5; }.admin-status i { inline-size: .42rem; block-size: .42rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px rgba(5, 150, 105, .1); }.admin-status.is-inactive { color: #b45309; background: #fffbeb; }
