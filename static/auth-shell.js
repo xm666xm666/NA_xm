@@ -20,10 +20,14 @@
     }
     return originalFetch(input, init);
   };
-  function mountUser(user) {
+  function mountUser(user, pendingRequests = 0) {
     const menu = document.getElementById("authUserMenu");
     if (!menu) return;
-    menu.innerHTML = `<details class="na-auth-menu"><summary title="账户菜单">${esc(user.username)} <span>${esc(user.role)}</span></summary><div><a href="/account">账户设置</a>${user.role === "superadmin" ? '<a href="/admin/users">管理用户</a>' : ""}<button type="button" data-na-logout>退出登录</button></div></details>`;
+    const count = Number.isFinite(Number(pendingRequests)) ? Math.max(0, Number(pendingRequests)) : 0;
+    const permissionLink = user.role === "superadmin"
+      ? `<a href="/admin/users#permission-requests">权限申请${count ? ` <span class="na-auth-count" aria-label="${count} 条待处理">${count}</span>` : ""}</a><a href="/admin/users#users">管理用户</a>`
+      : '<a href="/permissions/request">申请功能权限</a>';
+    menu.innerHTML = `<details class="na-auth-menu"><summary title="账户菜单">${esc(user.username)} <span>${esc(user.role)}</span></summary><div><a href="/account">账户设置</a>${permissionLink}<button type="button" data-na-logout>退出登录</button></div></details>`;
     menu.querySelector("[data-na-logout]")?.addEventListener("click", async (event) => {
       const button = event.currentTarget;
       button.disabled = true;
@@ -66,8 +70,8 @@
       if (!response.ok) throw new Error("not authenticated");
       const info = await response.json();
       csrfToken = info.csrf_token || "";
-      window.NAIdentity = { user:info.user, features:info.features || [], csrfToken };
-      applyPermissions(info.features || []); mountUser(info.user || {});
+      window.NAIdentity = { user:info.user, features:info.features || [], csrfToken, pendingPermissionRequests:info.pending_permission_requests || 0 };
+      applyPermissions(info.features || []); mountUser(info.user || {}, info.pending_permission_requests || 0);
       document.documentElement.dataset.naRole = info.user?.role || "";
       document.documentElement.classList.remove("na-permissions-pending");
       document.documentElement.classList.add("na-permissions-ready");
@@ -79,5 +83,5 @@
     }
   }
   authReady = load();
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => { applyPermissions(window.NAIdentity?.features || []); mountUser(window.NAIdentity?.user || {}); });
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => { applyPermissions(window.NAIdentity?.features || []); mountUser(window.NAIdentity?.user || {}, window.NAIdentity?.pendingPermissionRequests || 0); });
 })();

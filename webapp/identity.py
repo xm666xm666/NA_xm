@@ -32,7 +32,7 @@ from flask import (
     session,
     url_for,
 )
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, select
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, scoped_session, sessionmaker
 
@@ -62,6 +62,7 @@ FEATURE_OVERVIEW = "overview"
 FEATURE_AGENT = "agent"
 FEATURE_EXTRACTION = "extraction"
 FEATURE_USER_ADMIN = "user_admin"
+DEFAULT_USER_FEATURES = frozenset({FEATURE_EXTRACTION})
 
 # 可由超管逐账户授予的功能；角色标签不再隐式授予这些权限。
 FEATURE_OPTIONS = (
@@ -75,6 +76,8 @@ FEATURE_OPTIONS = (
     (FEATURE_AGENT, "智能体", "创建并执行智能体任务"),
 )
 FEATURE_KEYS = frozenset(feature for feature, _label, _description in FEATURE_OPTIONS)
+FEATURE_ORDER = tuple(feature for feature, _label, _description in FEATURE_OPTIONS)
+FEATURE_LABELS = {feature: label for feature, label, _description in FEATURE_OPTIONS}
 
 # 产物不共享一个笼统的“下载”权限：同一个通用接口会服务于数据汇总、
 # 上游信息、账单和一表总览。按类型归属，才能既让管理员正常使用其已获
@@ -134,7 +137,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(512))
     role: Mapped[str] = mapped_column(String(24), default=ROLE_USER, index=True)
-    features_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    features_json: Mapped[str] = mapped_column(Text, default='["extraction"]', server_default='["extraction"]', nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -149,6 +152,20 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     tokens: Mapped[list["AccountToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class PermissionRequest(Base):
+    __tablename__ = "web_permission_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
+    requested_features_json: Mapped[str] = mapped_column(Text, nullable=False)
+    approved_features_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True, nullable=False)
+    reviewer_note: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
+    reviewed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("web_users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AccountToken(Base):
@@ -301,7 +318,8 @@ class IdentityStore:
             username=username,
             email=email,
             password_hash=self.passwords.hash(password),
-            role=role,
+            role=ROLE_USER if role != ROLE_SUPERADMIN else ROLE_SUPERADMIN,
+            features_json=json.dumps(sorted(DEFAULT_USER_FEATURES)),
             email_verified=email_verified,
             must_change_password=must_change_password,
             is_bootstrap_superadmin=is_bootstrap_superadmin,
@@ -521,7 +539,10 @@ class IdentityManager:
             PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         )
         self._configure_server_sessions(production, root_dir)
-        self.store = IdentityStore(database_url, auto_create_schema=os.getenv("WEB_AUTO_CREATE_SCHEMA", "true" if not production else "false").lower() == "true")
+        auto_create_schema = os.getenv("WEB_AUTO_CREATE_SCHEMA", "true" if not production else "false").lower() == "true"
+        if auto_create_schema and not production:
+            self._upgrade_local_schema(root_dir, database_url)
+        self.store = IdentityStore(database_url, auto_create_schema=auto_create_schema)
         self.store.bootstrap_superadmin(os.getenv("BOOTSTRAP_ADMIN_PASSWORD"))
         app.extensions["identity"] = self
         app.teardown_appcontext(self.store.close)
@@ -551,6 +572,20 @@ class IdentityManager:
             if production:
                 raise RuntimeError("缺少 flask-session/redis 依赖，无法启用生产会话") from exc
             _LOG.warning("Flask-Session 未安装，开发环境退回 Flask 签名会话")
+
+    @staticmethod
+    def _upgrade_local_schema(root_dir: Path, database_url: str) -> None:
+        config_path = root_dir / "alembic.ini"
+        if not config_path.is_file():
+            return
+        from alembic import command
+        from alembic.config import Config
+
+        config = Config(str(config_path))
+        config.set_main_option("script_location", str(root_dir / "migrations"))
+        config.set_main_option("prepend_sys_path", str(root_dir).replace("%", "%%"))
+        config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+        command.upgrade(config, "head")
 
     def _load_current_user(self) -> None:
         g.request_id = request.headers.get("X-Request-ID") or secrets.token_hex(8)
@@ -587,6 +622,10 @@ class IdentityManager:
         if not isinstance(values, list):
             return set()
         return {str(value) for value in values if str(value) in FEATURE_KEYS}
+
+    @staticmethod
+    def role_for_features(features: set[str]) -> str:
+        return ROLE_ADMIN if features - DEFAULT_USER_FEATURES else ROLE_USER
 
     def api_feature(self, path: str) -> str | None:
         """将每一个业务 API 收敛到唯一能力；未知 API 一律不自动放行。
@@ -778,13 +817,93 @@ class IdentityManager:
             user = self.current_user()
             if not user:
                 return jsonify({"authenticated": False}), 401
+            pending_requests = 0
+            if user.role == ROLE_SUPERADMIN:
+                pending_requests = int(
+                    self.store.session().scalar(
+                        select(func.count(PermissionRequest.id)).where(PermissionRequest.status == "pending")
+                    )
+                    or 0
+                )
             return jsonify(
                 {
                     "authenticated": True,
                     "user": self.public_user(user),
                     "features": sorted(self.user_features(user)),
+                    "pending_permission_requests": pending_requests,
                     "csrf_token": self.csrf_token(),
                 }
+            )
+
+        @bp.get("/permissions/request")
+        @bp.post("/permissions/request")
+        def permission_request():
+            blocked = self.page_guard()
+            if blocked:
+                return blocked
+            user = self.current_user()
+            if user.role == ROLE_SUPERADMIN:
+                return redirect(url_for("identity.admin_users", _anchor="permission-requests"))
+            db = self.store.session()
+            error = ""
+            success = ""
+            if request.method == "POST":
+                if not self._verify_form_csrf():
+                    error = "页面校验已失效，请刷新后重试"
+                else:
+                    selected = {str(value) for value in request.form.getlist("feature")}
+                    if not selected or not selected <= FEATURE_KEYS:
+                        error = "请选择至少一项有效功能"
+                    else:
+                        selected -= self.user_features(user)
+                        pending = db.scalar(
+                            select(PermissionRequest).where(
+                                PermissionRequest.user_id == user.id,
+                                PermissionRequest.status == "pending",
+                            )
+                        )
+                        if pending:
+                            error = "你已有待处理申请，请等待超管处理后再提交"
+                        elif not selected:
+                            error = "所选功能已全部开通"
+                        else:
+                            item = PermissionRequest(
+                                user_id=user.id,
+                                requested_features_json=json.dumps(sorted(selected), ensure_ascii=False),
+                            )
+                            db.add(item)
+                            db.commit()
+                            self.store.audit(
+                                "permission.requested",
+                                resource=f"permission_request:{item.id}",
+                                detail={"features": sorted(selected)},
+                            )
+                            success = "申请已通知超管 admin，请等待处理。"
+            history = db.scalars(
+                select(PermissionRequest)
+                .where(PermissionRequest.user_id == user.id)
+                .order_by(PermissionRequest.created_at.desc())
+            ).all()
+            history_features = {}
+            for item in history:
+                try:
+                    raw_keys = item.approved_features_json if item.status == "approved" else item.requested_features_json
+                    values = json.loads(raw_keys or "[]")
+                except (TypeError, ValueError):
+                    values = []
+                keys = {str(value) for value in values} if isinstance(values, list) else set()
+                history_features[item.id] = [FEATURE_LABELS[key] for key in FEATURE_ORDER if key in keys]
+            current_features = self.user_features(user)
+            available_options = [option for option in FEATURE_OPTIONS if option[0] not in current_features]
+            return render_template(
+                "permission_request.html",
+                user=user,
+                feature_options=available_options,
+                requests=history,
+                history_features=history_features,
+                csrf_token=self.csrf_token(),
+                error=error,
+                success=success,
             )
 
         @bp.get("/account")
@@ -833,23 +952,47 @@ class IdentityManager:
                 return blocked
             users = self.store.session().scalars(select(User).where(User.is_deleted.is_(False)).order_by(User.created_at.desc())).all()
             permission_map = {user.id: self.user_features(user) for user in users}
+            pending_requests = self.store.session().scalars(
+                select(PermissionRequest)
+                .where(PermissionRequest.status == "pending")
+                .order_by(PermissionRequest.created_at.asc())
+            ).all()
+            request_users = {
+                request_item.id: self.store.session().get(User, request_item.user_id)
+                for request_item in pending_requests
+            }
+            request_feature_map = {}
+            for item in pending_requests:
+                try:
+                    values = json.loads(item.requested_features_json or "[]")
+                except (TypeError, ValueError):
+                    values = []
+                keys = {str(value) for value in values} if isinstance(values, list) else set()
+                request_feature_map[item.id] = [option for option in FEATURE_OPTIONS if option[0] in keys]
             return render_template(
                 "admin_users.html",
                 users=users,
-                roles=(ROLE_ADMIN, ROLE_USER),
                 feature_options=FEATURE_OPTIONS,
                 permission_map=permission_map,
+                pending_requests=pending_requests,
+                request_users=request_users,
+                request_feature_map=request_feature_map,
+                feature_labels={key: label for key, label, _description in FEATURE_OPTIONS},
                 csrf_token=self.csrf_token(),
                 current_user=self.current_user(),
             )
 
-        @bp.post("/admin/users/<int:user_id>/role")
-        def admin_user_role(user_id: int):
-            return self._admin_user_action(user_id, "role")
-
         @bp.post("/admin/users/<int:user_id>/permissions")
         def admin_user_permissions(user_id: int):
             return self._admin_user_action(user_id, "permissions")
+
+        @bp.post("/admin/permission-requests/<int:request_id>/approve")
+        def admin_permission_request_approve(request_id: int):
+            return self._admin_permission_request_action(request_id, "approve")
+
+        @bp.post("/admin/permission-requests/<int:request_id>/reject")
+        def admin_permission_request_reject(request_id: int):
+            return self._admin_permission_request_action(request_id, "reject")
 
         @bp.post("/admin/users/<int:user_id>/status")
         def admin_user_status(user_id: int):
@@ -889,18 +1032,12 @@ class IdentityManager:
             abort(400, "默认超管 admin 不能被降权、停用或删除")
         if target.role == ROLE_SUPERADMIN:
             abort(400, "超管账户不能通过普通用户管理操作修改")
-        if action == "role":
-            role = str(request.form.get("role") or "")
-            if role not in {ROLE_ADMIN, ROLE_USER}:
-                abort(400, "角色无效")
-            target.role = role
-            detail = {"role": role}
-            event = "user.role_changed"
-        elif action == "permissions":
+        if action == "permissions":
             selected = {str(value) for value in request.form.getlist("feature")}
             if not selected <= FEATURE_KEYS:
                 abort(400, "功能权限无效")
             target.features_json = json.dumps(sorted(selected), ensure_ascii=False)
+            target.role = self.role_for_features(selected)
             detail = {"features": sorted(selected)}
             event = "user.permissions_changed"
         elif action == "status":
@@ -916,7 +1053,52 @@ class IdentityManager:
             abort(400)
         db.commit()
         self.store.audit(event, resource=f"user:{target.id}", detail=detail)
-        return redirect(url_for("identity.admin_users"))
+        return redirect(url_for("identity.admin_users", _anchor="users"))
+
+    def _admin_permission_request_action(self, request_id: int, action: str) -> Response:
+        blocked = self.page_guard(FEATURE_USER_ADMIN)
+        if blocked:
+            return blocked
+        if not self._verify_form_csrf():
+            abort(400)
+        db = self.store.session()
+        item = db.get(PermissionRequest, request_id)
+        if not item or item.status != "pending":
+            abort(404)
+        requester = db.get(User, item.user_id)
+        if not requester or requester.role == ROLE_SUPERADMIN:
+            abort(404)
+        if requester.is_deleted and action == "approve":
+            abort(404)
+        try:
+            values = json.loads(item.requested_features_json or "[]")
+        except (TypeError, ValueError):
+            values = []
+        requested = {str(value) for value in values} if isinstance(values, list) else set()
+        requested &= FEATURE_KEYS
+        if action == "approve":
+            selected = {str(value) for value in request.form.getlist("feature")}
+            if not selected or not selected <= requested:
+                abort(400, "请选择至少一项有效的申请权限")
+            grants = self.user_features(requester) | selected
+            requester.features_json = json.dumps(sorted(grants), ensure_ascii=False)
+            requester.role = self.role_for_features(grants)
+            item.approved_features_json = json.dumps(sorted(selected), ensure_ascii=False)
+            item.status = "approved"
+            event = "permission.approved"
+            detail = {"features": sorted(selected), "role": requester.role}
+        elif action == "reject":
+            item.status = "rejected"
+            event = "permission.rejected"
+            detail = {"features": sorted(requested)}
+        else:
+            abort(400)
+        item.reviewer_note = str(request.form.get("reviewer_note") or "").strip()[:1000]
+        item.reviewed_by_user_id = self.current_user().id
+        item.reviewed_at = _utcnow()
+        db.commit()
+        self.store.audit(event, resource=f"permission_request:{item.id}", detail=detail)
+        return redirect(url_for("identity.admin_users", _anchor="permission-requests"))
 
     @staticmethod
     def public_user(user: User) -> dict[str, Any]:

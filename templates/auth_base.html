@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f7fb">
   <title>{{ title or 'NA 自动配置 · 账户中心' }}</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/auth-pages.css?v=auth-light-1">
+  <link rel="stylesheet" href="/static/auth-pages.css?v=auth-light-2">
   <script src="/static/auth-pages.js?v=web-2" defer></script>
 </head>
 <body class="{% block body_class %}auth-page{% endblock %}">
@@ -24,7 +24,7 @@
           <p>网站账户仅用于本平台访问控制，不会替代或读取 New API 的渠道密钥。</p>
         </div>
         <ul class="auth-promises">
-          <li><span aria-hidden="true">✓</span>三角色权限边界</li>
+          <li><span aria-hidden="true">✓</span>逐项功能授权</li>
           <li><span aria-hidden="true">✓</span>服务端会话与 CSRF 防护</li>
           <li><span aria-hidden="true">✓</span>无邮件的恢复验证码</li>
         </ul>

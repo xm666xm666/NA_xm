@@ -1,0 +1,47 @@
+{% extends "auth_base.html" %}
+{% block content %}
+  <header class="auth-heading">
+    <p class="auth-kicker">账户权限</p>
+    <h1 id="auth-page-title">申请功能权限</h1>
+    <p class="auth-desc">你的默认权限是智能提取。勾选需要使用的功能后，超管 admin 会收到通知并决定是否开通。</p>
+  </header>
+  {% if error %}<p class="auth-alert error" role="alert">{{ error }}</p>{% endif %}
+  {% if success %}<p class="auth-alert success" role="status">{{ success }}</p>{% endif %}
+
+  {% set has_pending = requests|selectattr('status', 'equalto', 'pending')|list|length > 0 %}
+  {% if has_pending %}
+    <p class="auth-alert permission-pending-note" role="status">已有申请等待超管处理；处理完成后可以再次申请。</p>
+  {% elif feature_options %}
+    <form method="post" class="auth-form permission-request-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <fieldset class="permission-request-options">
+        <legend>选择要申请的功能</legend>
+        {% for feature, label, description in feature_options %}
+          <label class="permission-request-option">
+            <input type="checkbox" name="feature" value="{{ feature }}">
+            <span><strong>{{ label }}</strong><small>{{ description }}</small></span>
+          </label>
+        {% endfor %}
+      </fieldset>
+      <button class="auth-primary" type="submit">通知超管 admin <span aria-hidden="true">→</span></button>
+    </form>
+  {% else %}
+    <p class="auth-alert success" role="status">你已拥有全部可申请的功能权限。</p>
+  {% endif %}
+
+  {% if requests %}
+    <section class="permission-history" aria-labelledby="permission-history-title">
+      <h2 id="permission-history-title">申请记录</h2>
+      <ul>
+        {% for item in requests %}
+          <li>
+            <div><strong>{{ history_features[item.id]|join('、') }}</strong><time>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</time></div>
+            <span class="permission-request-status is-{{ item.status }}">{{ '待处理' if item.status == 'pending' else ('已批准' if item.status == 'approved' else '已拒绝') }}</span>
+            {% if item.reviewer_note %}<small>{{ item.reviewer_note }}</small>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+  <div class="auth-links"><a href="/">返回控制台</a><a href="/account">账户设置</a></div>
+{% endblock %}

@@ -14,12 +14,52 @@
         <div>
           <p class="admin-section-label">账户与权限</p>
           <h1 id="auth-page-title">用户目录</h1>
-          <p>按账户逐项决定可访问的功能。角色名称不会自动授予功能权限；系统保留的 <code>admin</code> 超管始终受保护并拥有完整权限。</p>
+          <p>按账户逐项决定可访问的功能。新增权限会自动将用户升级为管理员；系统保留的 <code>admin</code> 超管始终受保护并拥有完整权限。</p>
         </div>
         <div class="admin-count" aria-label="当前用户数量"><strong>{{ users|length }}</strong><span>个有效账户</span></div>
       </header>
 
-      <div class="admin-table-wrap" tabindex="0" aria-label="用户列表，窄屏可横向查看">
+      <section class="admin-inbox" id="permission-requests" aria-labelledby="permission-requests-title">
+        <header class="admin-inbox-head">
+          <div><h2 id="permission-requests-title">权限申请</h2><p>用户选择需要的功能后会在这里通知超管。</p></div>
+          <span class="admin-inbox-count">{{ pending_requests|length }} 条待处理</span>
+        </header>
+        {% if pending_requests %}
+          <div class="admin-request-list">
+            {% for item in pending_requests %}
+              {% set requester = request_users[item.id] %}
+              <article class="admin-request-item">
+                <div class="admin-request-meta">
+                  <strong>{{ requester.username if requester else '账户已删除' }}</strong>
+                  <span>{{ requester.email if requester else '该申请账户已不存在' }}</span>
+                  <time>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</time>
+                </div>
+                <form method="post" action="/admin/permission-requests/{{ item.id }}/approve" class="admin-request-review-form">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <fieldset>
+                    <legend>选择要开通的权限</legend>
+                    {% for feature, label, description in request_feature_map[item.id] %}
+                      <label class="admin-permission-option">
+                        <input type="checkbox" name="feature" value="{{ feature }}" checked>
+                        <span><strong>{{ label }}</strong><small>{{ description }}</small></span>
+                      </label>
+                    {% endfor %}
+                  </fieldset>
+                  <label class="admin-review-note">处理说明 <textarea name="reviewer_note" rows="2" maxlength="1000" placeholder="可选，用户可在申请记录中查看"></textarea></label>
+                  <div class="admin-actions">
+                    <button class="admin-button admin-button-primary" type="submit" {% if not requester or requester.is_deleted %}disabled{% endif %}>批准所选权限</button>
+                    <button class="admin-button admin-button-danger" type="submit" formaction="/admin/permission-requests/{{ item.id }}/reject" formmethod="post">拒绝申请</button>
+                  </div>
+                </form>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="admin-inbox-empty">目前没有待处理的权限申请。</p>
+        {% endif %}
+      </section>
+
+      <div class="admin-table-wrap" id="users" tabindex="0" aria-label="用户列表，窄屏可横向查看">
         <table class="admin-users-table">
           <thead>
             <tr><th scope="col">用户</th><th scope="col">角色</th><th scope="col">功能权限</th><th scope="col">访问状态</th><th scope="col">创建时间</th><th scope="col">账户操作</th></tr>
@@ -35,19 +75,8 @@
                   </div>
                 </td>
                 <td data-label="角色">
-                  {% if protected %}
-                    <span class="admin-role-chip admin-role-{{ user.role }}">{{ '超管' if user.role == 'superadmin' else ('管理员' if user.role == 'admin' else '普通用户') }}</span>
-                    <small class="admin-cell-note">{{ '系统保留账户' if user.is_bootstrap_superadmin else ('超管账户' if user.role == 'superadmin' else '当前登录账户') }}</small>
-                  {% else %}
-                    <form method="post" action="/admin/users/{{ user.id }}/role" class="admin-role-form">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                      <label class="sr-only" for="role-{{ user.id }}">{{ user.username }} 的角色</label>
-                      <select id="role-{{ user.id }}" name="role">
-                        {% for role in roles %}<option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ '超管' if role == 'superadmin' else ('管理员' if role == 'admin' else '普通用户') }}</option>{% endfor %}
-                      </select>
-                      <button class="admin-button admin-button-quiet" type="submit">保存</button>
-                    </form>
-                  {% endif %}
+                  <span class="admin-role-chip admin-role-{{ user.role }}">{{ '超管' if user.role == 'superadmin' else ('管理员' if user.role == 'admin' else '普通用户') }}</span>
+                  <small class="admin-cell-note">{{ '超管固定权限' if user.role == 'superadmin' else '根据已开通功能自动判定' }}</small>
                 </td>
                 <td data-label="功能权限">
                   {% if user.role == 'superadmin' %}
@@ -96,7 +125,7 @@
           </tbody>
         </table>
       </div>
-      <footer class="admin-workspace-foot"><p>角色只作账户分类；功能访问按账户单独配置。权限变更、角色变更、启停和删除都会写入安全审计日志。</p><a href="/">返回控制台 <span aria-hidden="true">→</span></a></footer>
+      <footer class="admin-workspace-foot"><p>功能授权、申请审批、启停和删除都会写入安全审计日志。</p><a href="/">返回控制台 <span aria-hidden="true">→</span></a></footer>
     </section>
   </main>
 {% endblock %}

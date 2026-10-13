@@ -3,7 +3,7 @@
   <header class="auth-heading">
     <p class="auth-kicker">创建账户</p>
     <h1 id="auth-page-title">注册普通用户</h1>
-    <p class="auth-desc">注册后默认为用户角色；管理员与超管权限由超管统一调整。</p>
+    <p class="auth-desc">注册后默认只有智能提取权限；超管可批准其它功能，开通额外权限后账户会自动变为管理员。</p>
   </header>
   {% if error %}<p class="auth-alert error" role="alert">{{ error }}</p>{% endif %}
   {% if success %}<p class="auth-alert success" role="status">{{ success }}</p>{% endif %}
