@@ -59,7 +59,8 @@ html.na-bg-simple .bg-layer::before {
 .na-view[hidden],
 .na-ws-grid[hidden],
 .na-ws-pulse[hidden],
-.na-job-bar[hidden] {
+.na-job-bar[hidden],
+.na-no-permissions[hidden] {
   display: none !important;
 }
 /* 除导航/卡片外，策略摘要、操作按钮等也用 data-permission 标记。 */
