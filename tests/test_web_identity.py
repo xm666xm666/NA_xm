@@ -15,7 +15,21 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from webapp.identity import FEATURE_AGENT, FEATURE_BATCH, FEATURE_DATA_SUMMARY, FEATURE_UPSTREAM, ROLE_ADMIN, ROLE_USER, User, init_identity
+from webapp.identity import (
+    FEATURE_AGENT,
+    FEATURE_BATCH,
+    FEATURE_DATA_SUMMARY,
+    FEATURE_EXTRACTION,
+    FEATURE_OVERVIEW,
+    FEATURE_UPSTREAM,
+    FEATURE_UPSTREAM_BILL,
+    FEATURE_USER_ADMIN,
+    FEATURE_WORKSPACE,
+    ROLE_ADMIN,
+    ROLE_USER,
+    User,
+    init_identity,
+)
 
 
 class WebsiteIdentityTests(unittest.TestCase):
@@ -89,7 +103,22 @@ class WebsiteIdentityTests(unittest.TestCase):
             data={"identity": "admin", "password": "test-password-2026", "csrf_token": self._csrf()},
         )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(self.client.get("/auth/me").get_json()["user"]["role"], "superadmin")
+        superadmin_info = self.client.get("/auth/me").get_json()
+        self.assertEqual(superadmin_info["user"]["role"], "superadmin")
+        self.assertSetEqual(
+            set(superadmin_info["features"]),
+            {
+                FEATURE_WORKSPACE,
+                FEATURE_BATCH,
+                FEATURE_DATA_SUMMARY,
+                FEATURE_UPSTREAM,
+                FEATURE_UPSTREAM_BILL,
+                FEATURE_OVERVIEW,
+                FEATURE_AGENT,
+                FEATURE_EXTRACTION,
+                FEATURE_USER_ADMIN,
+            },
+        )
         self.assertEqual(self.client.get("/").status_code, 302)
         response = self.client.post(
             "/account",

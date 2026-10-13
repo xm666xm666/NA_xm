@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/static/na-components.css?v=auth-2" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=auth-1"></script>
-  <script src="/static/auth-shell.js?v=web-4"></script>
+  <script src="/static/auth-shell.js?v=web-5"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <style>
     .na-llm-panel h3 { margin: 0 0 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--na-accent-2); font-family: var(--na-font-display); }
@@ -245,23 +245,23 @@
   </div>
 
   <div id="viewSummary" class="na-view" role="tabpanel" aria-labelledby="tabSummary" hidden>
-    <iframe id="summaryFrame" class="na-iframe" title="数据汇总" src="/static/summary_ui.html?embed=1&v=auth-1"></iframe>
+    <iframe id="summaryFrame" class="na-iframe" title="数据汇总" data-src="/static/summary_ui.html?embed=1&v=auth-1"></iframe>
   </div>
 
   <div id="viewUpstream" class="na-view" role="tabpanel" aria-labelledby="tabUpstream" hidden>
-    <iframe id="upstreamFrame" class="na-iframe" title="上游信息" src="/static/upstream_ui.html?embed=1&v=art-1"></iframe>
+    <iframe id="upstreamFrame" class="na-iframe" title="上游信息" data-src="/static/upstream_ui.html?embed=1&v=art-1"></iframe>
   </div>
 
   <div id="viewBill" class="na-view" role="tabpanel" aria-labelledby="tabBill" hidden>
-    <iframe id="billFrame" class="na-iframe" title="上游账单" src="/static/bill_ui.html?embed=1&v=bill-3"></iframe>
+    <iframe id="billFrame" class="na-iframe" title="上游账单" data-src="/static/bill_ui.html?embed=1&v=bill-3"></iframe>
   </div>
 
   <div id="viewOverview" class="na-view" role="tabpanel" aria-labelledby="tabOverview" hidden>
-    <iframe id="overviewFrame" class="na-iframe" title="一表总览" src="/static/overview_ui.html?embed=1&v=auth-1"></iframe>
+    <iframe id="overviewFrame" class="na-iframe" title="一表总览" data-src="/static/overview_ui.html?embed=1&v=auth-1"></iframe>
   </div>
 
   <div id="viewPipeline" class="na-view" role="tabpanel" aria-labelledby="tabPipeline" hidden>
-    <iframe id="pipelineFrame" class="na-iframe" title="全流程智能体" src="/static/agent_ui.html?embed=1&v=art-1"></iframe>
+    <iframe id="pipelineFrame" class="na-iframe" title="全流程智能体" data-src="/static/agent_ui.html?embed=1&v=art-1"></iframe>
   </div>
 
   <script>
@@ -472,6 +472,7 @@
     };
     let hashLock = false;
     let workspaceSummary = {};
+    let permissionFeatures = null;
 
     const NAV_MOTTOS = [
       "先对齐再落笔",
@@ -544,6 +545,19 @@
         .find((button) => !button.hidden)?.dataset.view || "workspace";
     }
 
+    function viewIsPermitted(name) {
+      const tab = Array.from(document.querySelectorAll(".na-nav-tabs button[data-view]"))
+        .find((button) => button.dataset.view === name);
+      return Boolean(tab && !tab.hidden && (!permissionFeatures || permissionFeatures.has(tab.dataset.permission)));
+    }
+
+    function ensureViewFrameLoaded(name) {
+      const frameId = VIEW_FRAME[name];
+      const frame = frameId && $(frameId);
+      const source = frame?.dataset.src;
+      if (frame && source && !frame.getAttribute("src")) frame.setAttribute("src", source);
+    }
+
     function tellFrameArtifacts(name) {
       const frame = VIEW_FRAME[name] && $(VIEW_FRAME[name]);
       if (!frame) return;
@@ -563,9 +577,7 @@
         overview: $("viewOverview"),
         pipeline: $("viewPipeline"),
       };
-      const requestedTab = Array.from(document.querySelectorAll(".na-nav-tabs button[data-view]"))
-        .find((button) => button.dataset.view === name);
-      if (!views[name] || requestedTab?.hidden) name = firstPermittedView();
+      if (!views[name] || !viewIsPermitted(name)) name = firstPermittedView();
       document.querySelectorAll(".na-nav-tabs button[data-view]").forEach((btn) => {
         const on = btn.dataset.view === name;
         btn.classList.toggle("active", on);
@@ -585,6 +597,7 @@
         hashLock = true;
         location.hash = hash;
       }
+      ensureViewFrameLoaded(name);
       if (name === "overview") tellOverview(extra);
       if (name === "workspace") loadWorkspaceSummary();
       else tellFrameArtifacts(name);
@@ -977,9 +990,10 @@
       switchView(HASH_VIEW[parsed.view] || "workspace", { analysis: parsed.params.get("analysis") || "" });
     });
     window.addEventListener("resize", updateNavIndicator);
-    window.addEventListener("na-permissions-ready", () => {
-      const active = document.querySelector(".na-nav-tabs button.active[data-view]");
-      if (active?.hidden) switchView(firstPermittedView());
+    window.addEventListener("na-permissions-ready", (event) => {
+      permissionFeatures = new Set(event.detail?.features || []);
+      const parsed = parseLocationHash();
+      switchView(HASH_VIEW[parsed.view] || firstPermittedView(), { analysis: parsed.params.get("analysis") || "" });
     });
 
     const bootHash = parseLocationHash();
