@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="na-brand-bridge">
+<html lang="zh-CN" class="na-brand-bridge na-permissions-pending">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,10 +7,10 @@
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/static/favicon.svg" />
   <link rel="stylesheet" href="/static/na-theme.css?v=auth-1" />
-  <link rel="stylesheet" href="/static/na-components.css?v=auth-2" />
+  <link rel="stylesheet" href="/static/na-components.css?v=auth-3" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=auth-1"></script>
-  <script src="/static/auth-shell.js?v=web-5"></script>
+  <script src="/static/auth-shell.js?v=web-6"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <style>
     .na-llm-panel h3 { margin: 0 0 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--na-accent-2); font-family: var(--na-font-display); }
@@ -49,6 +49,8 @@
     .na-auth-menu > div { position: absolute; right: 0; top: calc(100% + .65rem); display: grid; min-width: 124px; padding: .4rem; border: 1px solid var(--na-border); border-radius: .55rem; background: var(--na-panel-solid, #0f172a); box-shadow: 0 12px 35px rgba(0,0,0,.28); z-index: 99; }
     .na-auth-menu a, .na-auth-menu button { padding: .45rem .55rem; color: var(--na-text-muted); text-decoration: none; background: transparent; border: 0; text-align: left; font: inherit; cursor: pointer; border-radius: .35rem; }
     .na-auth-menu a:hover, .na-auth-menu button:hover { background: var(--na-panel-hover); color: var(--na-text); }
+    html.na-permissions-pending .na-nav-tabs,
+    html.na-permissions-pending .na-view { visibility: hidden; pointer-events: none; }
   </style>
 </head>
 <body class="na-app">
@@ -119,14 +121,14 @@
           <ul class="na-ws-list" id="wsArtifactList"></ul>
         </section>
         <section class="na-panel na-panel-static">
-          <h2>认证与策略</h2>
+          <h2>站点认证</h2>
           <div id="wsEnvChips"></div>
-          <p class="na-hint" id="wsPolicyHint"></p>
+          <p class="na-hint" id="wsPolicyHint" data-permission="overview"></p>
           <div class="na-ws-auth-actions">
             <button type="button" class="na-btn na-btn-secondary" id="btnWsAuth">全局站点认证</button>
-            <button type="button" class="na-btn na-btn-ghost" id="btnWsPolicy">去总览改策略</button>
+            <button type="button" class="na-btn na-btn-ghost" id="btnWsPolicy" data-permission="overview">去总览改策略</button>
           </div>
-          <details class="na-policy-edit" id="wsPolicyEdit">
+          <details class="na-policy-edit" id="wsPolicyEdit" data-permission="overview">
             <summary>在此编辑卫生策略</summary>
             <div class="na-policy-form">
               <div class="na-policy-grid na-ws-policy-grid">
@@ -249,7 +251,7 @@
   </div>
 
   <div id="viewUpstream" class="na-view" role="tabpanel" aria-labelledby="tabUpstream" hidden>
-    <iframe id="upstreamFrame" class="na-iframe" title="上游信息" data-src="/static/upstream_ui.html?embed=1&v=art-1"></iframe>
+    <iframe id="upstreamFrame" class="na-iframe" title="上游信息" data-src="/static/upstream_ui.html?embed=1&v=art-2"></iframe>
   </div>
 
   <div id="viewBill" class="na-view" role="tabpanel" aria-labelledby="tabBill" hidden>
@@ -472,7 +474,30 @@
     };
     let hashLock = false;
     let workspaceSummary = {};
-    let permissionFeatures = null;
+    let permissionFeatures = Array.isArray(window.NAIdentity?.features) ? new Set(window.NAIdentity.features) : null;
+    let permissionsReady = Boolean(permissionFeatures);
+
+    const ARTIFACT_FEATURE = {
+      summary: "data_summary",
+      balance: "data_summary",
+      upstream: "upstream",
+      overview: "overview",
+      analysis: "overview",
+      bill: "upstream_bill",
+      bill_azure: "upstream_bill",
+      bill_combined: "upstream_bill",
+      logs: "batch",
+    };
+    const TASK_FEATURE = {
+      onboard: "extraction",
+      inventory: "data_summary",
+      upstream: "upstream",
+      bill: "upstream_bill",
+      hygiene: "overview",
+      coverage: "overview",
+      pipeline: "agent",
+      auth: "workspace",
+    };
 
     const NAV_MOTTOS = [
       "先对齐再落笔",
@@ -540,15 +565,19 @@
       pipeline: "pipelineFrame",
     };
 
+    function hasPermission(feature) {
+      return Boolean(permissionsReady && feature && permissionFeatures?.has(feature));
+    }
+
     function firstPermittedView() {
       return Array.from(document.querySelectorAll(".na-nav-tabs button[data-view]"))
-        .find((button) => !button.hidden)?.dataset.view || "workspace";
+        .find((button) => !button.hidden && hasPermission(button.dataset.permission))?.dataset.view || "workspace";
     }
 
     function viewIsPermitted(name) {
       const tab = Array.from(document.querySelectorAll(".na-nav-tabs button[data-view]"))
         .find((button) => button.dataset.view === name);
-      return Boolean(tab && !tab.hidden && (!permissionFeatures || permissionFeatures.has(tab.dataset.permission)));
+      return Boolean(tab && !tab.hidden && hasPermission(tab.dataset.permission));
     }
 
     function ensureViewFrameLoaded(name) {
@@ -567,6 +596,7 @@
     }
 
     function switchView(name, extra) {
+      if (!permissionsReady) return;
       const views = {
         workspace: $("viewWorkspace"),
         agent: $("viewAgent"),
@@ -650,6 +680,7 @@
     }
 
     function openArtifactView(item) {
+      if (!hasPermission(ARTIFACT_FEATURE[item?.kind])) return;
       const view = ARTIFACT_VIEW[item?.kind];
       if (!view) return;
       if (view === "overview") switchView("overview", { analysis: workspaceSummary.analysis_file || item.filename || "" });
@@ -657,6 +688,7 @@
     }
 
     function runWorkspaceTask(task) {
+      if (!hasPermission(TASK_FEATURE[task])) return;
       if (task === "onboard") switchView("agent");
       else if (task === "inventory") switchView("summary");
       else if (task === "upstream") switchView("upstream");
@@ -668,10 +700,10 @@
     }
 
     async function downloadArtifact(item) {
-      if (!item?.filename) return;
+      if (!item?.filename || !hasPermission(ARTIFACT_FEATURE[item.kind])) return;
       try {
         await NAUi.downloadUrl(
-          `/api/artifacts/download?file=${encodeURIComponent(item.filename)}`,
+          `/api/artifacts/download?kind=${encodeURIComponent(item.kind)}&file=${encodeURIComponent(item.filename)}`,
           item.filename,
           { confirmSecrets: Boolean(item.has_secrets) },
         );
@@ -733,6 +765,7 @@
     }
 
     async function openWsAuthDrawer() {
+      if (!hasPermission("workspace")) return;
       await loadWorkspaceSummary();
       fillWsAuthDrawer(workspaceSummary.env_sites || []);
       const el = $("wsAuthDrawer");
@@ -745,23 +778,35 @@
     }
 
     function renderWorkspace(data) {
-      workspaceSummary = data || {};
-      const missing = Boolean(data.analysis_missing);
+      data = data || {};
+      workspaceSummary = data;
+      const canOverview = hasPermission("overview");
+      const canAgent = hasPermission("agent");
+      const canSummary = hasPermission("data_summary");
+      const canUpstream = hasPermission("upstream");
+      const canBill = hasPermission("upstream_bill");
+      const missing = canOverview && Boolean(data.analysis_missing);
       const pendingHigh = Number(data.pending_high);
       const openCount = Number(data.open_count);
       const coverageOpen = Number(data.coverage_open);
-      const jobs = data.active_job_list || [];
+      const jobs = canAgent && Array.isArray(data.active_job_list) ? data.active_job_list : [];
 
       const hero = $("wsHeroSub");
       if (hero) {
-        if (missing) hero.textContent = "尚无分析表，不会显示假 0。可先盘点、采上游，再到一表总览生成卫生建议。";
-        else if (Number.isFinite(pendingHigh) && pendingHigh > 0) hero.textContent = `有 ${pendingHigh} 条高优先级待处置${Number.isFinite(openCount) ? `（未处理共 ${openCount}）` : ""}。点卡片即可跳转。`;
-        else hero.textContent = "今日暂无高优先级待办。覆盖与采集进度见下方色条。";
+        if (!canOverview) {
+          hero.textContent = "已按当前账户权限展示可用任务、进度与历史产物。";
+        } else if (missing) {
+          hero.textContent = "尚无分析表，不会显示假 0。可先盘点、采上游，再到一表总览生成卫生建议。";
+        } else if (Number.isFinite(pendingHigh) && pendingHigh > 0) {
+          hero.textContent = `有 ${pendingHigh} 条高优先级待处置${Number.isFinite(openCount) ? `（未处理共 ${openCount}）` : ""}。点卡片即可跳转。`;
+        } else {
+          hero.textContent = "今日暂无高优先级待办。覆盖与采集进度见下方色条。";
+        }
       }
 
       const jobBar = $("wsJobBar");
       if (jobBar) {
-        if (!jobs.length) {
+        if (!canAgent || !jobs.length) {
           jobBar.hidden = true;
           jobBar.innerHTML = "";
         } else {
@@ -774,44 +819,69 @@
         }
       }
 
-      const cards = [
-        missing
-          ? { task: "hygiene", title: "卫生建议", value: "去生成", sub: "尚无分析表", empty: true, warn: false }
-          : { task: "hygiene", title: "高优先级未处理", value: String(data.pending_high ?? 0), sub: Number.isFinite(openCount) ? `未处理共 ${openCount}` : (data.analysis_file || ""), empty: false, warn: pendingHigh > 0 },
-        missing
-          ? { task: "hygiene", title: "新部署观察", value: "—", sub: "分析后可见宽限期", empty: true, warn: false }
-          : { task: "hygiene", title: "新部署观察", value: String(data.hold_count ?? 0), sub: "宽限期内暂缓禁用", empty: false, warn: false },
-        missing
-          ? { task: "hygiene", title: "环境覆盖", value: "—", sub: "分析后按已配置站点对照", empty: true, warn: false }
-          : { task: "coverage", title: "环境覆盖", value: String(Number.isFinite(coverageOpen) ? coverageOpen : 0), sub: data.up_no_down_open ? `上游无下游 ${data.up_no_down_open}` : "已配置站点不齐 / 密钥不一致", empty: false, warn: coverageOpen > 0 },
-        Number(data.active_jobs) > 0
-          ? { task: "pipeline", title: "未完成任务", value: String(data.active_jobs), sub: jobs[0]?.goal || "智能体进行中", empty: false, warn: true }
-          : { task: "pipeline", title: "未完成任务", value: "0", sub: "智能体 Jobs", empty: false, warn: false },
-      ];
-      $("wsTodoGrid").innerHTML = cards.map((c) =>
-        `<button type="button" class="na-ws-stat${c.empty ? " is-empty" : ""}${c.warn ? " is-warn" : ""}" data-task="${c.task}"><span class="na-ws-stat-title">${c.title}</span><span class="na-ws-stat-value">${c.value}</span>${c.sub ? `<span class="na-ws-sub">${c.sub}</span>` : ""}</button>`
-      ).join("");
+      const cards = [];
+      if (canOverview) {
+        cards.push(
+          missing
+            ? { task: "hygiene", title: "卫生建议", value: "去生成", sub: "尚无分析表", empty: true, warn: false }
+            : { task: "hygiene", title: "高优先级未处理", value: String(data.pending_high ?? 0), sub: Number.isFinite(openCount) ? `未处理共 ${openCount}` : (data.analysis_file || ""), empty: false, warn: pendingHigh > 0 },
+          missing
+            ? { task: "hygiene", title: "新部署观察", value: "—", sub: "分析后可见宽限期", empty: true, warn: false }
+            : { task: "hygiene", title: "新部署观察", value: String(data.hold_count ?? 0), sub: "宽限期内暂缓禁用", empty: false, warn: false },
+          missing
+            ? { task: "hygiene", title: "环境覆盖", value: "—", sub: "分析后按已配置站点对照", empty: true, warn: false }
+            : { task: "coverage", title: "环境覆盖", value: String(Number.isFinite(coverageOpen) ? coverageOpen : 0), sub: data.up_no_down_open ? `上游无下游 ${data.up_no_down_open}` : "已配置站点不齐 / 密钥不一致", empty: false, warn: coverageOpen > 0 },
+        );
+      }
+      if (canAgent) {
+        cards.push(
+          Number(data.active_jobs) > 0
+            ? { task: "pipeline", title: "未完成任务", value: String(data.active_jobs), sub: jobs[0]?.goal || "智能体进行中", empty: false, warn: true }
+            : { task: "pipeline", title: "未完成任务", value: "0", sub: "智能体 Jobs", empty: false, warn: false },
+        );
+      }
+      const todoGrid = $("wsTodoGrid");
+      if (todoGrid) {
+        todoGrid.hidden = !cards.length;
+        todoGrid.innerHTML = cards.map((c) =>
+          `<button type="button" class="na-ws-stat${c.empty ? " is-empty" : ""}${c.warn ? " is-warn" : ""}" data-task="${c.task}"><span class="na-ws-stat-title">${c.title}</span><span class="na-ws-stat-value">${c.value}</span>${c.sub ? `<span class="na-ws-sub">${c.sub}</span>` : ""}</button>`
+        ).join("");
+      }
 
-      const pulse = [
-        data.last_summary_at
+      const pulse = [];
+      if (canSummary) {
+        pulse.push(data.last_summary_at
           ? { task: "inventory", title: "网关盘点", value: formatAgo(data.last_summary_at) || "已采集", empty: false }
-          : { task: "inventory", title: "网关盘点", value: "去盘点", empty: true },
-        data.last_upstream_at
+          : { task: "inventory", title: "网关盘点", value: "去盘点", empty: true });
+      }
+      if (canUpstream) {
+        pulse.push(data.last_upstream_at
           ? { task: "upstream", title: "上游信息", value: formatAgo(data.last_upstream_at) || "已采集", empty: false }
-          : { task: "upstream", title: "上游信息", value: "去采集", empty: true },
-        data.last_bill_at
+          : { task: "upstream", title: "上游信息", value: "去采集", empty: true });
+      }
+      if (canBill) {
+        pulse.push(data.last_bill_at
           ? { task: "bill", title: "上游账单", value: formatAgo(data.last_bill_at) || "已采集", empty: false }
-          : { task: "bill", title: "上游账单", value: "去采集", empty: true },
-      ];
-      $("wsPulse").innerHTML = pulse.map((p) =>
-        `<button type="button" class="na-ws-pulse-item${p.empty ? " is-empty" : ""}" data-task="${p.task}"><span>${p.title}</span><strong>${p.value}</strong></button>`
-      ).join("");
+          : { task: "bill", title: "上游账单", value: "去采集", empty: true });
+      }
+      const pulseEl = $("wsPulse");
+      if (pulseEl) {
+        pulseEl.hidden = !pulse.length;
+        pulseEl.innerHTML = pulse.map((p) =>
+          `<button type="button" class="na-ws-pulse-item${p.empty ? " is-empty" : ""}" data-task="${p.task}"><span>${p.title}</span><strong>${p.value}</strong></button>`
+        ).join("");
+      }
 
       const list = $("wsArtifactList");
-      const arts = data.latest_artifacts || [];
-      if (!arts.length) {
-        list.innerHTML = `<li class="na-ws-empty"><span>还没有产物。请先做例行盘点、上游采集或卫生分析。</span><span class="na-ws-inline-actions"><button type="button" class="na-btn na-btn-ghost" data-task="inventory">去盘点</button><button type="button" class="na-btn na-btn-ghost" data-task="upstream">采上游</button></span></li>`;
-      } else {
+      const arts = (data.latest_artifacts || []).filter((item) => hasPermission(ARTIFACT_FEATURE[item?.kind]));
+      if (list && !arts.length) {
+        const emptyActions = [];
+        if (canSummary) emptyActions.push('<button type="button" class="na-btn na-btn-ghost" data-task="inventory">去盘点</button>');
+        if (canUpstream) emptyActions.push('<button type="button" class="na-btn na-btn-ghost" data-task="upstream">采上游</button>');
+        if (canOverview) emptyActions.push('<button type="button" class="na-btn na-btn-ghost" data-task="hygiene">去总览</button>');
+        if (canBill) emptyActions.push('<button type="button" class="na-btn na-btn-ghost" data-task="bill">采账单</button>');
+        list.innerHTML = `<li class="na-ws-empty"><span>${emptyActions.length ? "还没有可访问的产物。" : "当前角色没有可展示的历史产物。"}</span>${emptyActions.length ? `<span class="na-ws-inline-actions">${emptyActions.join("")}</span>` : ""}</li>`;
+      } else if (list) {
         list.innerHTML = "";
         arts.forEach((item) => {
           const li = document.createElement("li");
@@ -841,13 +911,17 @@
 
       const sites = data.env_sites || [];
       paintEnvChips(sites);
-      $("wsPolicyHint").textContent = data.policy?.summary ? `卫生策略：${data.policy.summary}` : "卫生策略：宽限 10 天 · 不用 $0 · 不常用 $1";
-      applyWsPolicyForm(data.policy || {});
+      const policyHint = $("wsPolicyHint");
+      if (canOverview && policyHint) {
+        policyHint.textContent = data.policy?.summary ? `卫生策略：${data.policy.summary}` : "卫生策略：宽限 10 天 · 不用 $0 · 不常用 $1";
+        applyWsPolicyForm(data.policy || {});
+      }
       fillWsAuthDrawer(sites);
     }
 
     let wsLoadGen = 0;
     async function loadWorkspaceSummary() {
+      if (!hasPermission("workspace")) return;
       const gen = ++wsLoadGen;
       const fetchOnce = async () => {
         const resp = await fetch("/api/workspace/summary", { headers: { Accept: "application/json" } });
@@ -878,6 +952,7 @@
     }
 
     async function saveWsPolicy() {
+      if (!hasPermission("overview")) return;
       const btn = $("btnWsSavePolicy");
       try {
         if (btn) btn.disabled = true;
@@ -973,7 +1048,9 @@
         if (btn) { btn.disabled = false; btn.classList.remove("loading"); }
       }
     });
-    $("btnWsPolicy")?.addEventListener("click", () => switchView("overview", { analysis: workspaceSummary.analysis_file || "" }));
+    $("btnWsPolicy")?.addEventListener("click", () => {
+      if (hasPermission("overview")) switchView("overview", { analysis: workspaceSummary.analysis_file || "" });
+    });
     $("btnWsSavePolicy")?.addEventListener("click", () => saveWsPolicy());
     $("wsAuthDrawer")?.addEventListener("click", (ev) => {
       if (ev.target === $("wsAuthDrawer")) closeWsAuthDrawer();
@@ -992,12 +1069,16 @@
     window.addEventListener("resize", updateNavIndicator);
     window.addEventListener("na-permissions-ready", (event) => {
       permissionFeatures = new Set(event.detail?.features || []);
+      permissionsReady = true;
+      document.documentElement.classList.remove("na-permissions-pending");
       const parsed = parseLocationHash();
       switchView(HASH_VIEW[parsed.view] || firstPermittedView(), { analysis: parsed.params.get("analysis") || "" });
     });
 
     const bootHash = parseLocationHash();
-    switchView(HASH_VIEW[bootHash.view] || "workspace", { analysis: bootHash.params.get("analysis") || "" });
+    if (permissionsReady) {
+      switchView(HASH_VIEW[bootHash.view] || "workspace", { analysis: bootHash.params.get("analysis") || "" });
+    }
     paintNavMotto();
 
     $("useLlm").addEventListener("change", toggleLlmPanel);
@@ -1005,7 +1086,7 @@
     ["llmApiBase", "llmApiKey", "llmModel"].forEach((id) => { $(id).addEventListener("input", () => { updateLlmNote(); saveLlmConfig(); }); });
     initLlmPanel().then(() => {
       toggleLlmPanel();
-      if ($("viewWorkspace")?.classList.contains("active")) loadWorkspaceSummary();
+      if (hasPermission("workspace") && $("viewWorkspace")?.classList.contains("active")) loadWorkspaceSummary();
     });
 
     document.querySelectorAll("#extractMode button").forEach((btn) => {

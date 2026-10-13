@@ -6,10 +6,10 @@
   <title>上游信息 · NA 自动配置</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/static/na-theme.css?v=art-1" />
-  <link rel="stylesheet" href="/static/na-components.css?v=art-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=art-2" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=art-1"></script>
-  <script src="/static/auth-shell.js?v=web-5"></script>
+  <script src="/static/auth-shell.js?v=web-6"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
   <style>
@@ -649,7 +649,7 @@
       if (!fileReady) return;
       try {
         const file = $("selUpstreamFile")?.value || "";
-        const url = file ? `/api/artifacts/download?file=${encodeURIComponent(file)}` : "/api/upstream/volc/download";
+        const url = file ? `/api/artifacts/download?kind=upstream&file=${encodeURIComponent(file)}` : "/api/upstream/volc/download";
         const name = await NAUi.downloadUrl(url, file);
         addLog(`已开始浏览器下载：${name}`, "ok");
       } catch (e) {
@@ -735,7 +735,7 @@
       if (!azureFileReady) return;
       try {
         const file = $("selUpstreamFile")?.value || "";
-        const url = file ? `/api/artifacts/download?file=${encodeURIComponent(file)}` : "/api/upstream/azure/download";
+        const url = file ? `/api/artifacts/download?kind=upstream&file=${encodeURIComponent(file)}` : "/api/upstream/azure/download";
         const name = await NAUi.downloadUrl(url, file);
         addAzLog(`已开始浏览器下载：${name}`, "ok");
       } catch (e) {

@@ -63,6 +63,52 @@ FEATURE_AGENT = "agent"
 FEATURE_EXTRACTION = "extraction"
 FEATURE_USER_ADMIN = "user_admin"
 
+# 产物不共享一个笼统的“下载”权限：同一个通用接口会服务于数据汇总、
+# 上游信息、账单和一表总览。按类型归属，才能既让管理员正常使用其已获
+# 授权的历史文件，又不会借下载接口读取超管专属文件。
+ARTIFACT_KIND_FEATURES = {
+    "summary": FEATURE_DATA_SUMMARY,
+    "balance": FEATURE_DATA_SUMMARY,
+    "upstream": FEATURE_UPSTREAM,
+    "overview": FEATURE_OVERVIEW,
+    "analysis": FEATURE_OVERVIEW,
+    "bill": FEATURE_UPSTREAM_BILL,
+    "bill_azure": FEATURE_UPSTREAM_BILL,
+    "bill_combined": FEATURE_UPSTREAM_BILL,
+    "logs": FEATURE_BATCH,
+}
+
+_BATCH_API_PATHS = frozenset(
+    {
+        "/api/batch-config",
+        "/api/env-sites",
+        "/api/channel-types",
+        "/api/test-connection",
+        "/api/batch-create",
+        "/api/channel-test",
+        "/api/batch-update-channels",
+        "/api/channel-remark-sync",
+        "/api/channel-models",
+        "/api/token-batch-create",
+        "/api/token-batch-update",
+        "/api/token-export",
+        "/api/groups-list",
+        "/api/groups-members",
+        "/api/groups-switch",
+        "/api/groups-create",
+        "/api/groups-delete",
+        "/api/batch-delete-channels",
+        "/api/batch-channel-status",
+        "/api/token-batch-delete",
+        "/api/token-batch-status",
+    }
+)
+
+
+def artifact_feature(kind: str | None) -> str | None:
+    """返回某类 Excel 产物所需能力；未知类型必须由调用方拒绝。"""
+    return ARTIFACT_KIND_FEATURES.get(str(kind or "").strip().lower())
+
 ROLE_FEATURES = {
     ROLE_SUPERADMIN: {
         FEATURE_WORKSPACE,
@@ -538,12 +584,22 @@ class IdentityManager:
         principal = user or self.current_user()
         return bool(principal and principal.role in ROLE_FEATURES and feature in ROLE_FEATURES[principal.role])
 
-    def api_feature(self, path: str) -> str:
-        if path.startswith("/api/workspace/") or path.startswith("/api/policy/") or path.startswith("/api/hygiene/"):
+    def api_feature(self, path: str) -> str | None:
+        """将每一个业务 API 收敛到唯一能力；未知 API 一律不自动放行。
+
+        过去的兜底会把任意新 `/api/*` 归入批量配置，普通用户可能在新接口
+        上意外获得权限。这里故意采用显式映射，新增接口必须同时声明权限。
+        """
+        if path in {"/api/artifacts", "/api/artifacts/download"}:
+            # 兼容历史的未带 kind 的超管下载链接；非超管必须显式带所属类型。
+            return artifact_feature(request.args.get("kind")) or FEATURE_OVERVIEW
+        if path.startswith("/api/workspace/"):
             return FEATURE_WORKSPACE
+        if path.startswith("/api/policy/") or path.startswith("/api/hygiene/"):
+            return FEATURE_OVERVIEW
         if path.startswith("/api/upstream/bill") or path.startswith("/api/upstream/azure/bill"):
             return FEATURE_UPSTREAM_BILL
-        if path.startswith("/api/overview/") or path.startswith("/api/artifacts"):
+        if path.startswith("/api/overview/"):
             return FEATURE_OVERVIEW
         if path.startswith("/api/agent/") or path == "/api/agent/run":
             return FEATURE_AGENT
@@ -553,7 +609,9 @@ class IdentityManager:
             return FEATURE_DATA_SUMMARY
         if path.startswith("/api/upstream/"):
             return FEATURE_UPSTREAM
-        return FEATURE_BATCH
+        if path in _BATCH_API_PATHS or path == "/api/logs-export" or path.startswith("/api/logs-export/"):
+            return FEATURE_BATCH
+        return None
 
     def _guard_api(self) -> Response | None:
         path = request.path or ""
@@ -570,8 +628,8 @@ class IdentityManager:
             if not expected or not secrets.compare_digest(expected, supplied):
                 return jsonify({"success": False, "message": "请求校验失败，请刷新页面后重试", "code": "CSRF_FAILED"}), 400
         feature = self.api_feature(path)
-        if not self.has_feature(feature, user):
-            self.store.audit("access.denied", resource=path, outcome="denied", detail={"feature": feature})
+        if not feature or not self.has_feature(feature, user):
+            self.store.audit("access.denied", resource=path, outcome="denied", detail={"feature": feature or "unmapped"})
             return jsonify({"success": False, "message": "当前角色无权使用此功能", "code": "FORBIDDEN"}), 403
         return None
 

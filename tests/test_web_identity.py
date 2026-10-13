@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from webapp.identity import (
+    ARTIFACT_KIND_FEATURES,
     FEATURE_AGENT,
     FEATURE_BATCH,
     FEATURE_DATA_SUMMARY,
@@ -48,8 +49,28 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.app.testing = True
         self.identity = init_identity(self.app, Path(self.tempdir.name))
 
-        @self.app.post("/api/mutation")
-        def mutation():
+        @self.app.post("/api/batch-create")
+        def batch_mutation():
+            return jsonify({"success": True})
+
+        @self.app.get("/api/workspace/summary")
+        def workspace_summary():
+            return jsonify({"success": True})
+
+        @self.app.get("/api/policy/hygiene")
+        def policy_hygiene():
+            return jsonify({"success": True})
+
+        @self.app.get("/api/hygiene/actions")
+        def hygiene_actions():
+            return jsonify({"success": True})
+
+        @self.app.get("/api/artifacts")
+        def artifacts():
+            return jsonify({"success": True})
+
+        @self.app.get("/api/artifacts/download")
+        def artifacts_download():
             return jsonify({"success": True})
 
         @self.app.get("/")
@@ -163,8 +184,43 @@ class WebsiteIdentityTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/data-summary/anything").status_code, 403)
         self.assertNotIn(FEATURE_UPSTREAM, self.client.get("/auth/me").get_json()["features"])
         self.assertFalse(self.identity.has_feature(FEATURE_UPSTREAM, user))
-        self.assertEqual(self.client.post("/api/mutation").status_code, 400)
-        self.assertEqual(self.client.post("/api/mutation", headers={"X-CSRF-Token": csrf}).status_code, 200)
+        self.assertEqual(self.client.post("/api/batch-create").status_code, 400)
+        self.assertEqual(self.client.post("/api/batch-create", headers={"X-CSRF-Token": csrf}).status_code, 200)
+
+    def test_role_matrix_and_api_mapping_do_not_restore_restricted_features(self) -> None:
+        admin = self.identity.store.create_user(
+            username="role-admin", email="role-admin@example.com", password="test-password-2026", role=ROLE_ADMIN, email_verified=True
+        )
+        self._assume_user(admin)
+        self.assertSetEqual(
+            set(self.client.get("/auth/me").get_json()["features"]),
+            {FEATURE_WORKSPACE, FEATURE_BATCH, FEATURE_DATA_SUMMARY, FEATURE_UPSTREAM, FEATURE_EXTRACTION},
+        )
+        for path in ("/api/workspace/summary", "/api/artifacts?kind=summary", "/api/artifacts?kind=balance", "/api/artifacts?kind=upstream"):
+            self.assertEqual(self.client.get(path).status_code, 200, path)
+        for path in (
+            "/api/policy/hygiene",
+            "/api/hygiene/actions",
+            "/api/artifacts?kind=overview",
+            "/api/artifacts?kind=analysis",
+            "/api/artifacts?kind=bill",
+            "/api/artifacts/download?file=any.xlsx",
+            "/api/unmapped-future-endpoint",
+        ):
+            self.assertEqual(self.client.get(path).status_code, 403, path)
+
+        user = self.identity.store.create_user(
+            username="role-user", email="role-user@example.com", password="test-password-2026", role=ROLE_USER, email_verified=True
+        )
+        self._assume_user(user)
+        self.assertSetEqual(set(self.client.get("/auth/me").get_json()["features"]), {FEATURE_BATCH, FEATURE_EXTRACTION})
+        for path in ("/api/workspace/summary", "/api/artifacts?kind=summary", "/api/artifacts?kind=upstream"):
+            self.assertEqual(self.client.get(path).status_code, 403, path)
+
+        self.assertEqual(ARTIFACT_KIND_FEATURES["summary"], FEATURE_DATA_SUMMARY)
+        self.assertEqual(ARTIFACT_KIND_FEATURES["upstream"], FEATURE_UPSTREAM)
+        self.assertEqual(ARTIFACT_KIND_FEATURES["overview"], FEATURE_OVERVIEW)
+        self.assertEqual(ARTIFACT_KIND_FEATURES["bill"], FEATURE_UPSTREAM_BILL)
 
     def test_logout_clears_the_session_and_returns_to_login(self) -> None:
         user = self.identity.store.create_user(

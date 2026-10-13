@@ -26,6 +26,7 @@ from webapp.identity import (
     FEATURE_UPSTREAM,
     FEATURE_UPSTREAM_BILL,
     FEATURE_WORKSPACE,
+    artifact_feature,
     init_identity,
 )
 
@@ -221,6 +222,7 @@ def _load_batch_modules():
             "policy_summary_text": hygiene_policy.policy_summary_text,
             "list_artifacts": artifacts.list_artifacts,
             "latest_artifacts_bundle": artifacts.latest_artifacts_bundle,
+            "artifact_kind_for_filename": artifacts.artifact_kind_for_filename,
             "resolve_excel_path": artifacts.resolve_excel_path,
             "list_summary_excel_files": data_summary_exporter.list_summary_excel_files,
             "load_analysis_payload": hygiene_actions.load_analysis_payload,
@@ -995,11 +997,22 @@ def _optional_source_excel(raw: Any) -> Path | None:
     return BATCH["resolve_excel_path"](NEW_DIR, text)
 
 
-def _excel_query_path(*keys: str, fallback: Path | None = None) -> Path | None:
+def _excel_query_path(*keys: str, fallback: Path | None = None, expected_kind: str | None = None) -> Path | None:
+    """取得查询参数指定的 Excel，并限制其必须属于当前下载栏目。
+
+    通用 `excel/` 路径检查只能阻止目录穿越，不能阻止低权限栏目带入高权限
+    文件名。因此只要由请求指定文件，就额外核验其真实产物类型；fallback 是
+    当前栏目内部选择的最新文件，无需依赖用户输入。
+    """
     for key in keys:
         raw = request.args.get(key)
         if raw:
-            return BATCH["resolve_excel_path"](NEW_DIR, raw)
+            path = BATCH["resolve_excel_path"](NEW_DIR, raw)
+            if expected_kind:
+                actual_kind = BATCH["artifact_kind_for_filename"](NEW_DIR, path.name)
+                if actual_kind != expected_kind:
+                    raise ValueError("所选文件不属于当前功能")
+            return path
     return fallback
 
 
@@ -1220,7 +1233,7 @@ def api_upstream_volc_collect():
 def api_upstream_volc_download():
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_upstream_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_upstream_excel_path"](NEW_DIR), expected_kind="upstream")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
@@ -1345,7 +1358,7 @@ def api_upstream_bill_collect():
 def api_upstream_bill_download():
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_bill_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_bill_excel_path"](NEW_DIR), expected_kind="bill")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
@@ -1468,7 +1481,7 @@ def api_upstream_azure_bill_collect():
 def api_upstream_azure_bill_download():
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_azure_bill_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_azure_bill_excel_path"](NEW_DIR), expected_kind="bill_azure")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
@@ -1685,7 +1698,7 @@ def api_upstream_bill_collect_all():
 def api_upstream_bill_combined_download():
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_combined_bill_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_combined_bill_excel_path"](NEW_DIR), expected_kind="bill_combined")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
@@ -1802,7 +1815,7 @@ def api_upstream_azure_collect():
 def api_upstream_azure_download():
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_azure_upstream_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_azure_upstream_excel_path"](NEW_DIR), expected_kind="upstream")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
@@ -1935,7 +1948,7 @@ def api_upstream_collect_all():
 def api_upstream_combined_download():
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_combined_upstream_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_combined_upstream_excel_path"](NEW_DIR), expected_kind="upstream")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
@@ -2167,7 +2180,7 @@ def api_overview_fill_keys():
 def api_overview_download():
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_overview_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_overview_excel_path"](NEW_DIR), expected_kind="overview")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
@@ -2251,7 +2264,7 @@ def api_overview_analyze():
 def api_overview_analyze_download():
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_analysis_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_analysis_excel_path"](NEW_DIR), expected_kind="analysis")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
@@ -2280,6 +2293,14 @@ def api_artifacts_download():
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():
         return jsonify({"success": False, "message": "请指定要下载的产物文件"}), 400
+    requested_kind = str(request.args.get("kind") or "").strip().lower()
+    if requested_kind:
+        actual_kind = BATCH["artifact_kind_for_filename"](NEW_DIR, excel_path.name)
+        required_feature = artifact_feature(actual_kind)
+        # 守卫层按请求的 kind 决定能否进入此路由；这里再依据磁盘上文件的
+        # 实际归属校验，防止用低权限 kind 伪装超管专属文件。
+        if actual_kind != requested_kind or not required_feature or not IDENTITY.has_feature(required_feature):
+            return jsonify({"success": False, "message": "当前角色无权下载该产物", "code": "FORBIDDEN"}), 403
     return _send_excel_attachment(excel_path)
 
 
@@ -2346,47 +2367,80 @@ def _artifact_by_kinds(artifacts: list[dict[str, Any]], kinds: tuple[str, ...]) 
 @app.get("/api/workspace/summary")
 def api_workspace_summary():
     _ensure_batch()
-    import agent_jobs
+    can_summary = IDENTITY.has_feature(FEATURE_DATA_SUMMARY)
+    can_upstream = IDENTITY.has_feature(FEATURE_UPSTREAM)
+    can_bill = IDENTITY.has_feature(FEATURE_UPSTREAM_BILL)
+    can_overview = IDENTITY.has_feature(FEATURE_OVERVIEW)
+    can_agent = IDENTITY.has_feature(FEATURE_AGENT)
 
-    policy = BATCH["load_policy"](NEW_DIR)
-    artifacts = BATCH["latest_artifacts_bundle"](NEW_DIR)
-    analysis_items = BATCH["list_artifacts"](NEW_DIR, "analysis", limit=1)
-    summary_items = BATCH["list_artifacts"](NEW_DIR, "summary", limit=1)
+    # 只读取当前角色有权查看的产物。不能先把全部产物（尤其是含密钥表）
+    # 读进来再过滤响应，否则即使不返回，也会扩大不必要的处理面。
+    artifact_items: dict[str, list[dict[str, Any]]] = {}
+    artifacts: list[dict[str, Any]] = []
+    for kind in ("summary", "upstream", "overview", "analysis", "balance", "bill", "bill_azure", "bill_combined"):
+        required_feature = artifact_feature(kind)
+        if not required_feature or not IDENTITY.has_feature(required_feature):
+            continue
+        items = BATCH["list_artifacts"](NEW_DIR, kind, limit=1)
+        artifact_items[kind] = items
+        artifacts.extend(items)
+
+    summary_items = artifact_items.get("summary", []) if can_summary else []
+    upstream_items = artifact_items.get("upstream", []) if can_upstream else []
+    analysis_items = artifact_items.get("analysis", []) if can_overview else []
     analysis_file = analysis_items[0]["filename"] if analysis_items else ""
-    pending_high = None
-    hold_count = None
-    open_count = None
-    coverage_open = None
-    up_no_down_open = None
-    if analysis_file:
+
+    overview_data: dict[str, Any] = {}
+    if can_overview:
+        pending_high = None
+        hold_count = None
+        open_count = None
+        coverage_open = None
+        up_no_down_open = None
+        if analysis_file:
+            try:
+                path = BATCH["resolve_excel_path"](NEW_DIR, analysis_file)
+                payload = BATCH["load_analysis_payload"](path, NEW_DIR)
+                pending_high = payload.get("pending_high")
+                hold_count = payload.get("hold_count")
+                open_count = payload.get("open_count")
+                actions = payload.get("actions") or []
+                coverage_open = sum(
+                    1
+                    for row in actions
+                    if row.get("status") == "open" and str(row.get("类别") or "") == "环境覆盖"
+                )
+                up_no_down_open = sum(
+                    1
+                    for row in actions
+                    if row.get("status") == "open" and str(row.get("类别") or "") == "上游无下游"
+                )
+            except Exception:  # noqa: BLE001
+                pending_high = None
+        policy = BATCH["load_policy"](NEW_DIR)
+        overview_data = {
+            "pending_high": pending_high,
+            "hold_count": hold_count,
+            "open_count": open_count,
+            "coverage_open": coverage_open,
+            "up_no_down_open": up_no_down_open,
+            "analysis_missing": not bool(analysis_file),
+            "analysis_file": analysis_file,
+            "policy": {**policy, "summary": BATCH["policy_summary_text"](policy)},
+        }
+
+    jobs: list[dict[str, Any]] = []
+    if can_agent:
+        import agent_jobs
+
         try:
-            path = BATCH["resolve_excel_path"](NEW_DIR, analysis_file)
-            payload = BATCH["load_analysis_payload"](path, NEW_DIR)
-            pending_high = payload.get("pending_high")
-            hold_count = payload.get("hold_count")
-            open_count = payload.get("open_count")
-            actions = payload.get("actions") or []
-            coverage_open = sum(
-                1
-                for row in actions
-                if row.get("status") == "open" and str(row.get("类别") or "") == "环境覆盖"
-            )
-            up_no_down_open = sum(
-                1
-                for row in actions
-                if row.get("status") == "open" and str(row.get("类别") or "") == "上游无下游"
-            )
+            jobs = [
+                j
+                for j in agent_jobs.STORE.snapshot_jobs()
+                if j.get("status") in {"queued", "planning", "running", "waiting_confirm"}
+            ]
         except Exception:  # noqa: BLE001
-            pending_high = None
-    jobs = []
-    try:
-        jobs = [
-            j
-            for j in agent_jobs.STORE.snapshot_jobs()
-            if j.get("status") in {"queued", "planning", "running", "waiting_confirm"}
-        ]
-    except Exception:  # noqa: BLE001
-        jobs = []
+            jobs = []
     env_pack = _load_env_sites()
     env_status = []
     for key in env_pack.get("available") or []:
@@ -2412,31 +2466,45 @@ def api_workspace_summary():
             }
         )
     last_summary = summary_items[0] if summary_items else None
-    last_upstream = _artifact_by_kinds(artifacts, ("upstream",))
-    last_bill = _artifact_by_kinds(artifacts, ("bill_combined", "bill", "bill_azure"))
+    last_upstream = upstream_items[0] if upstream_items else None
+    last_bill = _artifact_by_kinds(artifacts, ("bill_combined", "bill", "bill_azure")) if can_bill else None
+    data: dict[str, Any] = {
+        "latest_artifacts": artifacts,
+        "env_sites": env_status,
+    }
+    if can_summary:
+        data.update(
+            {
+                "last_summary_at": (last_summary or {}).get("created_at") or "",
+                "last_summary_file": (last_summary or {}).get("filename") or "",
+            }
+        )
+    if can_upstream:
+        data.update(
+            {
+                "last_upstream_at": (last_upstream or {}).get("created_at") or "",
+                "last_upstream_file": (last_upstream or {}).get("filename") or "",
+            }
+        )
+    if can_bill:
+        data.update(
+            {
+                "last_bill_at": (last_bill or {}).get("created_at") or "",
+                "last_bill_file": (last_bill or {}).get("filename") or "",
+            }
+        )
+    if can_agent:
+        data.update(
+            {
+                "active_jobs": len(jobs),
+                "active_job_list": [_workspace_job_item(j) for j in jobs],
+            }
+        )
+    data.update(overview_data)
     return jsonify(
         {
             "success": True,
-            "data": {
-                "pending_high": pending_high,
-                "hold_count": hold_count,
-                "open_count": open_count,
-                "coverage_open": coverage_open,
-                "up_no_down_open": up_no_down_open,
-                "analysis_missing": not bool(analysis_file),
-                "analysis_file": analysis_file,
-                "last_summary_at": (last_summary or {}).get("created_at") or "",
-                "last_summary_file": (last_summary or {}).get("filename") or "",
-                "last_upstream_at": (last_upstream or {}).get("created_at") or "",
-                "last_upstream_file": (last_upstream or {}).get("filename") or "",
-                "last_bill_at": (last_bill or {}).get("created_at") or "",
-                "last_bill_file": (last_bill or {}).get("filename") or "",
-                "active_jobs": len(jobs),
-                "active_job_list": [_workspace_job_item(j) for j in jobs],
-                "latest_artifacts": artifacts,
-                "policy": {**policy, "summary": BATCH["policy_summary_text"](policy)},
-                "env_sites": env_status,
-            },
+            "data": data,
         }
     )
 
@@ -3857,6 +3925,7 @@ def data_summary_download():
             "file",
             "id",
             fallback=BATCH["latest_excel_path"](NEW_DIR) or BATCH["default_excel_path"](NEW_DIR),
+            expected_kind="summary",
         )
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
@@ -4697,7 +4766,7 @@ def channel_balance_download():
     """下载所选或最新一份渠道余额 Excel。"""
     _ensure_batch()
     try:
-        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_balance_excel_path"](NEW_DIR))
+        excel_path = _excel_query_path("file", "id", fallback=BATCH["latest_balance_excel_path"](NEW_DIR), expected_kind="balance")
     except (ValueError, FileNotFoundError) as exc:
         return jsonify({"success": False, "message": str(exc)}), 400
     if not excel_path or not excel_path.exists():

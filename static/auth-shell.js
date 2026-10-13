@@ -63,6 +63,8 @@
       window.NAIdentity = { user:info.user, features:info.features || [], csrfToken };
       applyPermissions(info.features || []); mountUser(info.user || {});
       document.documentElement.dataset.naRole = info.user?.role || "";
+      document.documentElement.classList.remove("na-permissions-pending");
+      document.documentElement.classList.add("na-permissions-ready");
       window.dispatchEvent(new CustomEvent("na-permissions-ready", { detail: { features: info.features || [] } }));
     } catch (_) {
       if (!authPaths.has(window.location.pathname) && !window.location.pathname.startsWith("/reset-password/") && !window.location.pathname.startsWith("/verify-email/")) {

@@ -179,30 +179,45 @@ def list_log_files(root_dir: Path) -> list[Path]:
     return sort_excel_files_latest_first(files)
 
 
+def _paths_for_kind(root_dir: Path, kind_key: str) -> list[Path]:
+    """返回某一种产物的全部候选路径，不读取工作簿内容。"""
+    if kind_key == "summary":
+        return list_summary_excel_files(root_dir)
+    if kind_key == "upstream":
+        return list_upstream_files(root_dir)
+    if kind_key == "overview":
+        return list_overview_excel_files(root_dir)
+    if kind_key == "analysis":
+        return list_analysis_excel_files(root_dir)
+    if kind_key == "balance":
+        return list_balance_files(root_dir)
+    if kind_key == "bill":
+        return list_bill_excel_files(root_dir)
+    if kind_key == "bill_azure":
+        return list_azure_bill_excel_files(root_dir)
+    if kind_key == "bill_combined":
+        return list_combined_bill_excel_files(root_dir)
+    return list_log_files(root_dir)
+
+
 def list_artifacts(root_dir: Path, kind: str, *, limit: int = 20) -> list[dict[str, Any]]:
     kind_key = str(kind or "").strip().lower()
     if kind_key not in KINDS:
         raise ValueError(f"kind 须为 {', '.join(KINDS)}")
     cap = max(1, min(int(limit or 20), 50))
-    if kind_key == "summary":
-        paths = list_summary_excel_files(root_dir)
-    elif kind_key == "upstream":
-        paths = list_upstream_files(root_dir)
-    elif kind_key == "overview":
-        paths = list_overview_excel_files(root_dir)
-    elif kind_key == "analysis":
-        paths = list_analysis_excel_files(root_dir)
-    elif kind_key == "balance":
-        paths = list_balance_files(root_dir)
-    elif kind_key == "bill":
-        paths = list_bill_excel_files(root_dir)
-    elif kind_key == "bill_azure":
-        paths = list_azure_bill_excel_files(root_dir)
-    elif kind_key == "bill_combined":
-        paths = list_combined_bill_excel_files(root_dir)
-    else:
-        paths = list_log_files(root_dir)
+    paths = _paths_for_kind(root_dir, kind_key)
     return [_artifact(root_dir, path, kind_key) for path in paths[:cap]]
+
+
+def artifact_kind_for_filename(root_dir: Path, raw: str | Path | None) -> str | None:
+    """按已有产物清单确定文件真实类型，供通用下载接口做二次授权校验。"""
+    name = Path(str(raw or "")).name
+    if not name:
+        return None
+    for kind in KINDS:
+        if any(path.name == name for path in _paths_for_kind(root_dir, kind)):
+            return kind
+    return None
 
 
 def latest_artifacts_bundle(root_dir: Path) -> list[dict[str, Any]]:

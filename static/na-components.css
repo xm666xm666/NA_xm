@@ -56,7 +56,14 @@ html.na-bg-simple .bg-layer::before {
 /* 权限脚本使用 hidden 标记栏目；此规则必须胜过上面的 inline-flex。 */
 .na-nav-tabs[role="tablist"] button[hidden],
 .na-ws-card[hidden],
-.na-view[hidden] {
+.na-view[hidden],
+.na-ws-grid[hidden],
+.na-ws-pulse[hidden],
+.na-job-bar[hidden] {
+  display: none !important;
+}
+/* 除导航/卡片外，策略摘要、操作按钮等也用 data-permission 标记。 */
+[data-permission][hidden] {
   display: none !important;
 }
 .na-nav-tabs button:focus-visible {
