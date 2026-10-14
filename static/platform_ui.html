@@ -92,10 +92,13 @@
       const CHANNEL_TYPES = {
         1: "OpenAI", 2: "Midjourney Proxy", 3: "Azure OpenAI", 4: "Ollama", 5: "Midjourney Proxy Plus",
         8: "自定义渠道", 11: "Google PaLM2", 14: "Anthropic Claude", 15: "百度文心千帆", 16: "智谱 ChatGLM",
-        17: "阿里通义千问", 18: "讯飞星火认知", 19: "360 智脑", 20: "OpenRouter", 23: "腾讯混元",
-        24: "Google Gemini", 25: "Moonshot", 26: "智谱 GLM-4V", 27: "Perplexity", 31: "零一万物",
-        33: "AWS Claude", 34: "Cohere", 35: "MiniMax", 36: "Suno API", 37: "Dify", 39: "Cloudflare",
-        41: "Vertex AI", 43: "DeepSeek", 46: "百度文心千帆V2", 47: "Xinference",
+        17: "阿里通义千问", 18: "讯飞星火认知", 19: "360 智脑", 20: "OpenRouter", 21: "知识库：AI Proxy",
+        22: "知识库：FastGPT", 23: "腾讯混元", 24: "Google Gemini", 25: "Moonshot", 26: "智谱 GLM-4V",
+        27: "Perplexity", 31: "零一万物", 33: "AWS Claude", 34: "Cohere", 35: "MiniMax", 36: "Suno API",
+        37: "Dify", 38: "Jina", 39: "Cloudflare", 40: "SiliconCloud", 41: "Vertex AI", 42: "Mistral AI",
+        43: "DeepSeek", 44: "嵌入模型：MokaAI M3E", 45: "字节火山方舟、豆包通用", 46: "百度文心千帆V2",
+        47: "Xinference", 48: "xAI", 49: "Coze", 50: "可灵", 51: "即梦", 52: "Vidu", 53: "SubModel",
+        54: "豆包视频", 55: "Sora", 56: "Replicate",
       };
       function channelTypeLabel(value) { return CHANNEL_TYPES[value] || (value ? String(value) : ""); }
       function activityText(record) {
@@ -112,15 +115,17 @@
         channels: [
           ["ID", (r) => r.id], ["名称", (r) => r.name || ""], ["分组", (r) => r.group || ""],
           ["类型", (r) => channelTypeLabel(r.type)], ["状态", (r) => statePill(r.status)],
-          ["响应时间", (r) => r.response_time != null ? `${Number(r.response_time).toFixed(2)} 秒` : ""],
-          ["近一月活跃统计", (r) => activityText(r)], ["操作", () => ""],
+          ["响应时间", (r) => responseTimeText(r.response_time)],
+          ["近一月活跃统计", (r) => activityText(r)],
+          ["已用/剩余", (r) => `${formatQuota(r.used_quota)} / ${formatQuota(r.balance)}`],
+          ["优先级", (r) => r.priority ?? ""], ["权重", (r) => r.weight ?? ""], ["操作", () => ""],
         ],
         tokens: [
-          ["名称", (r) => r.name || ""], ["状态", (r) => statePill(r.status)],
-          ["剩余额度/总额度", (r) => quotaText(r)], ["分组", (r) => r.group || ""],
-          ["密钥", (r) => maskKey(r.key || r.token || "")], ["可用模型", (r) => r.models || (r.model_limits_enabled ? r.model_limits || "" : "")],
-          ["模型限流", (r) => r.token_model_rate_limits ? "已配置" : "未配置"],
-          ["IP限制", (r) => r.allow_ips ? r.allow_ips : "无限制"], ["创建时间", (r) => dateOnly(r.created_time)], ["操作", () => ""],
+          ["名称", (r) => r.name || ""], ["状态", (r) => tokenStatePill(r.status)],
+          ["剩余额度/总额度", (r) => quotaText(r)], ["分组", (r) => r.group === "auto" ? "智能熔断" : (r.group || "")],
+          ["密钥", (r) => maskTokenKey(r.key || r.token || "")], ["可用模型", (r) => r.token_model_limit_enabled && r.token_model_limit ? r.token_model_limit : "无限制"],
+          ["模型限流", (r) => rateLimitText(r)], ["IP限制", (r) => r.allow_ips ? r.allow_ips.split("\n").slice(0, 2).join(", ") : "无限制"],
+          ["创建时间", (r) => timestamp(r.created_time)], ["过期时间", (r) => Number(r.expired_time) === -1 ? "永不过期" : timestamp(r.expired_time)], ["操作", () => ""],
         ],
       };
 
@@ -130,29 +135,48 @@
         return new Date(n * 1000).toLocaleString("zh-CN", { hour12: false });
       }
       function statePill(value) {
-        const enabled = Number(value) === 1;
-        return { label: enabled ? "已启用" : "已禁用", className: enabled ? "on" : "off" };
+        const n = Number(value);
+        if (n === 1) return { label: "已启用", className: "on" };
+        if (n === 3) return { label: "自动禁用", className: "off" };
+        return { label: "已禁用", className: "off" };
+      }
+      function tokenStatePill(value) {
+        const n = Number(value);
+        if (n === 1) return { label: "已启用", className: "on" };
+        if (n === 3) return { label: "已过期", className: "off" };
+        if (n === 4) return { label: "已耗尽", className: "off" };
+        return { label: "已禁用", className: "off" };
+      }
+      function responseTimeText(value) {
+        const n = Number(value || 0);
+        if (!Number.isFinite(n) || n <= 0) return "未测试";
+        return `${(n / 1000).toFixed(2)} 秒`;
+      }
+      function formatQuota(value) {
+        const n = Number(value || 0);
+        if (!Number.isFinite(n)) return "$0.00";
+        return `$${(n / 500000).toFixed(2)}`;
+      }
+      function rateLimitText(record) {
+        const rules = record.token_model_rate_limits;
+        if (Array.isArray(rules) && rules.length > 0) return `已配置 ${rules.length} 条`;
+        return "未配置";
       }
       function quotaText(record) {
         if (record.unlimited_quota) return "无限额度";
-        const remain = record.remain_quota;
-        const total = record.quota;
-        if (total != null && remain != null) return `${Number(remain).toLocaleString()} / ${Number(total).toLocaleString()}`;
-        if (remain != null) return Number(remain).toLocaleString();
-        return "";
+        const used = Number(record.used_quota || 0);
+        const remain = Number(record.remain_quota || 0);
+        const total = used + remain;
+        return `${formatQuota(remain)} / ${formatQuota(total)}`;
       }
-      function maskKey(key) {
+      function maskTokenKey(key) {
         if (!key) return "";
         const str = String(key);
-        if (str.length <= 12) return str;
-        return `${str.slice(0, 6)}***********${str.slice(-4)}`;
+        const full = str.startsWith("sk-") ? str : `sk-${str}`;
+        if (full.length <= 12) return full;
+        return `${full.slice(0, 7)}**********${full.slice(-4)}`;
       }
-      function dateOnly(value) {
-        const n = Number(value || 0);
-        if (!Number.isFinite(n) || n <= 0) return "";
-        const d = new Date(n * 1000);
-        return d.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
-      }
+
       function setBusy(button, busy) {
         button.disabled = busy;
         button.classList.toggle("is-loading", busy);
