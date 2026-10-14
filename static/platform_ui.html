@@ -13,7 +13,16 @@
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
   <style>
+    html body .na-wrap { max-width:100%; padding:1.5rem 1.5rem 3rem; }
     .platform-shell { display:grid; gap:1.1rem; }
+    .platform-hero { display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+    .platform-hero h1 { margin:0; font-size:1.25rem; }
+    .platform-hero .na-subtitle { margin:0; }
+    .platform-tabs { display:flex; gap:2px; border-bottom:1px solid var(--na-border); }
+    .platform-table-wrap { overflow:auto; max-height:calc(100vh - 280px); min-height:260px; border:1px solid var(--na-border); border-radius:10px; }
+    .platform-table { width:100%; border-collapse:collapse; font-size:.8rem; table-layout:auto; }
+    .platform-table td.activity { max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .platform-table td.quota { white-space:nowrap; font-family:var(--font-mono,ui-monospace,monospace); }
     .platform-toolbar { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; }
     .platform-envs { display:flex; gap:.45rem; flex-wrap:wrap; }
     .platform-env {
@@ -62,6 +71,8 @@
     .platform-modal-actions { display:flex; justify-content:flex-end; gap:.6rem; padding-top:.5rem; border-top:1px solid var(--na-border); }
     .platform-section-title { font-size:.82rem; font-weight:700; color:var(--na-accent); margin:.5rem 0 0; padding-bottom:.3rem; border-bottom:1px solid var(--na-border); }
     @media (max-width:700px) { .platform-address { width:100%; margin-left:0; } .platform-table-wrap { max-height:none; } .platform-modal .form-grid { grid-template-columns:1fr; } }
+    @media (min-width:1400px) { .platform-table { font-size:.82rem; } .platform-table th, .platform-table td { padding:.75rem .85rem; } }
+    @media (min-width:1800px) { .platform-table { font-size:.85rem; } .platform-table th, .platform-table td { padding:.8rem .95rem; } }
     html[data-theme="light"] .platform-table th, html[data-theme="light"] .platform-modal { background:#fff; }
     html[data-theme="light"] .platform-modal input, html[data-theme="light"] .platform-modal select, html[data-theme="light"] .platform-modal textarea { background:#f8fafc; }
   </style>
@@ -243,7 +254,7 @@
             } else {
               const output = value(record);
               if (output && typeof output === "object" && "label" in output) { const badge = document.createElement("span"); badge.className = `platform-state ${output.className}`; badge.textContent = output.label; td.append(badge); }
-              else { td.textContent = safeText(output); if (index === 1) td.classList.add("name"); }
+              else { td.textContent = safeText(output); if (index === 1) td.classList.add("name"); if (columns[index][0] === "近一月活跃统计") td.classList.add("activity"); if (columns[index][0] === "已用/剩余" || columns[index][0] === "剩余额度/总额度") td.classList.add("quota"); }
             }
             tr.append(td);
           });
