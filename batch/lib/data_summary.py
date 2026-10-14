@@ -1419,10 +1419,31 @@ def parse_sites(raw_sites: list[dict[str, Any]]) -> list[SiteConfig]:
     return sites
 
 
-from .data_summary_exporter import (  # noqa: E402
-    build_staging_path,
-    build_timestamped_path,
-    latest_excel_path,
-    load_workbook_data,
-    save_workbook_data,
-)
+def build_staging_path(root_dir, when=None):
+    from .data_summary_exporter import build_staging_path as _impl
+
+    return _impl(root_dir, when)
+
+
+def build_timestamped_path(root_dir, when=None):
+    from .data_summary_exporter import build_timestamped_path as _impl
+
+    return _impl(root_dir, when)
+
+
+def latest_excel_path(root_dir):
+    from .data_summary_exporter import latest_excel_path as _impl
+
+    return _impl(root_dir)
+
+
+def load_workbook_data(path):
+    from .data_summary_exporter import load_workbook_data as _impl
+
+    return _impl(path)
+
+
+def save_workbook_data(path, **kwargs):
+    from .data_summary_exporter import save_workbook_data as _impl
+
+    return _impl(path, **kwargs)
