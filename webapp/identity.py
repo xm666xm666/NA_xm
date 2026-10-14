@@ -55,6 +55,7 @@ RECOVERY_CODE_LOCK_MINUTES = 15
 
 FEATURE_WORKSPACE = "workspace"
 FEATURE_BATCH = "batch"
+FEATURE_PLATFORM = "platform"
 FEATURE_DATA_SUMMARY = "data_summary"
 FEATURE_UPSTREAM = "upstream"
 FEATURE_UPSTREAM_BILL = "upstream_bill"
@@ -69,6 +70,7 @@ FEATURE_OPTIONS = (
     (FEATURE_WORKSPACE, "工作台", "查看工作台、任务进度和产物"),
     (FEATURE_EXTRACTION, "智能提取", "使用渠道与令牌提取"),
     (FEATURE_BATCH, "批量配置", "连接站点并管理渠道、令牌和分组"),
+    (FEATURE_PLATFORM, "平台信息", "跨 test / uat / prod 查看和编辑 ai-cloud 模型与令牌"),
     (FEATURE_DATA_SUMMARY, "数据汇总", "采集站点数据并导出汇总"),
     (FEATURE_UPSTREAM, "上游信息", "采集火山云与 Azure 上游资源"),
     (FEATURE_UPSTREAM_BILL, "上游账单", "采集和导出云厂商账单"),
@@ -650,6 +652,8 @@ class IdentityManager:
             return FEATURE_EXTRACTION
         if path.startswith("/api/data-summary/") or path.startswith("/api/channel-balance"):
             return FEATURE_DATA_SUMMARY
+        if path.startswith("/api/platform/"):
+            return FEATURE_PLATFORM
         if path.startswith("/api/upstream/"):
             return FEATURE_UPSTREAM
         if path in _BATCH_API_PATHS or path == "/api/logs-export" or path.startswith("/api/logs-export/"):

@@ -23,6 +23,7 @@ from webapp.identity import (
     FEATURE_BATCH,
     FEATURE_DATA_SUMMARY,
     FEATURE_OVERVIEW,
+    FEATURE_PLATFORM,
     FEATURE_UPSTREAM,
     FEATURE_UPSTREAM_BILL,
     FEATURE_WORKSPACE,
@@ -130,6 +131,7 @@ def _load_batch_modules():
         bill_combined = importlib.import_module("lib.bill_combined")
         volc_openapi = importlib.import_module("lib.volc_openapi")
         env_clusters = importlib.import_module("lib.env_clusters")
+        platform_info = importlib.import_module("lib.platform_info")
         return {
             "NewAPIClient": api_client.NewAPIClient,
             "authenticate_client": api_client.authenticate_client,
@@ -261,6 +263,13 @@ def _load_batch_modules():
             "cluster_label": env_clusters.cluster_label,
             "public_host": env_clusters.public_host,
             "ordered_site_keys": env_clusters.ordered_site_keys,
+            "platform_connected_client": platform_info.connected_client,
+            "platform_list_models": platform_info.list_models,
+            "platform_get_model": platform_info.get_model,
+            "platform_update_model": platform_info.update_model,
+            "platform_list_tokens": platform_info.list_tokens,
+            "platform_get_token": platform_info.get_token,
+            "platform_update_token": platform_info.update_token,
         }
 
 
@@ -470,6 +479,7 @@ def favicon_ico():
 def static_files(filename: str):
     guarded_pages = {
         "batch_ui.html": FEATURE_BATCH,
+        "platform_ui.html": FEATURE_PLATFORM,
         "summary_ui.html": FEATURE_DATA_SUMMARY,
         "agent_ui.html": FEATURE_AGENT,
         "upstream_ui.html": FEATURE_UPSTREAM,
@@ -483,6 +493,8 @@ def static_files(filename: str):
             return blocked
     if filename == "batch_ui.html":
         return send_from_directory(BATCH_STATIC, "index.html")
+    if filename == "platform_ui.html":
+        return send_from_directory(STATIC_DIR, "platform_ui.html")
     if filename == "summary_ui.html":
         return send_from_directory(STATIC_DIR, "summary_ui.html")
     if filename == "agent_ui.html":
@@ -622,6 +634,112 @@ def api_env_sites():
     """多环境快捷连接（按 sites.json 已配置站点）。未配置时 configured=false。"""
     payload = _load_env_sites()
     return jsonify({"success": True, **payload})
+
+
+def _platform_site_client(env: str):
+    """用指定环境的服务端凭据创建 ai-cloud 管理端会话。"""
+    env_key = str(env or "").strip().lower()
+    if env_key not in ENV_SITE_KEYS:
+        raise ValueError("环境仅支持 test、uat 或 prod")
+    _ensure_batch()
+    sites = _load_env_sites().get("sites") or {}
+    site = sites.get(env_key)
+    if not isinstance(site, dict) or not site.get("base_url"):
+        raise ValueError(f"{env_key} 尚未配置，请在 env/sites.json 填写地址、账号、密码和可选 totp_secret")
+
+    # _parse_auth 会按 base_url 从 env/sites.json 补齐 TOTP 原始密钥；凭据不返回浏览器。
+    auth = _parse_auth({
+        "base_url": site.get("base_url"),
+        "username": site.get("username"),
+        "password": site.get("password"),
+        "access_token": site.get("access_token"),
+        "user_id": site.get("user_id"),
+    })
+    client = BATCH["platform_connected_client"](str(site["base_url"]), auth)
+    return env_key, site, client
+
+
+@app.get("/api/platform/sites")
+def api_platform_sites():
+    """仅返回可选环境与地址，账号、密码和 TOTP 永不下发给浏览器。"""
+    _ensure_batch()
+    sites = _load_env_sites().get("sites") or {}
+    items = [
+        {
+            "env": env,
+            "label": env.upper(),
+            "base_url": str((sites.get(env) or {}).get("base_url") or ""),
+            "configured": bool((sites.get(env) or {}).get("base_url")),
+        }
+        for env in ENV_SITE_KEYS
+    ]
+    return jsonify({"success": True, "data": items})
+
+
+@app.get("/api/platform/<env>/models")
+def api_platform_models(env: str):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_models"](client)})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.get("/api/platform/<env>/models/<int:model_id>")
+def api_platform_model_detail(env: str, model_id: int):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_get_model"](client, model_id)})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.put("/api/platform/<env>/models/<int:model_id>")
+def api_platform_model_update(env: str, model_id: int):
+    body = request.get_json(silent=True) or {}
+    record = body.get("record")
+    if not isinstance(record, dict):
+        return jsonify({"success": False, "message": "请提交完整的模型记录"}), 400
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = BATCH["platform_update_model"](client, model_id, record)
+        IDENTITY.store.audit("platform.model.updated", resource=f"{env_key}:model:{model_id}", detail={"env": env_key, "model_id": model_id})
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "模型已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.get("/api/platform/<env>/tokens")
+def api_platform_tokens(env: str):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_tokens"](client)})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.get("/api/platform/<env>/tokens/<int:token_id>")
+def api_platform_token_detail(env: str, token_id: int):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_get_token"](client, token_id)})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.put("/api/platform/<env>/tokens/<int:token_id>")
+def api_platform_token_update(env: str, token_id: int):
+    body = request.get_json(silent=True) or {}
+    record = body.get("record")
+    if not isinstance(record, dict):
+        return jsonify({"success": False, "message": "请提交完整的令牌记录"}), 400
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = BATCH["platform_update_token"](client, token_id, record)
+        IDENTITY.store.audit("platform.token.updated", resource=f"{env_key}:token:{token_id}", detail={"env": env_key, "token_id": token_id})
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "令牌已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
 def _parse_volc_cred_dict(raw: Any) -> dict[str, Any]:

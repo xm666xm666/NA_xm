@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="na-brand-bridge">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>平台信息 · NA 自动配置</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=auth-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
+  <script src="/static/na-theme.js"></script>
+  <script src="/static/na-ui.js?v=auth-1"></script>
+  <script src="/static/auth-shell.js?v=web-5"></script>
+  <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+  <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
+  <style>
+    .platform-shell { display:grid; gap:1.1rem; }
+    .platform-toolbar { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; }
+    .platform-envs { display:flex; gap:.45rem; flex-wrap:wrap; }
+    .platform-env {
+      min-width:76px; padding:.55rem .8rem; border:1px solid var(--na-border); border-radius:9px;
+      background:rgba(255,255,255,.025); color:var(--na-text-muted); font:700 .76rem/1 inherit; letter-spacing:.06em; cursor:pointer;
+    }
+    .platform-env.active { color:var(--na-accent); border-color:rgba(34,211,238,.55); background:var(--na-accent-soft); }
+    .platform-env:disabled { opacity:.38; cursor:not-allowed; }
+    .platform-address { margin-left:auto; color:var(--na-text-muted); font:500 .78rem var(--font-mono,ui-monospace,monospace); overflow-wrap:anywhere; }
+    .platform-tabs { display:flex; gap:2px; border-bottom:1px solid var(--na-border); }
+    .platform-tabs button { border:0; background:transparent; color:var(--na-text-muted); padding:.7rem .95rem; cursor:pointer; font:600 .85rem/1 inherit; border-bottom:2px solid transparent; margin-bottom:-1px; }
+    .platform-tabs button.active { color:var(--na-text); border-bottom-color:var(--na-accent); }
+    .platform-meta { min-height:1.35rem; color:var(--na-text-muted); font-size:.8rem; }
+    .platform-table-wrap { overflow:auto; max-height:calc(100vh - 300px); min-height:260px; border:1px solid var(--na-border); border-radius:10px; }
+    .platform-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .platform-table th, .platform-table td { padding:.68rem .75rem; text-align:left; border-bottom:1px solid var(--na-border); white-space:nowrap; }
+    .platform-table th { position:sticky; top:0; z-index:1; background:var(--na-panel-solid,#101827); color:var(--na-text-muted); font-size:.7rem; letter-spacing:.035em; }
+    .platform-table td.name { max-width:360px; overflow:hidden; text-overflow:ellipsis; font-family:var(--font-mono,ui-monospace,monospace); }
+    .platform-table tr:last-child td { border-bottom:0; }
+    .platform-table tr:hover td { background:rgba(34,211,238,.035); }
+    .platform-empty { padding:3rem 1.25rem; text-align:center; color:var(--na-text-muted); }
+    .platform-state { display:inline-flex; align-items:center; padding:.18rem .48rem; border-radius:999px; font-size:.7rem; font-weight:700; }
+    .platform-state.on { color:var(--na-success); background:var(--na-success-soft); }
+    .platform-state.off { color:var(--na-danger); background:var(--na-danger-soft); }
+    .platform-edit { border:1px solid var(--na-border); border-radius:7px; background:transparent; color:var(--na-accent); padding:.32rem .58rem; cursor:pointer; font:600 .74rem/1 inherit; }
+    .platform-edit:hover { border-color:rgba(34,211,238,.55); background:var(--na-accent-soft); }
+    .platform-modal-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:20px; background:rgba(2,6,23,.7); backdrop-filter:blur(4px); }
+    .platform-modal-backdrop[hidden] { display:none; }
+    .platform-modal { width:min(860px,100%); max-height:calc(100vh - 40px); display:grid; grid-template-rows:auto auto minmax(220px,1fr) auto; gap:.8rem; padding:1.15rem; border:1px solid var(--na-border); border-radius:13px; background:var(--na-panel-solid,#101827); box-shadow:0 30px 90px rgba(0,0,0,.45); }
+    .platform-modal h2 { margin:0; font-size:1rem; }
+    .platform-modal p { margin:0; color:var(--na-text-muted); font-size:.8rem; line-height:1.6; }
+    .platform-json { min-height:300px; width:100%; box-sizing:border-box; resize:vertical; border:1px solid var(--na-border); border-radius:8px; padding:.8rem; background:rgba(2,6,23,.38); color:var(--na-text); font:12px/1.5 var(--font-mono,ui-monospace,monospace); }
+    .platform-modal-actions { display:flex; justify-content:flex-end; gap:.6rem; }
+    @media (max-width:700px) { .platform-address { width:100%; margin-left:0; } .platform-table-wrap { max-height:none; } .platform-modal { max-height:calc(100vh - 24px); } }
+    html[data-theme="light"] .platform-table th, html[data-theme="light"] .platform-modal { background:#fff; }
+    html[data-theme="light"] .platform-json { background:#f8fafc; }
+  </style>
+</head>
+<body class="na-app">
+  <div class="na-bg" aria-hidden="true"><div class="na-bg-grid"></div><div class="na-bg-orb na-bg-orb-1"></div><div class="na-bg-orb na-bg-orb-2"></div><div class="na-bg-noise"></div></div>
+  <main class="na-wrap">
+    <header class="na-hero na-animate-in">
+      <h1>平台<em>信息</em></h1>
+      <p class="na-subtitle"><span class="na-badge"><span class="na-badge-dot"></span>Platform Console</span>按 test、uat、prod 统一查看并编辑 ai-cloud 的模型管理和令牌管理。账号、密码与 TOTP 仅由服务端从 <code>env/sites.json</code> 读取。</p>
+    </header>
+
+    <section class="na-panel na-panel-static na-animate-in na-animate-in-1 platform-shell">
+      <div class="platform-toolbar">
+        <div class="platform-envs" id="envButtons" aria-label="选择环境"></div>
+        <span class="platform-address" id="siteAddress">正在读取环境配置…</span>
+        <button type="button" class="na-btn na-btn-secondary" id="refreshBtn"><span class="na-spinner"></span><span class="na-btn-label">刷新列表</span></button>
+      </div>
+      <div class="platform-tabs" role="tablist" aria-label="平台资源">
+        <button type="button" class="active" data-kind="models" role="tab" aria-selected="true">模型管理</button>
+        <button type="button" data-kind="tokens" role="tab" aria-selected="false">令牌管理</button>
+      </div>
+      <div class="platform-meta" id="tableMeta">选择已配置环境后读取列表。</div>
+      <div class="platform-table-wrap"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
+    </section>
+  </main>
+
+  <div class="platform-modal-backdrop" id="editorBackdrop" hidden>
+    <section class="platform-modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <h2 id="editorTitle">编辑记录</h2>
+      <p>内容保持 ai-cloud 返回的完整字段。保存前请确认 JSON 格式正确；系统会固定当前记录 ID，避免误更新其它记录。</p>
+      <textarea class="platform-json" id="editorJson" spellcheck="false" aria-label="完整 JSON 记录"></textarea>
+      <div class="platform-modal-actions"><button type="button" class="na-btn na-btn-ghost" id="cancelEdit">取消</button><button type="button" class="na-btn na-btn-primary" id="saveEdit"><span class="na-spinner"></span><span class="na-btn-label">保存修改</span></button></div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+      const $ = (id) => document.getElementById(id);
+      const state = { env: "", kind: "models", sites: [], rows: [], editingId: null };
+      const tableColumns = {
+        models: [
+          ["ID", (r) => r.id], ["模型名称", (r) => r.model_name || r.name || ""], ["厂商", (r) => r.vendor || ""],
+          ["名称规则", (r) => r.name_rule || ""], ["状态", (r) => statePill(r.status)], ["已配置渠道", (r) => r.configured_channel_count ?? ""], ["操作", () => ""],
+        ],
+        tokens: [
+          ["ID", (r) => r.id], ["名称", (r) => r.name || ""], ["状态", (r) => statePill(r.status)],
+          ["分组", (r) => r.group || ""], ["额度", (r) => r.quota ?? ""], ["剩余额度", (r) => r.remain_quota ?? ""], ["到期时间", (r) => timestamp(r.expired_time)], ["操作", () => ""],
+        ],
+      };
+
+      function timestamp(value) {
+        const n = Number(value || 0);
+        if (!Number.isFinite(n) || n <= 0) return "不限";
+        return new Date(n * 1000).toLocaleString("zh-CN", { hour12: false });
+      }
+      function statePill(value) {
+        const enabled = Number(value) === 1;
+        return { label: enabled ? "启用" : "停用", className: enabled ? "on" : "off" };
+      }
+      function setBusy(button, busy) {
+        button.disabled = busy;
+        button.classList.toggle("is-loading", busy);
+      }
+      function setMeta(message, kind = "") {
+        const el = $("tableMeta"); el.textContent = message; el.dataset.kind = kind;
+      }
+      function siteFor(env) { return state.sites.find((site) => site.env === env); }
+      function safeText(value) { return value == null ? "" : String(value); }
+
+      async function request(url, options) {
+        const response = await fetch(url, options);
+        let payload = {};
+        try { payload = await response.json(); } catch (_) {}
+        if (!response.ok || !payload.success) throw new Error(payload.message || `请求失败（${response.status}）`);
+        return payload;
+      }
+      function renderEnvButtons() {
+        const box = $("envButtons"); box.replaceChildren();
+        state.sites.forEach((site) => {
+          const button = document.createElement("button");
+          button.type = "button"; button.className = "platform-env" + (site.env === state.env ? " active" : "");
+          button.textContent = site.label; button.disabled = !site.configured;
+          button.title = site.configured ? site.base_url : `${site.label} 未配置`;
+          button.addEventListener("click", () => { if (state.env !== site.env) { state.env = site.env; renderEnvButtons(); loadRows(); } });
+          box.append(button);
+        });
+        const current = siteFor(state.env);
+        $("siteAddress").textContent = current?.configured ? current.base_url : "请先在 env/sites.json 配置环境";
+      }
+      function renderTable() {
+        const columns = tableColumns[state.kind];
+        const head = $("tableHead"), body = $("tableBody");
+        head.replaceChildren(); body.replaceChildren();
+        const headerRow = document.createElement("tr");
+        columns.forEach(([name]) => { const th = document.createElement("th"); th.textContent = name; headerRow.append(th); });
+        head.append(headerRow);
+        if (!state.rows.length) {
+          const tr = document.createElement("tr"), td = document.createElement("td"); td.colSpan = columns.length; td.className = "platform-empty";
+          td.textContent = "当前环境没有可显示的记录。"; tr.append(td); body.append(tr); return;
+        }
+        state.rows.forEach((record) => {
+          const tr = document.createElement("tr");
+          columns.forEach(([name, value], index) => {
+            const td = document.createElement("td");
+            if (name === "操作") {
+              const edit = document.createElement("button"); edit.type = "button"; edit.className = "platform-edit"; edit.textContent = "编辑";
+              edit.addEventListener("click", () => openEditor(record)); td.append(edit);
+            } else {
+              const output = value(record);
+              if (output && typeof output === "object" && "label" in output) { const badge = document.createElement("span"); badge.className = `platform-state ${output.className}`; badge.textContent = output.label; td.append(badge); }
+              else { td.textContent = safeText(output); if (index === 1) td.classList.add("name"); }
+            }
+            tr.append(td);
+          });
+          body.append(tr);
+        });
+      }
+      async function loadRows() {
+        if (!state.env) return;
+        const button = $("refreshBtn"); setBusy(button, true); setMeta(`正在读取 ${state.env.toUpperCase()} 的${state.kind === "models" ? "模型" : "令牌"}…`);
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}`);
+          state.rows = Array.isArray(payload.data) ? payload.data : [];
+          renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "models" ? "模型管理" : "令牌管理"} · ${state.rows.length} 条记录`);
+        } catch (error) {
+          state.rows = []; renderTable(); setMeta(error.message, "error"); NAUi.toast(error.message, "err");
+        } finally { setBusy(button, false); }
+      }
+      async function openEditor(record) {
+        const id = Number(record.id);
+        if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该记录没有有效 ID，无法编辑", "warn"); return; }
+        state.editingId = id; $("editorTitle").textContent = `编辑 ${state.kind === "models" ? "模型" : "令牌"} #${id}`;
+        $("editorJson").value = "正在读取完整记录…"; $("editorBackdrop").hidden = false;
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}/${id}`);
+          $("editorJson").value = JSON.stringify(payload.data, null, 2);
+          $("editorJson").focus();
+        } catch (error) { $("editorBackdrop").hidden = true; NAUi.toast(error.message, "err"); }
+      }
+      function closeEditor() { $("editorBackdrop").hidden = true; state.editingId = null; }
+      async function saveEditor() {
+        const id = state.editingId;
+        if (!id) return;
+        let record;
+        try { record = JSON.parse($("editorJson").value); } catch (_) { NAUi.toast("JSON 格式无效，请修正后再保存", "err"); return; }
+        if (!record || Array.isArray(record) || typeof record !== "object") { NAUi.toast("记录必须是 JSON 对象", "err"); return; }
+        record.id = id;
+        const button = $("saveEdit"); setBusy(button, true);
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}/${id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ record }) });
+          closeEditor(); NAUi.toast(payload.message || "已保存", "ok"); await loadRows();
+        } catch (error) { NAUi.toast(error.message, "err"); } finally { setBusy(button, false); }
+      }
+      async function init() {
+        try {
+          const payload = await request("/api/platform/sites"); state.sites = Array.isArray(payload.data) ? payload.data : [];
+          state.env = state.sites.find((site) => site.configured)?.env || ""; renderEnvButtons();
+          if (state.env) await loadRows(); else { renderTable(); setMeta("未检测到已配置的 test / uat / prod；请填写 env/sites.json。", "error"); }
+        } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
+      }
+      document.querySelectorAll(".platform-tabs button").forEach((button) => button.addEventListener("click", () => {
+        const next = button.dataset.kind; if (next === state.kind) return; state.kind = next;
+        document.querySelectorAll(".platform-tabs button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-selected", String(active)); });
+        loadRows();
+      }));
+      $("refreshBtn").addEventListener("click", loadRows); $("cancelEdit").addEventListener("click", closeEditor); $("saveEdit").addEventListener("click", saveEditor);
+      $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
+      document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("editorBackdrop").hidden) closeEditor(); });
+      init();
+    })();
+  </script>
+</body>
+</html>
