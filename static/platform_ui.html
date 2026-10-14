@@ -38,18 +38,32 @@
     .platform-state { display:inline-flex; align-items:center; padding:.18rem .48rem; border-radius:999px; font-size:.7rem; font-weight:700; }
     .platform-state.on { color:var(--na-success); background:var(--na-success-soft); }
     .platform-state.off { color:var(--na-danger); background:var(--na-danger-soft); }
+    .platform-state.auto { color:#f59e0b; background:rgba(245,158,11,.12); }
     .platform-edit { border:1px solid var(--na-border); border-radius:7px; background:transparent; color:var(--na-accent); padding:.32rem .58rem; cursor:pointer; font:600 .74rem/1 inherit; }
     .platform-edit:hover { border-color:rgba(34,211,238,.55); background:var(--na-accent-soft); }
-    .platform-modal-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:20px; background:rgba(2,6,23,.7); backdrop-filter:blur(4px); }
+    .platform-edit.danger { color:var(--na-danger); }
+    .platform-edit.danger:hover { border-color:rgba(239,68,68,.55); background:rgba(239,68,68,.08); }
+    .platform-modal-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:20px; background:rgba(2,6,23,.7); backdrop-filter:blur(4px); overflow-y:auto; }
     .platform-modal-backdrop[hidden] { display:none; }
-    .platform-modal { width:min(860px,100%); max-height:calc(100vh - 40px); display:grid; grid-template-rows:auto auto minmax(220px,1fr) auto; gap:.8rem; padding:1.15rem; border:1px solid var(--na-border); border-radius:13px; background:var(--na-panel-solid,#101827); box-shadow:0 30px 90px rgba(0,0,0,.45); }
+    .platform-modal { width:min(720px,100%); max-height:calc(100vh - 40px); display:flex; flex-direction:column; gap:.8rem; padding:1.15rem; border:1px solid var(--na-border); border-radius:13px; background:var(--na-panel-solid,#101827); box-shadow:0 30px 90px rgba(0,0,0,.45); overflow-y:auto; }
     .platform-modal h2 { margin:0; font-size:1rem; }
-    .platform-modal p { margin:0; color:var(--na-text-muted); font-size:.8rem; line-height:1.6; }
-    .platform-json { min-height:300px; width:100%; box-sizing:border-box; resize:vertical; border:1px solid var(--na-border); border-radius:8px; padding:.8rem; background:rgba(2,6,23,.38); color:var(--na-text); font:12px/1.5 var(--font-mono,ui-monospace,monospace); }
-    .platform-modal-actions { display:flex; justify-content:flex-end; gap:.6rem; }
-    @media (max-width:700px) { .platform-address { width:100%; margin-left:0; } .platform-table-wrap { max-height:none; } .platform-modal { max-height:calc(100vh - 24px); } }
+    .platform-modal .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+    .platform-modal .form-group { display:flex; flex-direction:column; gap:.3rem; }
+    .platform-modal .form-group.full { grid-column:1/-1; }
+    .platform-modal label { font-size:.75rem; font-weight:600; color:var(--na-text-muted); }
+    .platform-modal input, .platform-modal select, .platform-modal textarea {
+      width:100%; box-sizing:border-box; border:1px solid var(--na-border); border-radius:7px; padding:.5rem .65rem;
+      background:rgba(2,6,23,.38); color:var(--na-text); font:.8rem/1.5 var(--font-mono,ui-monospace,monospace); resize:vertical;
+    }
+    .platform-modal textarea { min-height:72px; }
+    .platform-modal input[type="checkbox"] { width:auto; }
+    .platform-modal .checkbox-group { display:flex; align-items:center; gap:.4rem; }
+    .platform-modal .form-hint { font-size:.7rem; color:var(--na-text-muted); }
+    .platform-modal-actions { display:flex; justify-content:flex-end; gap:.6rem; padding-top:.5rem; border-top:1px solid var(--na-border); }
+    .platform-section-title { font-size:.82rem; font-weight:700; color:var(--na-accent); margin:.5rem 0 0; padding-bottom:.3rem; border-bottom:1px solid var(--na-border); }
+    @media (max-width:700px) { .platform-address { width:100%; margin-left:0; } .platform-table-wrap { max-height:none; } .platform-modal .form-grid { grid-template-columns:1fr; } }
     html[data-theme="light"] .platform-table th, html[data-theme="light"] .platform-modal { background:#fff; }
-    html[data-theme="light"] .platform-json { background:#f8fafc; }
+    html[data-theme="light"] .platform-modal input, html[data-theme="light"] .platform-modal select, html[data-theme="light"] .platform-modal textarea { background:#f8fafc; }
   </style>
 </head>
 <body class="na-app">
@@ -78,8 +92,7 @@
   <div class="platform-modal-backdrop" id="editorBackdrop" hidden>
     <section class="platform-modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
       <h2 id="editorTitle">编辑记录</h2>
-      <p>内容保持 ai-cloud 返回的完整字段。保存前请确认 JSON 格式正确；系统会固定当前记录 ID，避免误更新其它记录。</p>
-      <textarea class="platform-json" id="editorJson" spellcheck="false" aria-label="完整 JSON 记录"></textarea>
+      <div class="form-grid" id="editorForm"></div>
       <div class="platform-modal-actions"><button type="button" class="na-btn na-btn-ghost" id="cancelEdit">取消</button><button type="button" class="na-btn na-btn-primary" id="saveEdit"><span class="na-spinner"></span><span class="na-btn-label">保存修改</span></button></div>
     </section>
   </div>
@@ -88,7 +101,7 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], editingId: null };
+      const state = { env: "", kind: "channels", sites: [], rows: [], editingId: null, editingRecord: null };
       const CHANNEL_TYPES = {
         1: "OpenAI", 2: "Midjourney Proxy", 3: "Azure OpenAI", 4: "Ollama", 5: "Midjourney Proxy Plus",
         8: "自定义渠道", 11: "Google PaLM2", 14: "Anthropic Claude", 15: "百度文心千帆", 16: "智谱 ChatGLM",
@@ -100,17 +113,6 @@
         47: "Xinference", 48: "xAI", 49: "Coze", 50: "可灵", 51: "即梦", 52: "Vidu", 53: "SubModel",
         54: "豆包视频", 55: "Sora", 56: "Replicate",
       };
-      function channelTypeLabel(value) { return CHANNEL_TYPES[value] || (value ? String(value) : ""); }
-      function activityText(record) {
-        const stat = record.activity_stats;
-        if (!stat || typeof stat !== "object") return "";
-        const rpm = stat.rpm != null ? stat.rpm : stat.rpm_1m;
-        const tpm = stat.tpm != null ? stat.tpm : stat.tpm_1m;
-        const parts = [];
-        if (rpm != null) parts.push(`均 RPM ${Number(rpm).toFixed(2)}`);
-        if (tpm != null) parts.push(`均 TPM ${Number(tpm).toFixed(2)}`);
-        return parts.join(" · ");
-      }
       const tableColumns = {
         channels: [
           ["ID", (r) => r.id], ["名称", (r) => r.name || ""], ["分组", (r) => r.group || ""],
@@ -128,7 +130,16 @@
           ["创建时间", (r) => timestamp(r.created_time)], ["过期时间", (r) => Number(r.expired_time) === -1 ? "永不过期" : timestamp(r.expired_time)], ["操作", () => ""],
         ],
       };
-
+      function channelTypeLabel(value) { return CHANNEL_TYPES[value] || (value ? String(value) : ""); }
+      function activityText(record) {
+        const stats = record.activity_stats;
+        if (!Array.isArray(stats) || stats.length === 0) return "近一月无活跃数据";
+        if (stats.length === 1) {
+          const s = stats[0];
+          return `${s.model_name || ""} · 均 RPM ${Number(s.avg_rpm || 0).toFixed(2)} · 均 TPM ${Number(s.avg_tpm || 0).toFixed(2)}`;
+        }
+        return `共 ${stats.length} 个模型 · 均 RPM ${stats[0]?.avg_rpm?.toFixed(2) || "-"} · 均 TPM ${stats[0]?.avg_tpm?.toFixed(2) || "-"}`;
+      }
       function timestamp(value) {
         const n = Number(value || 0);
         if (!Number.isFinite(n) || n <= 0) return "不限";
@@ -137,7 +148,7 @@
       function statePill(value) {
         const n = Number(value);
         if (n === 1) return { label: "已启用", className: "on" };
-        if (n === 3) return { label: "自动禁用", className: "off" };
+        if (n === 3) return { label: "自动禁用", className: "auto" };
         return { label: "已禁用", className: "off" };
       }
       function tokenStatePill(value) {
@@ -176,17 +187,10 @@
         if (full.length <= 12) return full;
         return `${full.slice(0, 7)}**********${full.slice(-4)}`;
       }
-
-      function setBusy(button, busy) {
-        button.disabled = busy;
-        button.classList.toggle("is-loading", busy);
-      }
-      function setMeta(message, kind = "") {
-        const el = $("tableMeta"); el.textContent = message; el.dataset.kind = kind;
-      }
+      function setBusy(button, busy) { button.disabled = busy; button.classList.toggle("is-loading", busy); }
+      function setMeta(message, kind = "") { const el = $("tableMeta"); el.textContent = message; el.dataset.kind = kind; }
       function siteFor(env) { return state.sites.find((site) => site.env === env); }
       function safeText(value) { return value == null ? "" : String(value); }
-
       async function request(url, options) {
         const response = await fetch(url, options);
         let payload = {};
@@ -257,25 +261,98 @@
           state.rows = []; renderTable(); setMeta(error.message, "error"); NAUi.toast(error.message, "err");
         } finally { setBusy(button, false); }
       }
+
+      // --- Editor form ---
+      function formField(parent, { label, key, type = "text", value = "", options = null, hint = "", full = false }) {
+        const group = document.createElement("div"); group.className = "form-group" + (full ? " full" : "");
+        const lab = document.createElement("label"); lab.textContent = label; group.append(lab);
+        let input;
+        if (type === "select") {
+          input = document.createElement("select"); input.dataset.formKey = key;
+          (options || []).forEach(([val, text]) => { const opt = document.createElement("option"); opt.value = String(val); opt.textContent = text; opt.selected = String(val) === String(value); input.append(opt); });
+        } else if (type === "textarea") {
+          input = document.createElement("textarea"); input.value = value ?? ""; input.dataset.formKey = key;
+        } else if (type === "checkbox") {
+          const wrap = document.createElement("div"); wrap.className = "checkbox-group";
+          input = document.createElement("input"); input.type = "checkbox"; input.checked = !!value; input.dataset.formKey = key;
+          wrap.append(input); group.append(wrap);
+          if (hint) { const h = document.createElement("span"); h.className = "form-hint"; h.textContent = hint; wrap.append(h); }
+          parent.append(group); return;
+        } else {
+          input = document.createElement("input"); input.type = type; input.value = value ?? ""; input.dataset.formKey = key;
+        }
+        group.append(input);
+        if (hint) { const h = document.createElement("span"); h.className = "form-hint"; h.textContent = hint; group.append(h); }
+        parent.append(group);
+      }
+
+      function renderChannelForm(record) {
+        const form = $("editorForm"); form.replaceChildren();
+        formField(form, { label: "渠道名称", key: "name", value: record.name || "" });
+        formField(form, { label: "渠道类型", key: "type", type: "select", value: record.type || 1, options: Object.entries(CHANNEL_TYPES).map(([v, l]) => [v, l]) });
+        formField(form, { label: "Base URL", key: "base_url", value: record.base_url || "", hint: "留空使用默认" });
+        formField(form, { label: "代理", key: "proxy", value: record.proxy || record.setting?.proxy || "", hint: "如 http://127.0.0.1:7890" });
+        formField(form, { label: "分组", key: "group", value: record.group || "default", hint: "多个用英文逗号分隔" });
+        formField(form, { label: "优先级", key: "priority", type: "number", value: record.priority ?? 0 });
+        formField(form, { label: "权重", key: "weight", type: "number", value: record.weight ?? 0 });
+        formField(form, { label: "测试模型", key: "test_model", value: record.test_model || "" });
+        formField(form, { label: "模型列表", key: "models", type: "textarea", value: record.models || "", full: true, hint: "多个模型用英文逗号分隔" });
+        formField(form, { label: "模型重定向 (JSON)", key: "model_mapping", type: "textarea", value: typeof record.model_mapping === "string" ? record.model_mapping : JSON.stringify(record.model_mapping || {}, null, 2), full: true });
+        formField(form, { label: "备注", key: "remark", type: "textarea", value: record.remark || "", full: true });
+        formField(form, { label: "状态", key: "status", type: "select", value: record.status ?? 1, options: [[1, "已启用"], [2, "手动禁用"], [3, "自动禁用"]] });
+        formField(form, { label: "自动禁用", key: "auto_ban", type: "checkbox", value: !!record.auto_ban, hint: "测试失败时自动禁用" });
+      }
+
+      function renderTokenForm(record) {
+        const form = $("editorForm"); form.replaceChildren();
+        formField(form, { label: "令牌名称", key: "name", value: record.name || "" });
+        formField(form, { label: "分组", key: "group", value: record.group || "default", hint: "auto 表示智能熔断" });
+        formField(form, { label: "剩余额度 ($)", key: "remain_quota", type: "number", value: record.remain_quota ?? 0, hint: "500000 = $1.00" });
+        formField(form, { label: "额度上限", key: "quota", type: "number", value: record.quota ?? 0 });
+        formField(form, { label: "过期时间", key: "expired_time", type: "number", value: record.expired_time ?? -1, hint: "-1 表示永不过期" });
+        formField(form, { label: "无限额度", key: "unlimited_quota", type: "checkbox", value: !!record.unlimited_quota });
+        formField(form, { label: "模型白名单", key: "token_model_limit", type: "textarea", value: record.token_model_limit || "", full: true, hint: "多个模型用英文逗号分隔；留空表示不限制" });
+        formField(form, { label: "启用模型限制", key: "token_model_limit_enabled", type: "checkbox", value: !!record.token_model_limit_enabled });
+        formField(form, { label: "IP 限制", key: "allow_ips", type: "textarea", value: record.allow_ips || "", full: true, hint: "多个 IP 用换行分隔；留空表示无限制" });
+        formField(form, { label: "状态", key: "status", type: "select", value: record.status ?? 1, options: [[1, "已启用"], [2, "手动禁用"], [3, "已过期"], [4, "已耗尽"]] });
+      }
+
       async function openEditor(record) {
         const id = Number(record.id);
         if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该记录没有有效 ID，无法编辑", "warn"); return; }
-        state.editingId = id; $("editorTitle").textContent = `编辑 ${state.kind === "channels" ? "渠道" : "令牌"} #${id}`;
-        $("editorJson").value = "正在读取完整记录…"; $("editorBackdrop").hidden = false;
+        state.editingId = id; state.editingRecord = null;
+        $("editorTitle").textContent = `编辑 ${state.kind === "channels" ? "渠道" : "令牌"} #${id}`;
+        $("editorForm").replaceChildren(); $("editorForm").textContent = "正在读取完整记录…";
+        $("editorBackdrop").hidden = false;
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}/${id}`);
-          $("editorJson").value = JSON.stringify(payload.data, null, 2);
-          $("editorJson").focus();
-        } catch (error) { $("editorBackdrop").hidden = true; NAUi.toast(error.message, "err"); }
+          state.editingRecord = payload.data;
+          if (state.kind === "channels") renderChannelForm(payload.data); else renderTokenForm(payload.data);
+        } catch (error) {
+          $("editorBackdrop").hidden = true; NAUi.toast(error.message, "err");
+        }
       }
-      function closeEditor() { $("editorBackdrop").hidden = true; state.editingId = null; }
+      function collectFormValues() {
+        const form = $("editorForm");
+        const result = {};
+        form.querySelectorAll("[data-form-key]").forEach((el) => {
+          const key = el.dataset.formKey;
+          if (el.type === "checkbox") result[key] = el.checked;
+          else if (el.type === "number") { const n = Number(el.value); result[key] = Number.isFinite(n) ? n : el.value; }
+          else result[key] = el.value;
+        });
+        return result;
+      }
+      function closeEditor() { $("editorBackdrop").hidden = true; state.editingId = null; state.editingRecord = null; }
       async function saveEditor() {
         const id = state.editingId;
         if (!id) return;
-        let record;
-        try { record = JSON.parse($("editorJson").value); } catch (_) { NAUi.toast("JSON 格式无效，请修正后再保存", "err"); return; }
-        if (!record || Array.isArray(record) || typeof record !== "object") { NAUi.toast("记录必须是 JSON 对象", "err"); return; }
-        record.id = id;
+        const formValues = collectFormValues();
+        const record = { ...state.editingRecord, ...formValues, id };
+        delete record.key; delete record.token; delete record.activity_stats; delete record.activity_stats_models;
+        if (state.kind === "channels" && record.model_mapping && typeof record.model_mapping === "string") {
+          try { record.model_mapping = JSON.parse(record.model_mapping || "{}"); } catch (_) { NAUi.toast("模型重定向 JSON 格式无效", "err"); return; }
+        }
         const button = $("saveEdit"); setBusy(button, true);
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}/${id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ record }) });
@@ -289,6 +366,10 @@
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/channels/${id}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
           const time = payload.data?.time;
+          if (record && time != null) {
+            record.response_time = Math.round(Number(time) * 1000);
+            renderTable();
+          }
           setMeta(`渠道 #${id} 测试完成${time ? ` · ${Number(time).toFixed(2)} 秒` : ""}`);
           NAUi.toast(payload.message || "渠道测试完成", "ok");
         } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }

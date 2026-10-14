@@ -64,18 +64,34 @@ def list_models(client: NewAPIClient, page_size: int = 100) -> list[dict[str, An
 def list_channels(client: NewAPIClient) -> list[dict[str, Any]]:
     """拉取渠道管理列表（不含明文密钥），附带近一月活跃统计。"""
     rows = client.list_all_channels()
-    try:
-        stats = client.fetch_channel_activity_stats(rows)
-    except Exception:
-        stats = []
-    stat_map: dict[int, dict[str, Any]] = {}
-    for entry in stats:
-        if isinstance(entry, dict) and entry.get("channel_id"):
-            stat_map.setdefault(int(entry["channel_id"]), entry)
+    pairs: list[dict[str, Any]] = []
+    seen: set[tuple[int, str]] = set()
     for row in rows:
-        stat = stat_map.get(int(row.get("id") or 0))
-        if stat:
-            row["activity_stats"] = stat
+        models_raw = str(row.get("models") or "")
+        for model_name in models_raw.split(","):
+            model_name = model_name.strip()
+            if not model_name:
+                continue
+            key = (int(row.get("id") or 0), model_name)
+            if key in seen:
+                continue
+            seen.add(key)
+            pairs.append({"channel_id": key[0], "model_name": model_name})
+    stat_map: dict[tuple[int, str], dict[str, Any]] = {}
+    if pairs:
+        try:
+            stats = client.fetch_channel_activity_stats(pairs)
+        except Exception:
+            stats = []
+        for entry in stats:
+            if isinstance(entry, dict) and entry.get("channel_id") and entry.get("model_name"):
+                stat_map[(int(entry["channel_id"]), str(entry["model_name"]))] = entry
+    for row in rows:
+        row_id = int(row.get("id") or 0)
+        model_names = [m.strip() for m in str(row.get("models") or "").split(",") if m.strip()]
+        row["activity_stats_models"] = model_names
+        matched = [stat_map[(row_id, m)] for m in model_names if (row_id, m) in stat_map]
+        row["activity_stats"] = matched if matched else None
     rows.sort(key=lambda row: int(row.get("id") or 0), reverse=True)
     return rows
 
