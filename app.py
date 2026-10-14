@@ -264,9 +264,11 @@ def _load_batch_modules():
             "public_host": env_clusters.public_host,
             "ordered_site_keys": env_clusters.ordered_site_keys,
             "platform_connected_client": platform_info.connected_client,
-            "platform_list_models": platform_info.list_models,
-            "platform_get_model": platform_info.get_model,
-            "platform_update_model": platform_info.update_model,
+            "platform_list_channels": platform_info.list_channels,
+            "platform_get_channel": platform_info.get_channel,
+            "platform_update_channel": platform_info.update_channel,
+            "platform_test_channel": platform_info.test_channel,
+            "platform_update_channel_status": platform_info.update_channel_status,
             "platform_list_tokens": platform_info.list_tokens,
             "platform_get_token": platform_info.get_token,
             "platform_update_token": platform_info.update_token,
@@ -676,35 +678,63 @@ def api_platform_sites():
     return jsonify({"success": True, "data": items})
 
 
-@app.get("/api/platform/<env>/models")
-def api_platform_models(env: str):
+@app.get("/api/platform/<env>/channels")
+def api_platform_channels(env: str):
     try:
         env_key, _site, client = _platform_site_client(env)
-        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_models"](client)})
+        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_channels"](client)})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
-@app.get("/api/platform/<env>/models/<int:model_id>")
-def api_platform_model_detail(env: str, model_id: int):
+@app.get("/api/platform/<env>/channels/<int:channel_id>")
+def api_platform_channel_detail(env: str, channel_id: int):
     try:
         env_key, _site, client = _platform_site_client(env)
-        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_get_model"](client, model_id)})
+        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_get_channel"](client, channel_id)})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
-@app.put("/api/platform/<env>/models/<int:model_id>")
-def api_platform_model_update(env: str, model_id: int):
+@app.put("/api/platform/<env>/channels/<int:channel_id>")
+def api_platform_channel_update(env: str, channel_id: int):
     body = request.get_json(silent=True) or {}
     record = body.get("record")
     if not isinstance(record, dict):
-        return jsonify({"success": False, "message": "请提交完整的模型记录"}), 400
+        return jsonify({"success": False, "message": "请提交完整的渠道记录"}), 400
     try:
         env_key, _site, client = _platform_site_client(env)
-        data = BATCH["platform_update_model"](client, model_id, record)
-        IDENTITY.store.audit("platform.model.updated", resource=f"{env_key}:model:{model_id}", detail={"env": env_key, "model_id": model_id})
-        return jsonify({"success": True, "env": env_key, "data": data, "message": "模型已更新"})
+        data = BATCH["platform_update_channel"](client, channel_id, record)
+        IDENTITY.store.audit("platform.channel.updated", resource=f"{env_key}:channel:{channel_id}", detail={"env": env_key, "channel_id": channel_id})
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "渠道已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/platform/<env>/channels/<int:channel_id>/test")
+def api_platform_channel_test(env: str, channel_id: int):
+    body = request.get_json(silent=True) or {}
+    model = str(body.get("model") or "").strip()
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = BATCH["platform_test_channel"](client, channel_id, model=model)
+        IDENTITY.store.audit("platform.channel.tested", resource=f"{env_key}:channel:{channel_id}", detail={"env": env_key, "channel_id": channel_id, "model": model})
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "渠道测试完成"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.put("/api/platform/<env>/channels/<int:channel_id>/status")
+def api_platform_channel_status(env: str, channel_id: int):
+    body = request.get_json(silent=True) or {}
+    status = body.get("status")
+    if status not in (1, 2):
+        return jsonify({"success": False, "message": "状态仅支持 1（启用）或 2（禁用）"}), 400
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = BATCH["platform_update_channel_status"](client, channel_id, status)
+        IDENTITY.store.audit("platform.channel.status_updated", resource=f"{env_key}:channel:{channel_id}", detail={"env": env_key, "channel_id": channel_id, "status": status})
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "渠道状态已更新"})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

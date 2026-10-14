@@ -57,7 +57,7 @@
   <main class="na-wrap">
     <header class="na-hero na-animate-in">
       <h1>平台<em>信息</em></h1>
-      <p class="na-subtitle"><span class="na-badge"><span class="na-badge-dot"></span>Platform Console</span>按 test、uat、prod 统一查看并编辑 ai-cloud 的模型管理和令牌管理。账号、密码与 TOTP 仅由服务端从 <code>env/sites.json</code> 读取。</p>
+      <p class="na-subtitle"><span class="na-badge"><span class="na-badge-dot"></span>Platform Console</span>按 test、uat、prod 统一查看并编辑 ai-cloud 的渠道管理和令牌管理。账号、密码与 TOTP 仅由服务端从 <code>env/sites.json</code> 读取。</p>
     </header>
 
     <section class="na-panel na-panel-static na-animate-in na-animate-in-1 platform-shell">
@@ -67,7 +67,7 @@
         <button type="button" class="na-btn na-btn-secondary" id="refreshBtn"><span class="na-spinner"></span><span class="na-btn-label">刷新列表</span></button>
       </div>
       <div class="platform-tabs" role="tablist" aria-label="平台资源">
-        <button type="button" class="active" data-kind="models" role="tab" aria-selected="true">模型管理</button>
+        <button type="button" class="active" data-kind="channels" role="tab" aria-selected="true">渠道管理</button>
         <button type="button" data-kind="tokens" role="tab" aria-selected="false">令牌管理</button>
       </div>
       <div class="platform-meta" id="tableMeta">选择已配置环境后读取列表。</div>
@@ -88,11 +88,32 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "models", sites: [], rows: [], editingId: null };
+      const state = { env: "", kind: "channels", sites: [], rows: [], editingId: null };
+      const CHANNEL_TYPES = {
+        1: "OpenAI", 2: "Midjourney Proxy", 3: "Azure OpenAI", 4: "Ollama", 5: "Midjourney Proxy Plus",
+        8: "自定义渠道", 11: "Google PaLM2", 14: "Anthropic Claude", 15: "百度文心千帆", 16: "智谱 ChatGLM",
+        17: "阿里通义千问", 18: "讯飞星火认知", 19: "360 智脑", 20: "OpenRouter", 23: "腾讯混元",
+        24: "Google Gemini", 25: "Moonshot", 26: "智谱 GLM-4V", 27: "Perplexity", 31: "零一万物",
+        33: "AWS Claude", 34: "Cohere", 35: "MiniMax", 36: "Suno API", 37: "Dify", 39: "Cloudflare",
+        41: "Vertex AI", 43: "DeepSeek", 46: "百度文心千帆V2", 47: "Xinference",
+      };
+      function channelTypeLabel(value) { return CHANNEL_TYPES[value] || (value ? String(value) : ""); }
+      function activityText(record) {
+        const stat = record.activity_stats;
+        if (!stat || typeof stat !== "object") return "";
+        const rpm = stat.rpm != null ? stat.rpm : stat.rpm_1m;
+        const tpm = stat.tpm != null ? stat.tpm : stat.tpm_1m;
+        const parts = [];
+        if (rpm != null) parts.push(`均 RPM ${Number(rpm).toFixed(2)}`);
+        if (tpm != null) parts.push(`均 TPM ${Number(tpm).toFixed(2)}`);
+        return parts.join(" · ");
+      }
       const tableColumns = {
-        models: [
-          ["ID", (r) => r.id], ["模型名称", (r) => r.model_name || r.name || ""], ["厂商", (r) => r.vendor || ""],
-          ["名称规则", (r) => r.name_rule || ""], ["状态", (r) => statePill(r.status)], ["已配置渠道", (r) => r.configured_channel_count ?? ""], ["操作", () => ""],
+        channels: [
+          ["ID", (r) => r.id], ["名称", (r) => r.name || ""], ["分组", (r) => r.group || ""],
+          ["类型", (r) => channelTypeLabel(r.type)], ["状态", (r) => statePill(r.status)],
+          ["响应时间", (r) => r.response_time != null ? `${Number(r.response_time).toFixed(2)} 秒` : ""],
+          ["近一月活跃统计", (r) => activityText(r)], ["操作", () => ""],
         ],
         tokens: [
           ["ID", (r) => r.id], ["名称", (r) => r.name || ""], ["状态", (r) => statePill(r.status)],
@@ -155,6 +176,13 @@
           columns.forEach(([name, value], index) => {
             const td = document.createElement("td");
             if (name === "操作") {
+              if (state.kind === "channels") {
+                const testBtn = document.createElement("button"); testBtn.type = "button"; testBtn.className = "platform-edit"; testBtn.textContent = "测试";
+                testBtn.addEventListener("click", () => testChannel(record)); td.append(testBtn);
+                const statusBtn = document.createElement("button"); statusBtn.type = "button"; statusBtn.className = "platform-edit";
+                statusBtn.textContent = Number(record.status) === 1 ? "禁用" : "启用";
+                statusBtn.addEventListener("click", () => toggleChannelStatus(record)); td.append(statusBtn);
+              }
               const edit = document.createElement("button"); edit.type = "button"; edit.className = "platform-edit"; edit.textContent = "编辑";
               edit.addEventListener("click", () => openEditor(record)); td.append(edit);
             } else {
@@ -169,11 +197,11 @@
       }
       async function loadRows() {
         if (!state.env) return;
-        const button = $("refreshBtn"); setBusy(button, true); setMeta(`正在读取 ${state.env.toUpperCase()} 的${state.kind === "models" ? "模型" : "令牌"}…`);
+        const button = $("refreshBtn"); setBusy(button, true); setMeta(`正在读取 ${state.env.toUpperCase()} 的${state.kind === "channels" ? "渠道" : "令牌"}…`);
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}`);
           state.rows = Array.isArray(payload.data) ? payload.data : [];
-          renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "models" ? "模型管理" : "令牌管理"} · ${state.rows.length} 条记录`);
+          renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "渠道管理" : "令牌管理"} · ${state.rows.length} 条记录`);
         } catch (error) {
           state.rows = []; renderTable(); setMeta(error.message, "error"); NAUi.toast(error.message, "err");
         } finally { setBusy(button, false); }
@@ -181,7 +209,7 @@
       async function openEditor(record) {
         const id = Number(record.id);
         if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该记录没有有效 ID，无法编辑", "warn"); return; }
-        state.editingId = id; $("editorTitle").textContent = `编辑 ${state.kind === "models" ? "模型" : "令牌"} #${id}`;
+        state.editingId = id; $("editorTitle").textContent = `编辑 ${state.kind === "channels" ? "渠道" : "令牌"} #${id}`;
         $("editorJson").value = "正在读取完整记录…"; $("editorBackdrop").hidden = false;
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}/${id}`);
@@ -202,6 +230,27 @@
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}/${id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ record }) });
           closeEditor(); NAUi.toast(payload.message || "已保存", "ok"); await loadRows();
         } catch (error) { NAUi.toast(error.message, "err"); } finally { setBusy(button, false); }
+      }
+      async function testChannel(record) {
+        const id = Number(record.id);
+        if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该渠道没有有效 ID", "warn"); return; }
+        setMeta(`正在测试渠道 #${id}…`);
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/channels/${id}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+          const time = payload.data?.time;
+          setMeta(`渠道 #${id} 测试完成${time ? ` · ${Number(time).toFixed(2)} 秒` : ""}`);
+          NAUi.toast(payload.message || "渠道测试完成", "ok");
+        } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
+      }
+      async function toggleChannelStatus(record) {
+        const id = Number(record.id);
+        if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该渠道没有有效 ID", "warn"); return; }
+        const next = Number(record.status) === 1 ? 2 : 1;
+        const label = next === 1 ? "启用" : "禁用";
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/channels/${id}/status`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) });
+          NAUi.toast(payload.message || `渠道已${label}`, "ok"); await loadRows();
+        } catch (error) { NAUi.toast(error.message, "err"); }
       }
       async function init() {
         try {

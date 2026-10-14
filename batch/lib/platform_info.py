@@ -21,7 +21,7 @@ def connected_client(base_url: str, auth: dict[str, Any]) -> NewAPIClient:
     client = NewAPIClient(base_url)
     authenticate_client(client, auth)
     if not client.is_admin():
-        raise RuntimeError("ai-cloud 账号没有管理端权限，无法读取模型或令牌管理")
+        raise RuntimeError("ai-cloud 账号没有管理端权限，无法读取渠道或令牌管理")
     return client
 
 
@@ -59,6 +59,53 @@ def list_models(client: NewAPIClient, page_size: int = 100) -> list[dict[str, An
         page += 1
     rows.sort(key=lambda row: int(row.get("id") or 0), reverse=True)
     return rows
+
+
+def list_channels(client: NewAPIClient) -> list[dict[str, Any]]:
+    """拉取渠道管理列表（不含明文密钥），附带近一月活跃统计。"""
+    rows = client.list_all_channels()
+    try:
+        stats = client.fetch_channel_activity_stats(rows)
+    except Exception:
+        stats = []
+    stat_map: dict[int, dict[str, Any]] = {}
+    for entry in stats:
+        if isinstance(entry, dict) and entry.get("channel_id"):
+            stat_map.setdefault(int(entry["channel_id"]), entry)
+    for row in rows:
+        stat = stat_map.get(int(row.get("id") or 0))
+        if stat:
+            row["activity_stats"] = stat
+    return rows
+
+
+def get_channel(client: NewAPIClient, channel_id: int) -> dict[str, Any]:
+    """拉取单个渠道完整记录（不含明文密钥）。"""
+    response = client.session.get(
+        f"{client.base_url}/api/channel/{int(channel_id)}",
+        headers=client._headers(),
+        timeout=client.timeout,
+    )
+    data = _api_data(response, "获取渠道详情失败")
+    if not isinstance(data, dict):
+        raise RuntimeError("渠道详情格式异常")
+    return data
+
+
+def update_channel(client: NewAPIClient, channel_id: int, record: dict[str, Any]) -> dict[str, Any]:
+    body = dict(record)
+    body["id"] = int(channel_id)
+    return client.update_channel(body)
+
+
+def test_channel(client: NewAPIClient, channel_id: int, model: str = "") -> dict[str, Any]:
+    """测试指定渠道连通性，与 ai-cloud 渠道管理「测试」按钮一致。"""
+    return client.test_channel(int(channel_id), model=model)
+
+
+def update_channel_status(client: NewAPIClient, channel_id: int, status: int) -> dict[str, Any]:
+    """更新渠道状态：1=启用，2=手动禁用。"""
+    return client.update_channel_status(int(channel_id), status)
 
 
 def get_model(client: NewAPIClient, model_id: int) -> dict[str, Any]:

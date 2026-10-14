@@ -49,7 +49,7 @@
                                     │
                                     └──→ 数据汇总 ──→ excel/ai网关令牌及渠道列表_年月日时分秒.xlsx
 
-平台信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，呈现 ai-cloud 模型管理 / 令牌管理原始列表，并以完整 JSON 记录编辑保存
+平台信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，呈现 ai-cloud 渠道管理 / 令牌管理原始列表，并以完整 JSON 记录编辑保存
 
 智能体：异步任务（LLM 规划 → 门禁确认 → 智能提取、批量配置、数据汇总，可选上游信息 / 一表总览 / 智能分析；Web / Jobs API / 兼容 /api/agent/run）
 上游信息：采集云厂商资源（火山云 IAM + Azure OpenAI 服务主体；可一键写入同一工作簿；表末列为部署时间；表头可筛选）
@@ -206,7 +206,7 @@
 | **智能提取**   | **渠道**或**令牌**模式：渠道从杂乱文本/完整行/紧凑行提取；令牌支持三行/四行拼接，以及**令牌名(+人名) + 渠道批量行**反推分组与模型；多条批量；渠道可选 AI。渠道侧可先点「**更新**」再提取（不要求密钥，用于同步上游自动升级） |
 | **渠道管理**   | 批量创建 / **预更新·确认更新（原配置）** / 全量同步 Base URL 到备注 / 预删除·预禁用·预启用（名称+分组）；类型识别、去重、创建/更新模板锁定 |
 | **令牌管理**   | 批量创建令牌、模型限制与可选额度；**预更新·确认更新额度**、预删除·预禁用·预启用（名称+分组）；创建/更新模板锁定、导出名称+密钥 |
-| **平台信息**   | 位于批量配置右侧；按 **test / uat / prod** 统一呈现 ai-cloud / New API 的**模型管理**与**令牌管理**列表；编辑时读取并保存完整原始 JSON 字段，账号、密码和 `totp_secret` 始终只由服务端读取 |
+| **平台信息**   | 位于批量配置右侧；按 **test / uat / prod** 统一呈现 ai-cloud / New API 的**渠道管理**与**令牌管理**列表；编辑时读取并保存完整原始 JSON 字段，账号、密码和 `totp_secret` 始终只由服务端读取 |
 | **分组设置**   | 批量创建 / 删除分组；**分组切换**（勾选或全选，将该分组下渠道 / 令牌改到目标分组；需 Root 建分组） |
 | **渠道启停**   | 按上游模型 / 类型全部 / 勾选 ID 启用禁用；可视化清单；全选反选；单条操作；默认自定义渠道可改类型                              |
 | **渠道查询**   | 在**数据汇总**页：按已配置站点查询已用/剩余；常用区间；**配置时间段**（1/3/5/15/30/60/180/365 天或自定义）；**近一月活跃**按模型逐项填写（失败/无信息为 N/A）；导出写入 `excel/渠道余额_时间戳.xlsx`；点「下载 Excel」获取完整文件；按环境分表（历史表名仍可能是 `uat-渠道余额` 等） |
@@ -388,7 +388,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 | **工作台**     | 待办、最近产物、六任务卡、全局站点认证 | `static/index.html` 本页；hash `#workspace`（默认） |
 | **智能提取**   | 渠道/令牌模式切换、原始输入、LLM（仅渠道）、提取结果、一键填入 | `static/index.html`；hash `#extract` |
 | **批量配置**   | 连接配置、渠道/令牌/分组/启停/使用日志 | `batch/static/index.html`（iframe 经 `/static/batch_ui.html?embed=1` 代理）；hash `#write` |
-| **平台信息**   | test / uat / prod 的 ai-cloud 模型管理、令牌管理列表与完整记录编辑 | `static/platform_ui.html`（iframe 经 `/static/platform_ui.html?embed=1` 代理）；hash `#platform` |
+| **平台信息**   | test / uat / prod 的 ai-cloud 渠道管理、令牌管理列表与完整记录编辑 | `static/platform_ui.html`（iframe 经 `/static/platform_ui.html?embed=1` 代理）；hash `#platform` |
 | **数据汇总**   | 多站点采集、渠道余额查询、Excel 导入/导出、历史产物下拉 | `static/summary_ui.html`（iframe `?embed=1`）；hash `#inventory` |
 | **上游信息**   | 云厂商上游采集（一键汇总 / 火山云 / Azure OpenAI）、历史产物下拉；导出表头可筛选 | `static/upstream_ui.html`（iframe `?embed=1`）；hash `#upstream` |
 | **上游账单**   | 账期起止采集火山云 / Azure 费用（跨月则每月一份；一键汇总或分厂商）；导出表头可筛选 | `static/bill_ui.html`（iframe `?embed=1`）；hash `#bill` |
@@ -1871,10 +1871,10 @@ Azure OpenAI 账号在门户 **标记（Tags）** 里约定一条：
 
 ## 平台信息
 
-进入批量配置右侧的 **平台信息** Tab（`#platform`）。此模块用于在一个页面切换 **test / uat / prod**，展示 ai-cloud / New API 管理端的模型管理与令牌管理，并对单条记录执行编辑。
+进入批量配置右侧的 **平台信息** Tab（`#platform`）。此模块用于在一个页面切换 **test / uat / prod**，展示 ai-cloud / New API 管理端的渠道管理与令牌管理，并对单条渠道执行测试、启停和编辑。渠道管理页呈现 **ID、名称、分组、类型、状态、响应时间、近一月活跃统计** 列，与 ai-cloud 平台一致。
 
 1. 复制 `env/sites.example.json` 为 `env/sites.json`，为需要管理的 `test`、`uat`、`prod` 分别填写 `base_url`、`username`、`password`；账号开启登录两步验证时填入该环境自己的 `totp_secret`。
-2. 请让该环境账号具备 ai-cloud 管理端权限（New API 的 Admin 或更高角色）。模型管理接口要求管理员权限；令牌管理也按上游站点的实际授权返回。
+2. 请让该环境账号具备 ai-cloud 管理端权限（New API 的 Admin 或更高角色）。渠道管理接口要求管理员权限；令牌管理也按上游站点的实际授权返回。
 3. 超管在「管理用户」中给网站账户授予“平台信息”功能后，用户才能看到此 Tab；每次读取和保存均同时受页面、API 和 CSRF 校验保护。
 4. 选择环境后，切换「模型管理」或「令牌管理」，点“编辑”读取单条完整记录。保存时提交原始 JSON 字段，系统固定 URL 中的记录 ID，避免 JSON 内误填 ID 改写其它记录。
 
@@ -2497,9 +2497,11 @@ python agent/tests/test_pipeline_runner.py
 | 方法 | 路径 | 说明 |
 | ---- | ---- | ---- |
 | `GET` | `/api/platform/sites` | 返回 test / uat / prod 是否已配置及其地址，不返回账号、密码或 TOTP |
-| `GET` | `/api/platform/<env>/models` | 以该环境管理端账号分页读取 ai-cloud 模型管理列表 |
-| `GET` | `/api/platform/<env>/models/<id>` | 读取一条完整模型记录 |
-| `PUT` | `/api/platform/<env>/models/<id>` | 保存 `{ "record": { ...完整模型记录... } }`；路径 ID 覆盖记录中的 `id` |
+| `GET` | `/api/platform/<env>/channels` | 以该环境管理端账号读取 ai-cloud 渠道管理列表（含近一月活跃统计） |
+| `GET` | `/api/platform/<env>/channels/<id>` | 读取一条完整渠道记录 |
+| `PUT` | `/api/platform/<env>/channels/<id>` | 保存 `{ "record": { ...完整渠道记录... } }`；路径 ID 覆盖记录中的 `id`
+| `POST` | `/api/platform/<env>/channels/<id>/test` | 测试指定渠道连通性（与 ai-cloud「测试」按钮一致）
+| `PUT` | `/api/platform/<env>/channels/<id>/status` | 更新渠道状态：`{ "status": 1 }` 启用 / `{ "status": 2 }` 禁用 |
 | `GET` | `/api/platform/<env>/tokens` | 读取该环境全部令牌管理记录 |
 | `GET` | `/api/platform/<env>/tokens/<id>` | 读取一条完整令牌记录 |
 | `PUT` | `/api/platform/<env>/tokens/<id>` | 保存 `{ "record": { ...完整令牌记录... } }`；保留模型级限流字段 |
