@@ -272,6 +272,7 @@ def _load_batch_modules():
             "platform_list_tokens": platform_info.list_tokens,
             "platform_get_token": platform_info.get_token,
             "platform_update_token": platform_info.update_token,
+            "platform_update_token_status": platform_info.update_token_status,
         }
 
 
@@ -768,6 +769,21 @@ def api_platform_token_update(env: str, token_id: int):
         data = BATCH["platform_update_token"](client, token_id, record)
         IDENTITY.store.audit("platform.token.updated", resource=f"{env_key}:token:{token_id}", detail={"env": env_key, "token_id": token_id})
         return jsonify({"success": True, "env": env_key, "data": data, "message": "令牌已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.put("/api/platform/<env>/tokens/<int:token_id>/status")
+def api_platform_token_status(env: str, token_id: int):
+    body = request.get_json(silent=True) or {}
+    status = body.get("status")
+    if status not in (1, 2):
+        return jsonify({"success": False, "message": "状态仅支持 1（启用）或 2（禁用）"}), 400
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = BATCH["platform_update_token_status"](client, token_id, status)
+        IDENTITY.store.audit("platform.token.status_updated", resource=f"{env_key}:token:{token_id}", detail={"env": env_key, "token_id": token_id, "status": status})
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "令牌状态已更新"})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

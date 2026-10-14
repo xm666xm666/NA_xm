@@ -116,8 +116,11 @@
           ["近一月活跃统计", (r) => activityText(r)], ["操作", () => ""],
         ],
         tokens: [
-          ["ID", (r) => r.id], ["名称", (r) => r.name || ""], ["状态", (r) => statePill(r.status)],
-          ["分组", (r) => r.group || ""], ["额度", (r) => r.quota ?? ""], ["剩余额度", (r) => r.remain_quota ?? ""], ["到期时间", (r) => timestamp(r.expired_time)], ["操作", () => ""],
+          ["名称", (r) => r.name || ""], ["状态", (r) => statePill(r.status)],
+          ["剩余额度/总额度", (r) => quotaText(r)], ["分组", (r) => r.group || ""],
+          ["密钥", (r) => maskKey(r.key || r.token || "")], ["可用模型", (r) => r.models || (r.model_limits_enabled ? r.model_limits || "" : "")],
+          ["模型限流", (r) => r.token_model_rate_limits ? "已配置" : "未配置"],
+          ["IP限制", (r) => r.allow_ips ? r.allow_ips : "无限制"], ["创建时间", (r) => dateOnly(r.created_time)], ["操作", () => ""],
         ],
       };
 
@@ -128,7 +131,27 @@
       }
       function statePill(value) {
         const enabled = Number(value) === 1;
-        return { label: enabled ? "启用" : "停用", className: enabled ? "on" : "off" };
+        return { label: enabled ? "已启用" : "已禁用", className: enabled ? "on" : "off" };
+      }
+      function quotaText(record) {
+        if (record.unlimited_quota) return "无限额度";
+        const remain = record.remain_quota;
+        const total = record.quota;
+        if (total != null && remain != null) return `${Number(remain).toLocaleString()} / ${Number(total).toLocaleString()}`;
+        if (remain != null) return Number(remain).toLocaleString();
+        return "";
+      }
+      function maskKey(key) {
+        if (!key) return "";
+        const str = String(key);
+        if (str.length <= 12) return str;
+        return `${str.slice(0, 6)}***********${str.slice(-4)}`;
+      }
+      function dateOnly(value) {
+        const n = Number(value || 0);
+        if (!Number.isFinite(n) || n <= 0) return "";
+        const d = new Date(n * 1000);
+        return d.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
       }
       function setBusy(button, busy) {
         button.disabled = busy;
@@ -182,6 +205,10 @@
                 const statusBtn = document.createElement("button"); statusBtn.type = "button"; statusBtn.className = "platform-edit";
                 statusBtn.textContent = Number(record.status) === 1 ? "禁用" : "启用";
                 statusBtn.addEventListener("click", () => toggleChannelStatus(record)); td.append(statusBtn);
+              } else if (state.kind === "tokens") {
+                const statusBtn = document.createElement("button"); statusBtn.type = "button"; statusBtn.className = "platform-edit";
+                statusBtn.textContent = Number(record.status) === 1 ? "禁用" : "启用";
+                statusBtn.addEventListener("click", () => toggleTokenStatus(record)); td.append(statusBtn);
               }
               const edit = document.createElement("button"); edit.type = "button"; edit.className = "platform-edit"; edit.textContent = "编辑";
               edit.addEventListener("click", () => openEditor(record)); td.append(edit);
@@ -250,6 +277,16 @@
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/channels/${id}/status`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) });
           NAUi.toast(payload.message || `渠道已${label}`, "ok"); await loadRows();
+        } catch (error) { NAUi.toast(error.message, "err"); }
+      }
+      async function toggleTokenStatus(record) {
+        const id = Number(record.id);
+        if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该令牌没有有效 ID", "warn"); return; }
+        const next = Number(record.status) === 1 ? 2 : 1;
+        const label = next === 1 ? "启用" : "禁用";
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/tokens/${id}/status`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) });
+          NAUi.toast(payload.message || `令牌已${label}`, "ok"); await loadRows();
         } catch (error) { NAUi.toast(error.message, "err"); }
       }
       async function init() {

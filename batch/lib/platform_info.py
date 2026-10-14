@@ -76,6 +76,7 @@ def list_channels(client: NewAPIClient) -> list[dict[str, Any]]:
         stat = stat_map.get(int(row.get("id") or 0))
         if stat:
             row["activity_stats"] = stat
+    rows.sort(key=lambda row: int(row.get("id") or 0), reverse=True)
     return rows
 
 
@@ -146,3 +147,8 @@ def update_token(client: NewAPIClient, token_id: int, record: dict[str, Any]) ->
     body = dict(record)
     body["id"] = int(token_id)
     return client.update_token(body, preserve_token_model_rate_limits=True)
+
+
+def update_token_status(client: NewAPIClient, token_id: int, status: int) -> dict[str, Any]:
+    """更新令牌状态：1=启用，2=手动禁用。"""
+    return client.update_token_status(int(token_id), status)
