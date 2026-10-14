@@ -52,24 +52,42 @@
     .platform-edit:hover { border-color:rgba(34,211,238,.55); background:var(--na-accent-soft); }
     .platform-edit.danger { color:var(--na-danger); }
     .platform-edit.danger:hover { border-color:rgba(239,68,68,.55); background:rgba(239,68,68,.08); }
-    .platform-modal-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:20px; background:rgba(2,6,23,.7); backdrop-filter:blur(4px); overflow-y:auto; }
+    .platform-modal-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:24px; background:rgba(2,6,23,.72); backdrop-filter:blur(12px); overflow-y:auto; }
     .platform-modal-backdrop[hidden] { display:none; }
-    .platform-modal { width:min(720px,100%); max-height:calc(100vh - 40px); display:flex; flex-direction:column; gap:.8rem; padding:1.15rem; border:1px solid var(--na-border); border-radius:13px; background:var(--na-panel-solid,#101827); box-shadow:0 30px 90px rgba(0,0,0,.45); overflow-y:auto; }
-    .platform-modal h2 { margin:0; font-size:1rem; }
-    .platform-modal .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
-    .platform-modal .form-group { display:flex; flex-direction:column; gap:.3rem; }
+    .platform-modal { width:min(760px,100%); max-height:calc(100vh - 48px); display:flex; flex-direction:column; gap:0; padding:0; border:1px solid rgba(34,211,238,.18); border-radius:16px; background:var(--na-panel-solid,#101827); box-shadow:0 24px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04) inset, 0 -1px 0 rgba(34,211,238,.08) inset; overflow:hidden; animation:modalIn .28s cubic-bezier(.22,1,.36,1); }
+    @keyframes modalIn { from { opacity:0; transform:translateY(14px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+    .platform-modal-header { padding:1.1rem 1.4rem .9rem; border-bottom:1px solid var(--na-border); background:linear-gradient(135deg, rgba(34,211,238,.06) 0%, transparent 60%); }
+    .platform-modal-header h2 { margin:0; font-size:1.05rem; letter-spacing:-.01em; }
+    .platform-modal-header p { margin:.25rem 0 0; font-size:.74rem; color:var(--na-text-muted); }
+    .platform-modal-body { flex:1; overflow-y:auto; padding:1.2rem 1.4rem; }
+    .platform-modal .section-label { display:flex; align-items:center; gap:.55rem; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--na-accent); margin:0 0 .7rem; padding-bottom:.45rem; border-bottom:1px solid var(--na-border); }
+    .platform-modal .section-label::before { content:""; display:block; width:3px; height:.85rem; border-radius:2px; background:var(--na-accent); }
+    .platform-modal .section-label + .form-grid { margin-top:.75rem; }
+    .platform-modal .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:.85rem 1rem; }
+    .platform-modal .form-group { display:flex; flex-direction:column; gap:.35rem; }
     .platform-modal .form-group.full { grid-column:1/-1; }
-    .platform-modal label { font-size:.75rem; font-weight:600; color:var(--na-text-muted); }
+    .platform-modal label { font-size:.74rem; font-weight:600; color:var(--na-text-muted); letter-spacing:.02em; }
     .platform-modal input, .platform-modal select, .platform-modal textarea {
-      width:100%; box-sizing:border-box; border:1px solid var(--na-border); border-radius:7px; padding:.5rem .65rem;
-      background:rgba(2,6,23,.38); color:var(--na-text); font:.8rem/1.5 var(--font-mono,ui-monospace,monospace); resize:vertical;
+      width:100%; box-sizing:border-box; border:1px solid var(--na-border); border-radius:9px; padding:.55rem .75rem;
+      background:rgba(2,6,23,.45); color:var(--na-text); font:.8rem/1.5 var(--font-mono,ui-monospace,monospace); resize:vertical;
+      transition:border-color .15s ease, box-shadow .15s ease, background .15s ease; outline:none;
     }
-    .platform-modal textarea { min-height:72px; }
-    .platform-modal input[type="checkbox"] { width:auto; }
-    .platform-modal .checkbox-group { display:flex; align-items:center; gap:.4rem; }
-    .platform-modal .form-hint { font-size:.7rem; color:var(--na-text-muted); }
-    .platform-modal-actions { display:flex; justify-content:flex-end; gap:.6rem; padding-top:.5rem; border-top:1px solid var(--na-border); }
-    .platform-section-title { font-size:.82rem; font-weight:700; color:var(--na-accent); margin:.5rem 0 0; padding-bottom:.3rem; border-bottom:1px solid var(--na-border); }
+    .platform-modal input:hover, .platform-modal select:hover, .platform-modal textarea:hover { border-color:rgba(34,211,238,.3); }
+    .platform-modal input:focus, .platform-modal select:focus, .platform-modal textarea:focus {
+      border-color:rgba(34,211,238,.55); box-shadow:0 0 0 3px rgba(34,211,238,.1), 0 1px 2px rgba(0,0,0,.2); background:rgba(2,6,23,.55);
+    }
+    .platform-modal textarea { min-height:76px; }
+    .platform-modal input[type="checkbox"] { width:16px; height:16px; accent-color:var(--na-accent); cursor:pointer; }
+    .platform-modal .checkbox-group { display:flex; align-items:center; gap:.5rem; padding:.15rem 0; }
+    .platform-modal .form-hint { font-size:.68rem; color:var(--na-text-muted); opacity:.75; margin-top:-.1rem; }
+    .platform-modal-footer { display:flex; justify-content:flex-end; align-items:center; gap:.65rem; padding:.85rem 1.4rem; border-top:1px solid var(--na-border); background:rgba(255,255,255,.02); }
+    .platform-modal-actions { display:flex; justify-content:flex-end; gap:.65rem; padding:.85rem 1.4rem; border-top:1px solid var(--na-border); background:rgba(255,255,255,.02); }
+    .platform-modal .na-btn { min-width:88px; padding:.55rem 1.2rem; border-radius:9px; font-weight:600; letter-spacing:.01em; transition:all .15s ease; }
+    .platform-modal .na-btn-ghost { border:1px solid var(--na-border); background:transparent; color:var(--na-text-muted); }
+    .platform-modal .na-btn-ghost:hover { border-color:rgba(34,211,238,.35); color:var(--na-text); background:rgba(34,211,238,.04); }
+    .platform-modal .na-btn-primary { background:linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%); color:#fff; border:0; box-shadow:0 2px 8px rgba(34,211,238,.3); }
+    .platform-modal .na-btn-primary:hover { box-shadow:0 4px 14px rgba(34,211,238,.4); transform:translateY(-1px); }
+    .platform-modal .na-btn-primary:active { transform:translateY(0); }
     @media (max-width:700px) { .platform-address { width:100%; margin-left:0; } .platform-table-wrap { max-height:none; } .platform-modal .form-grid { grid-template-columns:1fr; } }
     @media (min-width:1400px) { .platform-table { font-size:.82rem; } .platform-table th, .platform-table td { padding:.75rem .85rem; } }
     @media (min-width:1800px) { .platform-table { font-size:.85rem; } .platform-table th, .platform-table td { padding:.8rem .95rem; } }
@@ -102,9 +120,17 @@
 
   <div class="platform-modal-backdrop" id="editorBackdrop" hidden>
     <section class="platform-modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
-      <h2 id="editorTitle">编辑记录</h2>
-      <div class="form-grid" id="editorForm"></div>
-      <div class="platform-modal-actions"><button type="button" class="na-btn na-btn-ghost" id="cancelEdit">取消</button><button type="button" class="na-btn na-btn-primary" id="saveEdit"><span class="na-spinner"></span><span class="na-btn-label">保存修改</span></button></div>
+      <div class="platform-modal-header">
+        <h2 id="editorTitle">编辑记录</h2>
+        <p>修改后点击保存同步至 ai-cloud 平台</p>
+      </div>
+      <div class="platform-modal-body">
+        <div class="form-grid" id="editorForm"></div>
+      </div>
+      <div class="platform-modal-footer">
+        <button type="button" class="na-btn na-btn-ghost" id="cancelEdit">取消</button>
+        <button type="button" class="na-btn na-btn-primary" id="saveEdit"><span class="na-spinner"></span><span class="na-btn-label">保存修改</span></button>
+      </div>
     </section>
   </div>
 
@@ -297,35 +323,46 @@
         parent.append(group);
       }
 
+      function sectionLabel(form, text) {
+        const div = document.createElement("div"); div.className = "section-label"; div.textContent = text;
+        div.style.gridColumn = "1/-1"; form.append(div);
+      }
       function renderChannelForm(record) {
         const form = $("editorForm"); form.replaceChildren();
+        sectionLabel(form, "基本信息");
         formField(form, { label: "渠道名称", key: "name", value: record.name || "" });
         formField(form, { label: "渠道类型", key: "type", type: "select", value: record.type || 1, options: Object.entries(CHANNEL_TYPES).map(([v, l]) => [v, l]) });
+        formField(form, { label: "分组", key: "group", value: record.group || "default", hint: "多个用英文逗号分隔" });
+        formField(form, { label: "状态", key: "status", type: "select", value: record.status ?? 1, options: [[1, "已启用"], [2, "手动禁用"], [3, "自动禁用"]] });
+        sectionLabel(form, "连接配置");
         formField(form, { label: "Base URL", key: "base_url", value: record.base_url || "", hint: "留空使用默认" });
         formField(form, { label: "代理", key: "proxy", value: record.proxy || record.setting?.proxy || "", hint: "如 http://127.0.0.1:7890" });
-        formField(form, { label: "分组", key: "group", value: record.group || "default", hint: "多个用英文逗号分隔" });
-        formField(form, { label: "优先级", key: "priority", type: "number", value: record.priority ?? 0 });
-        formField(form, { label: "权重", key: "weight", type: "number", value: record.weight ?? 0 });
         formField(form, { label: "测试模型", key: "test_model", value: record.test_model || "" });
+        formField(form, { label: "备注", key: "remark", type: "textarea", value: record.remark || "", full: true });
+        sectionLabel(form, "模型配置");
         formField(form, { label: "模型列表", key: "models", type: "textarea", value: record.models || "", full: true, hint: "多个模型用英文逗号分隔" });
         formField(form, { label: "模型重定向 (JSON)", key: "model_mapping", type: "textarea", value: typeof record.model_mapping === "string" ? record.model_mapping : JSON.stringify(record.model_mapping || {}, null, 2), full: true });
-        formField(form, { label: "备注", key: "remark", type: "textarea", value: record.remark || "", full: true });
-        formField(form, { label: "状态", key: "status", type: "select", value: record.status ?? 1, options: [[1, "已启用"], [2, "手动禁用"], [3, "自动禁用"]] });
-        formField(form, { label: "自动禁用", key: "auto_ban", type: "checkbox", value: !!record.auto_ban, hint: "测试失败时自动禁用" });
+        sectionLabel(form, "调度设置");
+        formField(form, { label: "优先级", key: "priority", type: "number", value: record.priority ?? 0 });
+        formField(form, { label: "权重", key: "weight", type: "number", value: record.weight ?? 0 });
+        formField(form, { label: "自动禁用", key: "auto_ban", type: "checkbox", value: !!record.auto_ban, hint: "测试失败时自动禁用", full: true });
       }
 
       function renderTokenForm(record) {
         const form = $("editorForm"); form.replaceChildren();
+        sectionLabel(form, "基本信息");
         formField(form, { label: "令牌名称", key: "name", value: record.name || "" });
         formField(form, { label: "分组", key: "group", value: record.group || "default", hint: "auto 表示智能熔断" });
+        formField(form, { label: "状态", key: "status", type: "select", value: record.status ?? 1, options: [[1, "已启用"], [2, "手动禁用"], [3, "已过期"], [4, "已耗尽"]] });
+        sectionLabel(form, "额度设置");
         formField(form, { label: "剩余额度 ($)", key: "remain_quota", type: "number", value: record.remain_quota ?? 0, hint: "500000 = $1.00" });
         formField(form, { label: "额度上限", key: "quota", type: "number", value: record.quota ?? 0 });
         formField(form, { label: "过期时间", key: "expired_time", type: "number", value: record.expired_time ?? -1, hint: "-1 表示永不过期" });
         formField(form, { label: "无限额度", key: "unlimited_quota", type: "checkbox", value: !!record.unlimited_quota });
+        sectionLabel(form, "访问控制");
         formField(form, { label: "模型白名单", key: "token_model_limit", type: "textarea", value: record.token_model_limit || "", full: true, hint: "多个模型用英文逗号分隔；留空表示不限制" });
         formField(form, { label: "启用模型限制", key: "token_model_limit_enabled", type: "checkbox", value: !!record.token_model_limit_enabled });
         formField(form, { label: "IP 限制", key: "allow_ips", type: "textarea", value: record.allow_ips || "", full: true, hint: "多个 IP 用换行分隔；留空表示无限制" });
-        formField(form, { label: "状态", key: "status", type: "select", value: record.status ?? 1, options: [[1, "已启用"], [2, "手动禁用"], [3, "已过期"], [4, "已耗尽"]] });
       }
 
       async function openEditor(record) {
