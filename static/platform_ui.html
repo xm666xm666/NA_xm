@@ -38,7 +38,8 @@
     .platform-meta { min-height:1.35rem; color:var(--na-text-muted); font-size:.8rem; }
     .platform-table-wrap { overflow:auto; max-height:calc(100vh - 360px); min-height:260px; border:1px solid var(--na-border); border-radius:10px; }
     .platform-table { width:100%; border-collapse:collapse; font-size:.8rem; }
-    .platform-pagination { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; padding:.7rem 0 .3rem; font-size:.76rem; color:var(--na-text-muted); }
+    .platform-pagination { display:flex; align-items:center; gap:.5rem; flex-wrap:nowrap; padding:.7rem 0 .3rem; font-size:.76rem; color:var(--na-text-muted); overflow-x:auto; }
+    .platform-pagination .page-right { display:flex; align-items:center; gap:.35rem; margin-left:auto; flex-shrink:0; }
     .platform-pagination .page-btn { min-width:26px; padding:.26rem .45rem; border:1px solid var(--na-border); border-radius:6px; background:transparent; color:var(--na-text-muted); font:600 .72rem/1 inherit; cursor:pointer; transition:border-color .12s, background .12s, color .12s; }
     .platform-pagination .page-btn:hover { border-color:rgba(34,211,238,.4); color:var(--na-text); }
     .platform-pagination .page-btn.active { background:var(--na-accent-soft); border-color:rgba(34,211,238,.5); color:var(--na-accent); }
@@ -50,7 +51,7 @@
     .platform-pagination .page-ellipsis-wrap:hover .page-ellipsis-pop, .platform-pagination .page-ellipsis-wrap:focus-within .page-ellipsis-pop { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(-2px); }
     .platform-pagination .page-ellipsis-pop .page-btn { min-width:26px; padding:.22rem .4rem; font-size:.68rem; }
     .platform-pagination .page-size-select { padding:.3rem .45rem; border:1px solid var(--na-border); border-radius:6px; background:rgba(2,6,23,.38); color:var(--na-text); font:600 .74rem/1 inherit; cursor:pointer; outline:none; }
-    .platform-pagination .page-info { margin-right:auto; font-size:.74rem; }
+    .platform-pagination .page-info { font-size:.74rem; white-space:nowrap; flex-shrink:0; }
     .platform-table th, .platform-table td { padding:.68rem .75rem; text-align:left; border-bottom:1px solid var(--na-border); white-space:nowrap; }
     .platform-table th { position:sticky; top:0; z-index:1; background:var(--na-panel-solid,#101827); color:var(--na-text-muted); font-size:.7rem; letter-spacing:.035em; }
     .platform-table td.name { max-width:360px; overflow:hidden; text-overflow:ellipsis; font-family:var(--font-mono,ui-monospace,monospace); }
@@ -291,19 +292,19 @@
         const end = state.pageSize === Infinity ? total : Math.min(state.page * state.pageSize, total);
         info.textContent = `第 ${start}-${end} 条，共 ${total} 条`;
         bar.append(info);
-        const spacer = document.createElement("span"); spacer.style.flex = "1"; bar.append(spacer);
+        const right = document.createElement("div"); right.className = "page-right"; bar.append(right);
         const select = document.createElement("select"); select.className = "page-size-select";
         [[50, "50"], [100, "100"], [200, "200"], [Infinity, "全部"]].forEach(([val, text]) => {
           const opt = document.createElement("option"); opt.value = String(val); opt.textContent = text;
           opt.selected = val === state.pageSize; select.append(opt);
         });
         select.addEventListener("change", () => { state.pageSize = Number(select.value); state.page = 1; renderTable(); });
-        bar.append(select);
+        right.append(select);
         if (totalPages > 1) {
           const prev = document.createElement("button"); prev.className = "page-btn"; prev.textContent = "‹";
           prev.disabled = state.page <= 1;
           prev.addEventListener("click", () => { if (state.page > 1) { state.page--; renderTable(); } });
-          bar.append(prev);
+          right.append(prev);
           const nums = buildPageNumbers(state.page, totalPages);
           nums.forEach((n) => {
             if (n === "...") {
@@ -318,17 +319,17 @@
                 btn.addEventListener("click", () => { state.page = i; renderTable(); });
                 pop.append(btn);
               }
-              wrap.append(dots); wrap.append(pop); bar.append(wrap);
+              wrap.append(dots); wrap.append(pop); right.append(wrap);
             } else {
               const btn = document.createElement("button"); btn.className = "page-btn" + (n === state.page ? " active" : ""); btn.textContent = n;
               btn.addEventListener("click", () => { state.page = n; renderTable(); });
-              bar.append(btn);
+              right.append(btn);
             }
           });
           const next = document.createElement("button"); next.className = "page-btn"; next.textContent = "›";
           next.disabled = state.page >= totalPages;
           next.addEventListener("click", () => { if (state.page < totalPages) { state.page++; renderTable(); } });
-          bar.append(next);
+          right.append(next);
         }
 
       }
