@@ -36,8 +36,21 @@
     .platform-tabs button { border:0; background:transparent; color:var(--na-text-muted); padding:.7rem .95rem; cursor:pointer; font:600 .85rem/1 inherit; border-bottom:2px solid transparent; margin-bottom:-1px; }
     .platform-tabs button.active { color:var(--na-text); border-bottom-color:var(--na-accent); }
     .platform-meta { min-height:1.35rem; color:var(--na-text-muted); font-size:.8rem; }
-    .platform-table-wrap { overflow:auto; max-height:calc(100vh - 300px); min-height:260px; border:1px solid var(--na-border); border-radius:10px; }
+    .platform-table-wrap { overflow:auto; max-height:calc(100vh - 360px); min-height:260px; border:1px solid var(--na-border); border-radius:10px; }
     .platform-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .platform-pagination { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; padding:.7rem 0 .3rem; font-size:.76rem; color:var(--na-text-muted); }
+    .platform-pagination .page-btn { min-width:30px; padding:.3rem .55rem; border:1px solid var(--na-border); border-radius:6px; background:transparent; color:var(--na-text-muted); font:600 .74rem/1 inherit; cursor:pointer; transition:border-color .12s, background .12s, color .12s; }
+    .platform-pagination .page-btn:hover { border-color:rgba(34,211,238,.4); color:var(--na-text); }
+    .platform-pagination .page-btn.active { background:var(--na-accent-soft); border-color:rgba(34,211,238,.5); color:var(--na-accent); }
+    .platform-pagination .page-btn:disabled { opacity:.3; cursor:not-allowed; }
+    .platform-pagination .page-ellipsis { min-width:30px; padding:.3rem .55rem; text-align:center; color:var(--na-text-muted); font:600 .74rem/1 inherit; cursor:pointer; border-radius:6px; transition:background .12s; }
+    .platform-pagination .page-ellipsis:hover { background:var(--na-accent-soft); }
+    .platform-pagination .page-ellipsis-pop { position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); display:flex; flex-wrap:wrap; gap:3px; padding:.45rem; border:1px solid rgba(34,211,238,.25); border-radius:8px; background:var(--na-panel-solid,#0f172a); box-shadow:0 8px 24px rgba(0,0,0,.4); z-index:50; max-width:280px; opacity:0; pointer-events:none; transition:opacity .12s, transform .12s; }
+    .platform-pagination .page-ellipsis-wrap { position:relative; display:inline-block; }
+    .platform-pagination .page-ellipsis-wrap:hover .page-ellipsis-pop, .platform-pagination .page-ellipsis-wrap:focus-within .page-ellipsis-pop { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(-2px); }
+    .platform-pagination .page-ellipsis-pop .page-btn { min-width:26px; padding:.22rem .4rem; font-size:.68rem; }
+    .platform-pagination .page-size-select { padding:.3rem .45rem; border:1px solid var(--na-border); border-radius:6px; background:rgba(2,6,23,.38); color:var(--na-text); font:600 .74rem/1 inherit; cursor:pointer; outline:none; }
+    .platform-pagination .page-info { margin-left:auto; }
     .platform-table th, .platform-table td { padding:.68rem .75rem; text-align:left; border-bottom:1px solid var(--na-border); white-space:nowrap; }
     .platform-table th { position:sticky; top:0; z-index:1; background:var(--na-panel-solid,#101827); color:var(--na-text-muted); font-size:.7rem; letter-spacing:.035em; }
     .platform-table td.name { max-width:360px; overflow:hidden; text-overflow:ellipsis; font-family:var(--font-mono,ui-monospace,monospace); }
@@ -115,6 +128,7 @@
       </div>
       <div class="platform-meta" id="tableMeta">选择已配置环境后读取列表。</div>
       <div class="platform-table-wrap"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
+      <div class="platform-pagination" id="paginationBar"></div>
     </section>
   </main>
 
@@ -138,7 +152,7 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], editingId: null, editingRecord: null };
+      const state = { env: "", kind: "channels", sites: [], rows: [], editingId: null, editingRecord: null, page: 1, pageSize: 50 };
       const CHANNEL_TYPES = {
         1: "OpenAI", 2: "Midjourney Proxy", 3: "Azure OpenAI", 4: "Ollama", 5: "Midjourney Proxy Plus",
         8: "自定义渠道", 11: "Google PaLM2", 14: "Anthropic Claude", 15: "百度文心千帆", 16: "智谱 ChatGLM",
@@ -248,18 +262,88 @@
         const current = siteFor(state.env);
         $("siteAddress").textContent = current?.configured ? current.base_url : "请先在 env/sites.json 配置环境";
       }
+      function getPaginatedRows() {
+        if (state.pageSize === Infinity || state.pageSize >= state.rows.length) return state.rows;
+        const start = (state.page - 1) * state.pageSize;
+        return state.rows.slice(start, start + state.pageSize);
+      }
+      function buildPageNumbers(current, total) {
+        if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+        const pages = new Set([1, 2, current - 1, current, current + 1, total - 1, total]);
+        const sorted = [...pages].filter(p => p >= 1 && p <= total).sort((a, b) => a - b);
+        const result = [];
+        let prev = 0;
+        for (const p of sorted) {
+          if (p - prev > 1) result.push("...");
+          result.push(p); prev = p;
+        }
+        return result;
+      }
+      function renderPagination() {
+        const bar = $("paginationBar"); bar.replaceChildren();
+        const total = state.rows.length;
+        if (!total) return;
+        const totalPages = state.pageSize === Infinity ? 1 : Math.max(1, Math.ceil(total / state.pageSize));
+        if (state.page > totalPages) state.page = totalPages;
+        const label = document.createElement("span"); label.textContent = "每页"; bar.append(label);
+        const select = document.createElement("select"); select.className = "page-size-select";
+        [[50, "50"], [100, "100"], [200, "200"], [Infinity, "全部"]].forEach(([val, text]) => {
+          const opt = document.createElement("option"); opt.value = String(val); opt.textContent = text;
+          opt.selected = val === state.pageSize; select.append(opt);
+        });
+        select.addEventListener("change", () => { state.pageSize = Number(select.value); state.page = 1; renderTable(); });
+        bar.append(select);
+        if (totalPages > 1) {
+          const prev = document.createElement("button"); prev.className = "page-btn"; prev.textContent = "‹";
+          prev.disabled = state.page <= 1;
+          prev.addEventListener("click", () => { if (state.page > 1) { state.page--; renderTable(); } });
+          bar.append(prev);
+          const nums = buildPageNumbers(state.page, totalPages);
+          nums.forEach((n) => {
+            if (n === "...") {
+              const wrap = document.createElement("span"); wrap.className = "page-ellipsis-wrap";
+              const dots = document.createElement("span"); dots.className = "page-ellipsis"; dots.textContent = "···";
+              dots.tabIndex = 0;
+              const pop = document.createElement("div"); pop.className = "page-ellipsis-pop";
+              const start = nums.indexOf(n) === 0 ? 3 : nums[nums.indexOf(n) - 1] + 1;
+              const end = nums.indexOf(n) === nums.length - 1 ? totalPages : nums[nums.indexOf(n) + 1] - 1;
+              for (let i = start; i <= end; i++) {
+                const btn = document.createElement("button"); btn.className = "page-btn" + (i === state.page ? " active" : ""); btn.textContent = i;
+                btn.addEventListener("click", () => { state.page = i; renderTable(); });
+                pop.append(btn);
+              }
+              wrap.append(dots); wrap.append(pop); bar.append(wrap);
+            } else {
+              const btn = document.createElement("button"); btn.className = "page-btn" + (n === state.page ? " active" : ""); btn.textContent = n;
+              btn.addEventListener("click", () => { state.page = n; renderTable(); });
+              bar.append(btn);
+            }
+          });
+          const next = document.createElement("button"); next.className = "page-btn"; next.textContent = "›";
+          next.disabled = state.page >= totalPages;
+          next.addEventListener("click", () => { if (state.page < totalPages) { state.page++; renderTable(); } });
+          bar.append(next);
+        }
+        const info = document.createElement("span"); info.className = "page-info";
+        const start = state.pageSize === Infinity ? 1 : (state.page - 1) * state.pageSize + 1;
+        const end = state.pageSize === Infinity ? total : Math.min(state.page * state.pageSize, total);
+        info.textContent = `第 ${start}-${end} 条，共 ${total} 条`;
+        bar.append(info);
+      }
       function renderTable() {
+        renderPagination();
         const columns = tableColumns[state.kind];
         const head = $("tableHead"), body = $("tableBody");
         head.replaceChildren(); body.replaceChildren();
         const headerRow = document.createElement("tr");
         columns.forEach(([name]) => { const th = document.createElement("th"); th.textContent = name; headerRow.append(th); });
         head.append(headerRow);
-        if (!state.rows.length) {
+        const rows = getPaginatedRows();
+        if (!rows.length) {
           const tr = document.createElement("tr"), td = document.createElement("td"); td.colSpan = columns.length; td.className = "platform-empty";
           td.textContent = "当前环境没有可显示的记录。"; tr.append(td); body.append(tr); return;
         }
-        state.rows.forEach((record) => {
+        rows.forEach((record) => {
           const tr = document.createElement("tr");
           columns.forEach(([name, value], index) => {
             const td = document.createElement("td");
@@ -293,6 +377,7 @@
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}`);
           state.rows = Array.isArray(payload.data) ? payload.data : [];
+          state.page = 1;
           renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "渠道管理" : "令牌管理"} · ${state.rows.length} 条记录`);
         } catch (error) {
           state.rows = []; renderTable(); setMeta(error.message, "error"); NAUi.toast(error.message, "err");
@@ -452,7 +537,7 @@
       document.querySelectorAll(".platform-tabs button").forEach((button) => button.addEventListener("click", () => {
         const next = button.dataset.kind; if (next === state.kind) return; state.kind = next;
         document.querySelectorAll(".platform-tabs button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-selected", String(active)); });
-        loadRows();
+        state.page = 1; loadRows();
       }));
       $("refreshBtn").addEventListener("click", loadRows); $("cancelEdit").addEventListener("click", closeEditor); $("saveEdit").addEventListener("click", saveEditor);
       $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
