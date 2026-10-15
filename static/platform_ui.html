@@ -107,7 +107,237 @@
     @media (min-width:1800px) { .platform-table { font-size:.85rem; } .platform-table th, .platform-table td { padding:.8rem .95rem; } }
     html[data-theme="light"] .platform-table th, html[data-theme="light"] .platform-modal { background:#fff; }
     html[data-theme="light"] .platform-modal input, html[data-theme="light"] .platform-modal select, html[data-theme="light"] .platform-modal textarea { background:#f8fafc; }
-  </style>
+
+    /* --- Platform console visual refresh --- */
+    .platform-shell { gap: 1rem; }
+    .platform-hero h1 { font-size: 1.5rem; letter-spacing: -0.02em; }
+    .platform-hero .na-subtitle { max-width: 62rem; color: var(--na-text-muted); }
+    .platform-toolbar {
+      align-items: center;
+      padding: 1rem 1.05rem;
+      border: 1px solid var(--na-border);
+      border-radius: 16px;
+      background:
+        radial-gradient(120% 200% at 0% 0%, rgba(34, 211, 238, 0.10) 0%, rgba(14, 165, 233, 0.02) 42%, transparent 70%),
+        rgba(2, 6, 23, 0.28);
+      box-shadow: 0 18px 40px rgba(2, 6, 23, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(12px);
+    }
+    .platform-envs {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem;
+      border: 1px solid var(--na-border);
+      border-radius: 12px;
+      background: rgba(2, 6, 23, 0.42);
+    }
+    .platform-env {
+      min-width: 74px;
+      padding: 0.52rem 0.82rem;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--na-text-muted);
+      font: 700 0.76rem/1 inherit;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    }
+    .platform-env:not(:disabled):hover { color: var(--na-text); background: rgba(255, 255, 255, 0.05); }
+    .platform-env.active {
+      color: #04121f;
+      background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
+      box-shadow: 0 5px 14px rgba(34, 211, 238, 0.28);
+    }
+    .platform-env:disabled { opacity: 0.36; cursor: not-allowed; }
+    .platform-address {
+      margin-left: auto;
+      max-width: min(36rem, 46%);
+      padding: 0.5rem 0.72rem;
+      overflow: hidden;
+      border: 1px solid var(--na-border);
+      border-radius: 10px;
+      color: var(--na-text-muted);
+      background: rgba(2, 6, 23, 0.28);
+      font: 500 0.74rem/1.35 var(--font-mono, ui-monospace, monospace);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .platform-tabs {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0 0.15rem;
+      border: 0;
+    }
+    .platform-tabs button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.52rem;
+      margin: 0;
+      padding: 0.72rem 1.05rem;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--na-text-muted);
+      font: 650 0.86rem/1 inherit;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .platform-tabs button::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.12);
+      opacity: 0.9;
+    }
+    .platform-tabs button[data-kind="channels"]::before { background: linear-gradient(135deg, #22d3ee, #0ea5e9); }
+    .platform-tabs button[data-kind="tokens"]::before { background: linear-gradient(135deg, #a78bfa, #f472b6); }
+    .platform-tabs button:hover { color: var(--na-text); background: rgba(255, 255, 255, 0.045); }
+    .platform-tabs button.active {
+      color: var(--na-text);
+      border-color: rgba(34, 211, 238, 0.30);
+      background: var(--na-accent-soft);
+      box-shadow: 0 10px 24px rgba(2, 6, 23, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .platform-meta {
+      min-height: 1.5rem;
+      padding: 0.55rem 0.72rem;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      border-radius: 10px;
+      color: var(--na-text-muted);
+      background: rgba(2, 6, 23, 0.18);
+      font-size: 0.78rem;
+    }
+    .platform-meta[data-kind="error"] { color: var(--na-danger); border-color: rgba(239, 68, 68, 0.24); background: rgba(239, 68, 68, 0.06); }
+    .platform-table-wrap {
+      max-height: calc(100vh - 350px);
+      min-height: 280px;
+      overflow: auto;
+      border: 1px solid var(--na-border);
+      border-radius: 16px;
+      background: rgba(2, 6, 23, 0.24);
+      box-shadow: 0 20px 44px rgba(2, 6, 23, 0.26);
+      scrollbar-color: rgba(34, 211, 238, 0.35) transparent;
+    }
+    .platform-table { border-collapse: collapse; font-size: 0.8rem; }
+    .platform-table th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 0.86rem 0.86rem;
+      border-bottom: 1px solid rgba(34, 211, 238, 0.18);
+      background: rgba(15, 23, 42, 0.96);
+      color: var(--na-text-muted);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.075em;
+      text-transform: uppercase;
+      text-align: left;
+      white-space: nowrap;
+      backdrop-filter: blur(12px);
+    }
+    .platform-table td { padding: 0.82rem 0.86rem; border-bottom: 1px solid rgba(148, 163, 184, 0.10); white-space: nowrap; }
+    .platform-table tbody tr { transition: background 0.15s ease; }
+    .platform-table tbody tr:hover td { background: rgba(34, 211, 238, 0.055); }
+    .platform-table tr:last-child td { border-bottom: 0; }
+    .platform-table td.name { max-width: 360px; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono, ui-monospace, monospace); }
+    .platform-table td.activity { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .platform-table td.quota { font-variant-numeric: tabular-nums; }
+    .platform-state {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 3.7rem;
+      padding: 0.22rem 0.52rem;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 750;
+    }
+    .platform-state.on { color: var(--na-success); background: var(--na-success-soft); border-color: rgba(34, 197, 94, 0.18); }
+    .platform-state.off { color: var(--na-danger); background: var(--na-danger-soft); border-color: rgba(239, 68, 68, 0.16); }
+    .platform-state.auto { color: #f59e0b; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.18); }
+    .platform-edit {
+      margin-left: 0.24rem;
+      border: 1px solid var(--na-border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--na-accent);
+      padding: 0.34rem 0.62rem;
+      cursor: pointer;
+      font: 650 0.73rem/1 inherit;
+      transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    }
+    .platform-edit:first-child { margin-left: 0; }
+    .platform-edit:hover { border-color: rgba(34, 211, 238, 0.55); background: var(--na-accent-soft); transform: translateY(-1px); }
+    .platform-edit.danger { color: var(--na-danger); }
+    .platform-edit.danger:hover { border-color: rgba(239, 68, 68, 0.55); background: rgba(239, 68, 68, 0.08); }
+    .platform-empty {
+      padding: 3.4rem 1.25rem;
+      text-align: center;
+      color: var(--na-text-muted);
+    }
+    .platform-empty::before {
+      content: "";
+      display: block;
+      width: 2.8rem;
+      height: 2.8rem;
+      margin: 0 auto 0.8rem;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(14, 165, 233, 0.05));
+      border: 1px solid rgba(34, 211, 238, 0.20);
+    }
+    .platform-pagination {
+      align-items: center;
+      padding: 0.8rem 0.25rem 0.2rem;
+      font-size: 0.76rem;
+      color: var(--na-text-muted);
+    }
+    .platform-pagination .page-btn {
+      min-width: 28px;
+      padding: 0.28rem 0.48rem;
+      border: 1px solid var(--na-border);
+      border-radius: 8px;
+      background: rgba(2, 6, 23, 0.22);
+      color: var(--na-text-muted);
+      font: 650 0.73rem/1 inherit;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    }
+    .platform-pagination .page-btn:hover { border-color: rgba(34, 211, 238, 0.40); color: var(--na-text); }
+    .platform-pagination .page-btn.active { background: var(--na-accent-soft); border-color: rgba(34, 211, 238, 0.50); color: var(--na-accent); }
+    .platform-pagination .page-size-select {
+      padding: 0.32rem 0.48rem;
+      border: 1px solid var(--na-border);
+      border-radius: 8px;
+      background: rgba(2, 6, 23, 0.32);
+      color: var(--na-text);
+      font: 650 0.74rem/1 inherit;
+      cursor: pointer;
+      outline: none;
+    }
+    html[data-theme="light"] .platform-toolbar,
+    html[data-theme="light"] .platform-table-wrap,
+    html[data-theme="light"] .platform-meta {
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+    }
+    html[data-theme="light"] .platform-table th { background: rgba(248, 250, 252, 0.96); }
+    html[data-theme="light"] .platform-envs { background: rgba(248, 250, 252, 0.9); }
+    html[data-theme="light"] .platform-address { background: rgba(248, 250, 252, 0.9); }
+    @media (max-width: 700px) {
+      .platform-toolbar { padding: 0.85rem; }
+      .platform-address { width: 100%; max-width: none; margin-left: 0; }
+      .platform-tabs { width: 100%; }
+      .platform-tabs button { flex: 1; justify-content: center; }
+      .platform-table-wrap { max-height: none; }
+    }  </style>
 </head>
 <body class="na-app">
   <div class="na-bg" aria-hidden="true"><div class="na-bg-grid"></div><div class="na-bg-orb na-bg-orb-1"></div><div class="na-bg-orb na-bg-orb-2"></div><div class="na-bg-noise"></div></div>
