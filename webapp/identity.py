@@ -1087,7 +1087,7 @@ class IdentityManager:
                 password=password,
                 role=role,
                 email_verified=True,
-                must_change_password=True,
+                must_change_password=False,
             )
         except ValueError as exc:
             abort(400, str(exc))
@@ -1126,11 +1126,11 @@ class IdentityManager:
         if len(new_password) < 12:
             abort(400, "新密码至少需要 12 位")
         target.password_hash = self.store.passwords.hash(new_password)
-        target.must_change_password = True
+        target.must_change_password = False
         target.failed_login_count = 0
         target.locked_until = None
         db.commit()
-        self.store.audit("user.password_changed_by_admin", resource=f"user:{target.id}", detail={"must_change_password": True})
+        self.store.audit("user.password_changed_by_admin", resource=f"user:{target.id}", detail={"must_change_password": False})
         return redirect(url_for("identity.admin_users", _anchor="users"))
 
     def _admin_permission_request_action(self, request_id: int, action: str) -> Response:
