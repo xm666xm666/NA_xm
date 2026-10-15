@@ -1091,6 +1091,7 @@
       document.documentElement.classList.remove("na-permissions-pending");
       const parsed = parseLocationHash();
       switchView(HASH_VIEW[parsed.view] || firstPermittedView(), { analysis: parsed.params.get("analysis") || "" });
+      if (permissionFeatures.has("platform")) ensureViewFrameLoaded("platform");
     });
 
     const bootHash = parseLocationHash();
