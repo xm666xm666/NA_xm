@@ -106,6 +106,51 @@ def test_extract_already_standard_line():
     assert result.items[0].models == "m1,m2"
 
 
+def test_extract_pure_number_line_as_token_quota():
+    text = "\n".join(
+        [
+            "demo-alpha-uat-gpt-x-张三",
+            "demo-alpha-uat",
+            "demo-alpha-uat-gpt-x，demo-alpha-uat-gpt-y",
+            "500000",
+        ]
+    )
+    result = extract_tokens(text)
+    assert result.success, result.message
+    item = result.items[0]
+    assert item.models == "demo-alpha-uat-gpt-x,demo-alpha-uat-gpt-y"
+    assert item.quota == "500000"
+    assert result.token_lines.endswith(
+        "demo-alpha-uat-gpt-x-张三\tdemo-alpha-uat\t"
+        "demo-alpha-uat-gpt-x,demo-alpha-uat-gpt-y\t500000"
+    )
+
+
+def test_extract_standard_line_with_quota_column():
+    result = extract_tokens("tok-name-甲\tgroup-uat\tm1,m2\t1000000")
+    assert result.success, result.message
+    item = result.items[0]
+    assert item.models == "m1,m2"
+    assert item.quota == "1000000"
+    assert result.token_lines == "tok-name-甲\tgroup-uat\tm1,m2\t1000000"
+
+
+def test_extract_channel_block_with_quota_line():
+    channel = (
+        "finance-prod-doubao-seed-2.0 finance-prod 字节火山方舟、豆包通用 "
+        "finance-prod-doubao-seed-2.0 "
+        "finance-prod-doubao-seed-2.0->ep-20260810094015-8wzmw "
+        "https://ark.cn-beijing.volces.com "
+        "ark-test-key"
+    )
+    result = extract_tokens(f"finance-prod-doubao-seed-2.0-费仕忆\n{channel}\n800000")
+    assert result.success, result.message
+    item = result.items[0]
+    assert item.models == "finance-prod-doubao-seed-2.0"
+    assert item.quota == "800000"
+    assert result.token_lines.endswith("\t800000")
+
+
 def test_extract_from_channel_lines():
     text = "\n".join(
         [

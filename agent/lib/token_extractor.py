@@ -7,6 +7,7 @@
 
 输出（与②令牌管理一致）：
   令牌名-人名\\t分组\\t模型1,模型2
+  令牌名-人名\\t分组\\t模型1,模型2\\t额度(tokens)
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from .group_deriver import derive_group_from_name
 
 _PERSON_RE = re.compile(r"^[\u4e00-\u9fff·•]{2,12}$")
 _LABEL_RE = re.compile(
-    r"^(?:令牌名|令牌名称|名称|人名|姓名|用户|用户名|分组|令牌分组|模型|模型限制|模型列表)\s*[：:]\s*",
+    r"^(?:令牌名|令牌名称|名称|人名|姓名|用户|用户名|分组|令牌分组|模型|模型限制|模型列表|额度(?:\s*\(tokens\))?)\s*[：:]\s*",
     re.IGNORECASE,
 )
 _MODEL_SEP_RE = re.compile(r"[,，、;；]")
@@ -30,6 +31,7 @@ _ENV_GROUP_RE = re.compile(
     re.IGNORECASE,
 )
 _PERSON_SUFFIX_RE = re.compile(r"-([\u4e00-\u9fff·•]{2,12})$")
+_QUOTA_RE = re.compile(r"^\d+$")
 
 
 @dataclass
@@ -39,6 +41,7 @@ class TokenExtractItem:
     name: str = ""
     group: str = ""
     models: str = ""
+    quota: str = ""
     token_line: str = ""
     message: str = ""
 
@@ -72,6 +75,7 @@ class TokenExtractResult:
                     "name": it.name,
                     "group": it.group,
                     "models": it.models,
+                    "quota": it.quota,
                     "token_line": it.token_line,
                     "channel_line": it.token_line,
                     "message": it.message,
@@ -79,6 +83,7 @@ class TokenExtractResult:
                         "名称": it.name,
                         "分组": it.group,
                         "模型": it.models,
+                        **({"额度(tokens)": it.quota} if it.quota else {}),
                     }
                     if it.success
                     else {},
@@ -123,6 +128,11 @@ def _looks_like_group(text: str) -> bool:
     return bool(re.fullmatch(r"[a-zA-Z0-9][\w.-]{1,80}", s))
 
 
+def _parse_quota_value(text: str) -> str | None:
+    value = (text or "").strip()
+    return value if _QUOTA_RE.fullmatch(value) else None
+
+
 def normalize_model_list(raw: str) -> list[str]:
     text = (raw or "").strip()
     if not text:
@@ -146,14 +156,18 @@ def join_token_name(base: str, person: str = "") -> str:
     return f"{base}-{person}"
 
 
-def format_token_line(name: str, group: str, models: list[str] | str) -> str:
+def format_token_line(name: str, group: str, models: list[str] | str, quota: str | None = "") -> str:
     if isinstance(models, str):
         model_list = normalize_model_list(models)
     else:
         model_list = [str(m).strip() for m in models if str(m).strip()]
     if not name or not group or not model_list:
         raise ValueError("令牌名、分组、模型均不能为空")
-    return f"{name}\t{group}\t{','.join(model_list)}"
+    line = f"{name}\t{group}\t{','.join(model_list)}"
+    normalized_quota = (quota or "").strip()
+    if normalized_quota:
+        line = f"{line}\t{normalized_quota}"
+    return line
 
 
 def _split_paragraphs(raw_text: str) -> list[list[str]]:
@@ -175,8 +189,8 @@ def _split_paragraphs(raw_text: str) -> list[list[str]]:
     return blocks
 
 
-def _parse_standard_line(line: str) -> tuple[str, str, list[str]] | None:
-    """已是「名称 分组 模型」单行时直接解析。"""
+def _parse_standard_line(line: str) -> tuple[str, str, list[str], str] | None:
+    """已是「名称 分组 模型 [额度]」单行时直接解析。"""
     text = (line or "").strip()
     if not text:
         return None
@@ -186,12 +200,24 @@ def _parse_standard_line(line: str) -> tuple[str, str, list[str]] | None:
     if "\t" in text:
         parts = [p.strip() for p in text.split("\t") if p.strip()]
         if len(parts) >= 3:
-            models = normalize_model_list("、".join(parts[2:]))
+            model_parts = parts[2:]
+            quota = ""
+            if len(model_parts) > 1 and _QUOTA_RE.fullmatch(model_parts[-1]):
+                quota = model_parts[-1]
+                model_parts = model_parts[:-1]
+            models = normalize_model_list("、".join(model_parts))
             if models:
-                return parts[0], parts[1], models
-    ws = re.split(r"\s+", text, maxsplit=2)
-    if len(ws) >= 3 and normalize_model_list(ws[2]):
-        return ws[0], ws[1], normalize_model_list(ws[2])
+                return parts[0], parts[1], models, quota
+    ws = re.split(r"\s+", text)
+    if len(ws) >= 3:
+        model_parts = ws[2:]
+        quota = ""
+        if len(model_parts) > 1 and _QUOTA_RE.fullmatch(model_parts[-1]):
+            quota = model_parts[-1]
+            model_parts = model_parts[:-1]
+        models = normalize_model_list("、".join(model_parts))
+        if models:
+            return ws[0], ws[1], models, quota
     return None
 
 
@@ -245,7 +271,8 @@ def _token_name_from_channel_rows(channel_rows: list[dict[str, str]]) -> str:
 def _extract_from_channel_bundle(
     other_lines: list[str],
     channel_rows: list[dict[str, str]],
-) -> tuple[str, str, list[str]]:
+    quota: str = "",
+) -> tuple[str, str, list[str], str]:
     """令牌名(+可选分组) + 渠道批量行 → 分组与模型列表。"""
     models: list[str] = []
     seen: set[str] = set()
@@ -309,7 +336,7 @@ def _extract_from_channel_bundle(
     group = explicit_group or group_from_channels or derive_group_from_name(token_name)
     if not group:
         raise ValueError("未识别到分组（请确认渠道行含分组，或令牌名含 -uat/-test/-prod）")
-    return token_name, group, models
+    return token_name, group, models, quota
 
 
 def _merge_channel_continuation_blocks(blocks: list[list[str]]) -> list[list[str]]:
@@ -318,22 +345,33 @@ def _merge_channel_continuation_blocks(blocks: list[list[str]]) -> list[list[str
         return blocks
     merged: list[list[str]] = [list(blocks[0])]
     for block in blocks[1:]:
-        if block and all(_try_parse_channel_line(line) is not None for line in block):
+        if not block:
+            continue
+        if all(_try_parse_channel_line(line) is not None for line in block) or all(
+            _parse_quota_value(line) is not None for line in block
+        ):
             merged[-1].extend(block)
         else:
             merged.append(list(block))
     return merged
 
 
-def extract_token_block(lines: list[str]) -> tuple[str, str, list[str]]:
-    """从多行块提取 (令牌名, 分组, 模型列表)。"""
+def extract_token_block(lines: list[str]) -> tuple[str, str, list[str], str]:
+    """从多行块提取 (令牌名, 分组, 模型列表, 可选额度)。"""
     cleaned = [_strip_label(x) for x in lines if _strip_label(x)]
     if not cleaned:
         raise ValueError("空块")
 
     channel_rows: list[dict[str, str]] = []
     other_lines: list[str] = []
+    quota = ""
     for line in cleaned:
+        quota_value = _parse_quota_value(line)
+        if quota_value is not None:
+            if quota:
+                raise ValueError("额度(tokens)只能填写一次")
+            quota = quota_value
+            continue
         row = _try_parse_channel_line(line)
         if row is not None:
             channel_rows.append(row)
@@ -341,12 +379,15 @@ def extract_token_block(lines: list[str]) -> tuple[str, str, list[str]]:
             other_lines.append(line)
 
     if channel_rows:
-        return _extract_from_channel_bundle(other_lines, channel_rows)
+        return _extract_from_channel_bundle(other_lines, channel_rows, quota)
 
     if len(cleaned) == 1:
         parsed = _parse_standard_line(cleaned[0])
         if parsed:
-            return parsed
+            token_name, group, models, standard_quota = parsed
+            if quota and standard_quota:
+                raise ValueError("额度(tokens)只能填写一次")
+            return token_name, group, models, quota or standard_quota
         raise ValueError("单行格式需为：令牌名 分组 模型1,模型2")
 
     # 优先：带分隔符的模型行；否则默认最后一行为模型
@@ -393,7 +434,7 @@ def extract_token_block(lines: list[str]) -> tuple[str, str, list[str]]:
     token_name = _token_name_from_parts(name_parts)
     if not token_name:
         raise ValueError("令牌名不能为空")
-    return token_name, group.strip(), models
+    return token_name, group.strip(), models, quota
 
 
 def extract_tokens(raw_text: str) -> TokenExtractResult:
@@ -407,8 +448,8 @@ def extract_tokens(raw_text: str) -> TokenExtractResult:
 
     for index, block in enumerate(blocks, start=1):
         try:
-            name, group, models = extract_token_block(block)
-            line = format_token_line(name, group, models)
+            name, group, models, quota = extract_token_block(block)
+            line = format_token_line(name, group, models, quota)
             items.append(
                 TokenExtractItem(
                     index=index,
@@ -416,6 +457,7 @@ def extract_tokens(raw_text: str) -> TokenExtractResult:
                     name=name,
                     group=group,
                     models=",".join(models),
+                    quota=quota,
                     token_line=line,
                     message=f"#{index} 提取成功",
                 )
