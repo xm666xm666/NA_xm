@@ -293,7 +293,7 @@ python app.py --no-browser     # 不自动打开浏览器
 
 ### 独立部署
 
-复制整个项目目录到目标机器，执行 run.bat 或 run.sh 即可，无需额外构建步骤。首次执行 Windows run.bat 时，会在本机生成被 Git 忽略的 .env、随机初始超管密码与 SQLite 网站数据库配置；控制台会显示一次 admin 的初始密码，并将其保存到 .env。请立即保存该密码，首次登录后按页面提示修改；若遗失，请在停止程序后删除本机 .cache/website.db 与 .env，再运行 run.bat 重新初始化。真实凭据请在目标机单独填写 env/sites.json（不要把含密钥的文件拷进共享盘）；各字段从哪抄见 [配置说明](#配置说明)。
+复制整个项目目录到目标机器，执行 run.bat 或 run.sh 即可，无需额外构建步骤。首次执行 Windows run.bat 时，会在本机生成被 Git 忽略的 .env、随机初始超管密码与 SQLite 网站数据库配置；控制台会显示一次 admin 的初始密码，并将其保存到 .env。请立即保存该密码，首次登录后按页面提示修改。run.bat 不会覆盖 .env 中已有的非空密码；若 .env 丢失但本机 SQLite 管理员库仍存在，也不会生成误导性的新密码。如需重新初始化，请先停止程序，再删除本机 .cache/website.db 与 .env，然后重新运行 run.bat。真实凭据请在目标机单独填写 env/sites.json（不要把含密钥的文件拷进共享盘）；各字段从哪抄见 [配置说明](#配置说明)。
 
 ### Docker / Podman（Rocky Linux 8/9）
 

@@ -82,6 +82,49 @@ class LocalBootstrapTests(unittest.TestCase):
             (self.root / ".env").read_text(encoding="utf-8"),
         )
 
+    def test_blank_environment_does_not_hide_existing_password(self) -> None:
+        (self.root / ".env").write_text(
+            "APP_ENV=development\nBOOTSTRAP_ADMIN_PASSWORD=existing-local-password\n",
+            encoding="utf-8",
+        )
+        os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = ""
+
+        result = ensure_local_bootstrap_env(self.root)
+
+        self.assertIsNone(result.generated_admin_password)
+        self.assertIn(
+            "BOOTSTRAP_ADMIN_PASSWORD=existing-local-password",
+            (self.root / ".env").read_text(encoding="utf-8"),
+        )
+
+        load_project_env(self.root)
+        self.assertEqual(os.environ["BOOTSTRAP_ADMIN_PASSWORD"], "existing-local-password")
+
+    def test_existing_admin_database_does_not_generate_new_password(self) -> None:
+        result = ensure_local_bootstrap_env(self.root)
+        self.assertIsNotNone(result.generated_admin_password)
+
+        load_project_env(self.root)
+        app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"))
+        app.testing = True
+        identity = init_identity(app, self.root)
+        try:
+            with app.app_context():
+                user, message = identity.store.authenticate("admin", str(result.generated_admin_password))
+                self.assertEqual(message, "")
+                self.assertIsNotNone(user)
+        finally:
+            identity.store.close()
+            identity.store.engine.dispose()
+
+        for key in ("BOOTSTRAP_ADMIN_PASSWORD", "DATABASE_URL", "APP_SECRET_KEY"):
+            os.environ.pop(key, None)
+        (self.root / ".env").unlink()
+
+        second_result = ensure_local_bootstrap_env(self.root)
+        self.assertTrue(second_result.existing_admin_detected)
+        self.assertIsNone(second_result.generated_admin_password)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
