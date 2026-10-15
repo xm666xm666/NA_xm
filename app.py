@@ -273,6 +273,8 @@ def _load_batch_modules():
             "platform_get_token": platform_info.get_token,
             "platform_update_token": platform_info.update_token,
             "platform_update_token_status": platform_info.update_token_status,
+            "platform_delete_channel": platform_info.delete_channel,
+            "platform_delete_token": platform_info.delete_token,
         }
 
 
@@ -740,6 +742,17 @@ def api_platform_channel_status(env: str, channel_id: int):
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
+@app.delete("/api/platform/<env>/channels/<int:channel_id>")
+def api_platform_channel_delete(env: str, channel_id: int):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = BATCH["platform_delete_channel"](client, channel_id)
+        IDENTITY.store.audit("platform.channel.deleted", resource=f"{env_key}:channel:{channel_id}", detail={"env": env_key, "channel_id": channel_id})
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "渠道已删除"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
 @app.get("/api/platform/<env>/tokens")
 def api_platform_tokens(env: str):
     try:
@@ -784,6 +797,17 @@ def api_platform_token_status(env: str, token_id: int):
         data = BATCH["platform_update_token_status"](client, token_id, status)
         IDENTITY.store.audit("platform.token.status_updated", resource=f"{env_key}:token:{token_id}", detail={"env": env_key, "token_id": token_id, "status": status})
         return jsonify({"success": True, "env": env_key, "data": data, "message": "令牌状态已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.delete("/api/platform/<env>/tokens/<int:token_id>")
+def api_platform_token_delete(env: str, token_id: int):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = BATCH["platform_delete_token"](client, token_id)
+        IDENTITY.store.audit("platform.token.deleted", resource=f"{env_key}:token:{token_id}", detail={"env": env_key, "token_id": token_id})
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "令牌已删除"})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

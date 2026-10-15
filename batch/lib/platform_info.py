@@ -125,6 +125,14 @@ def update_channel_status(client: NewAPIClient, channel_id: int, status: int) ->
     return client.update_channel_status(int(channel_id), status)
 
 
+def delete_channel(client: NewAPIClient, channel_id: int) -> dict[str, Any]:
+    """删除单个渠道，复用 ai-cloud 的批量删除接口。"""
+    deleted = client.delete_channels_batch([int(channel_id)])
+    if deleted < 1:
+        raise RuntimeError("渠道删除失败")
+    return {"deleted": deleted}
+
+
 def get_model(client: NewAPIClient, model_id: int) -> dict[str, Any]:
     response = client.session.get(
         f"{client.base_url}/api/models/{int(model_id)}",
@@ -168,3 +176,11 @@ def update_token(client: NewAPIClient, token_id: int, record: dict[str, Any]) ->
 def update_token_status(client: NewAPIClient, token_id: int, status: int) -> dict[str, Any]:
     """更新令牌状态：1=启用，2=手动禁用。"""
     return client.update_token_status(int(token_id), status)
+
+
+def delete_token(client: NewAPIClient, token_id: int) -> dict[str, Any]:
+    """删除单个令牌，复用 ai-cloud 的批量删除接口。"""
+    deleted = client.delete_tokens_batch([int(token_id)])
+    if deleted < 1:
+        raise RuntimeError("令牌删除失败")
+    return {"deleted": deleted}

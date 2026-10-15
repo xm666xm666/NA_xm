@@ -1006,6 +1006,14 @@ class IdentityManager:
         def admin_user_delete(user_id: int):
             return self._admin_user_action(user_id, "delete")
 
+        @bp.post("/admin/users/create")
+        def admin_user_create():
+            return self._admin_create_user()
+
+        @bp.post("/admin/users/<int:user_id>/password")
+        def admin_user_password(user_id: int):
+            return self._admin_reset_password(user_id)
+
         return bp
 
     def _verify_form_csrf(self) -> bool:
@@ -1057,6 +1065,72 @@ class IdentityManager:
             abort(400)
         db.commit()
         self.store.audit(event, resource=f"user:{target.id}", detail=detail)
+        return redirect(url_for("identity.admin_users", _anchor="users"))
+
+    def _admin_create_user(self) -> Response:
+        blocked = self.page_guard(FEATURE_USER_ADMIN)
+        if blocked:
+            return blocked
+        if not self._verify_form_csrf():
+            abort(400)
+        role = str(request.form.get("role") or ROLE_USER)
+        if role not in (ROLE_USER, ROLE_ADMIN):
+            abort(400, "角色无效")
+        password = str(request.form.get("password") or "")
+        password_confirm = str(request.form.get("password_confirm") or "")
+        if password != password_confirm:
+            abort(400, "两次输入的密码不一致")
+        try:
+            user = self.store.create_user(
+                username=request.form.get("username", ""),
+                email=request.form.get("email", ""),
+                password=password,
+                role=role,
+                email_verified=True,
+                must_change_password=True,
+            )
+        except ValueError as exc:
+            abort(400, str(exc))
+        db = self.store.session()
+        if role == ROLE_ADMIN:
+            user.features_json = json.dumps(sorted(FEATURE_KEYS), ensure_ascii=False)
+            user.role = ROLE_ADMIN
+        else:
+            user.features_json = json.dumps(sorted(DEFAULT_USER_FEATURES), ensure_ascii=False)
+            user.role = ROLE_USER
+        db.commit()
+        self.store.audit("user.created_by_admin", resource=f"user:{user.id}", detail={"username": user.username, "role": user.role})
+        return redirect(url_for("identity.admin_users", _anchor="users"))
+
+    def _admin_reset_password(self, user_id: int) -> Response:
+        blocked = self.page_guard(FEATURE_USER_ADMIN)
+        if blocked:
+            return blocked
+        if not self._verify_form_csrf():
+            abort(400)
+        db = self.store.session()
+        target = db.get(User, user_id)
+        actor = self.current_user()
+        if not target or target.is_deleted:
+            abort(404)
+        if target.id == actor.id:
+            abort(400, "不能修改当前登录账号")
+        if target.is_bootstrap_superadmin:
+            abort(400, "默认超管 admin 的密码请在账户设置中修改")
+        if target.role == ROLE_SUPERADMIN:
+            abort(400, "超管账户不能通过普通用户管理操作修改")
+        new_password = str(request.form.get("new_password") or "")
+        new_password_confirm = str(request.form.get("new_password_confirm") or "")
+        if new_password != new_password_confirm:
+            abort(400, "两次输入的新密码不一致")
+        if len(new_password) < 12:
+            abort(400, "新密码至少需要 12 位")
+        target.password_hash = self.store.passwords.hash(new_password)
+        target.must_change_password = True
+        target.failed_login_count = 0
+        target.locked_until = None
+        db.commit()
+        self.store.audit("user.password_changed_by_admin", resource=f"user:{target.id}", detail={"must_change_password": True})
         return redirect(url_for("identity.admin_users", _anchor="users"))
 
     def _admin_permission_request_action(self, request_id: int, action: str) -> Response:

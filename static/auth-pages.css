@@ -177,7 +177,19 @@ body.auth-page {
 .admin-inbox-head p { margin: .25rem 0 0; color: var(--auth-muted); font-size: .76rem; }
 .admin-inbox-count { padding: .35rem .58rem; border: 1px solid #c7d2fe; border-radius: 999px; color: var(--auth-primary-strong); background: var(--auth-primary-soft); font-size: .72rem; font-weight: 700; white-space: nowrap; }
 .admin-inbox-empty { margin: 0; padding: .9rem 1rem; border: 1px dashed var(--auth-line-strong); border-radius: .6rem; color: var(--auth-muted); font-size: .8rem; }
-.admin-request-list { display: grid; gap: .7rem; }
+.admin-create { padding: 1.25rem clamp(1.25rem, 3.2vw, 3rem); border-block-end: 1px solid var(--auth-line); background: #fbfcff; scroll-margin-top: 1rem; }
+.admin-create-box > summary { display: inline-flex; align-items: center; min-block-size: 2.25rem; padding: .45rem .7rem; border: 1px solid #c7d2fe; border-radius: .5rem; color: var(--auth-primary-strong); background: var(--auth-primary-soft); font-size: .8rem; font-weight: 700; cursor: pointer; list-style-position: inside; }
+.admin-create-box > summary:hover { border-color: #818cf8; background: #e0e7ff; }
+.admin-create-form { display: grid; gap: .8rem; margin-block-start: .7rem; }
+.admin-create-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; }
+.admin-create-form label, .admin-password-form label { display: grid; gap: .3rem; color: #475569; font-size: .72rem; font-weight: 650; }
+.admin-create-form input, .admin-create-form select, .admin-password-form input { inline-size: 100%; padding: .45rem .55rem; border: 1px solid var(--auth-line-strong); border-radius: .45rem; color: var(--auth-ink); background: #ffffff; font: inherit; }
+.admin-create-form input:focus, .admin-create-form select:focus, .admin-password-form input:focus { outline: 2px solid var(--auth-primary); outline-offset: 1px; }
+.admin-create-form .admin-button { justify-self: start; }
+.admin-password-reset { margin-block-end: .45rem; }
+.admin-password-reset > summary { display: inline-flex; align-items: center; min-block-size: 2.25rem; padding: .45rem .66rem; border: 1px solid #c7d2fe; border-radius: .5rem; color: var(--auth-primary-strong); background: var(--auth-primary-soft); font: 700 .76rem/1 inherit; cursor: pointer; list-style-position: inside; }
+.admin-password-reset > summary:hover { border-color: #818cf8; background: #e0e7ff; }
+.admin-password-form { display: grid; gap: .45rem; min-inline-size: 12rem; margin-block-start: .5rem; }.admin-request-list { display: grid; gap: .7rem; }
 .admin-request-item { display: grid; grid-template-columns: minmax(10rem, .8fr) minmax(20rem, 1.5fr); gap: 1rem; padding: 1rem; border: 1px solid var(--auth-line); border-radius: .7rem; background: #ffffff; }
 .admin-request-meta { display: grid; align-content: start; gap: .25rem; min-width: 0; }
 .admin-request-meta strong { color: #1e293b; font-size: .85rem; }

@@ -19,6 +19,23 @@
         <div class="admin-count" aria-label="当前用户数量"><strong>{{ users|length }}</strong><span>个有效账户</span></div>
       </header>
 
+      <section class="admin-create" id="create-user" aria-labelledby="create-user-title">
+        <details class="admin-create-box">
+          <summary id="create-user-title">创建其他用户</summary>
+          <form method="post" action="/admin/users/create" class="admin-create-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="admin-create-grid">
+              <label>用户名 <input name="username" required minlength="3" maxlength="64" pattern="[A-Za-z0-9_-]+" autocomplete="username"></label>
+              <label>邮箱 <input type="email" name="email" required maxlength="255" autocomplete="email"></label>
+              <label>初始密码 <input type="password" name="password" required minlength="12" autocomplete="new-password"></label>
+              <label>确认初始密码 <input type="password" name="password_confirm" required minlength="12" autocomplete="new-password"></label>
+              <label>角色 <select name="role"><option value="user">普通用户</option><option value="admin">管理员</option></select></label>
+            </div>
+            <button class="admin-button admin-button-primary" type="submit">创建账户</button>
+          </form>
+        </details>
+      </section>
+
       <section class="admin-inbox" id="permission-requests" aria-labelledby="permission-requests-title">
         <header class="admin-inbox-head">
           <div><h2 id="permission-requests-title">权限申请</h2><p>用户选择需要的功能后会在这里通知超管。</p></div>
@@ -109,6 +126,15 @@
                   {% if protected %}
                     <span class="admin-protected">{{ '默认超管不可修改' if user.is_bootstrap_superadmin else '不能修改当前账户' }}</span>
                   {% else %}
+                    <details class="admin-password-reset">
+                      <summary>修改密码</summary>
+                      <form method="post" action="/admin/users/{{ user.id }}/password" class="admin-password-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <label>新密码 <input type="password" name="new_password" required minlength="12" autocomplete="new-password"></label>
+                        <label>确认新密码 <input type="password" name="new_password_confirm" required minlength="12" autocomplete="new-password"></label>
+                        <button class="admin-button admin-button-warning" type="submit">更新密码</button>
+                      </form>
+                    </details>
                     <div class="admin-actions">
                       <form method="post" action="/admin/users/{{ user.id }}/status">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="is_active" value="{{ 'false' if user.is_active else 'true' }}">

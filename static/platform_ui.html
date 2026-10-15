@@ -357,10 +357,14 @@
                 const statusBtn = document.createElement("button"); statusBtn.type = "button"; statusBtn.className = "platform-edit";
                 statusBtn.textContent = Number(record.status) === 1 ? "禁用" : "启用";
                 statusBtn.addEventListener("click", () => toggleChannelStatus(record)); td.append(statusBtn);
+                const deleteBtn = document.createElement("button"); deleteBtn.type = "button"; deleteBtn.className = "platform-edit danger"; deleteBtn.textContent = "删除";
+                deleteBtn.addEventListener("click", () => deleteChannel(record)); td.append(deleteBtn);
               } else if (state.kind === "tokens") {
                 const statusBtn = document.createElement("button"); statusBtn.type = "button"; statusBtn.className = "platform-edit";
                 statusBtn.textContent = Number(record.status) === 1 ? "禁用" : "启用";
                 statusBtn.addEventListener("click", () => toggleTokenStatus(record)); td.append(statusBtn);
+                const deleteBtn = document.createElement("button"); deleteBtn.type = "button"; deleteBtn.className = "platform-edit danger"; deleteBtn.textContent = "删除";
+                deleteBtn.addEventListener("click", () => deleteToken(record)); td.append(deleteBtn);
               }
               const edit = document.createElement("button"); edit.type = "button"; edit.className = "platform-edit"; edit.textContent = "编辑";
               edit.addEventListener("click", () => openEditor(record)); td.append(edit);
@@ -529,6 +533,26 @@
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/tokens/${id}/status`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) });
           NAUi.toast(payload.message || `令牌已${label}`, "ok"); await loadRows();
         } catch (error) { NAUi.toast(error.message, "err"); }
+      }
+      async function deleteChannel(record) {
+        const id = Number(record.id);
+        if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该渠道没有有效 ID", "warn"); return; }
+        if (!confirm(`确定删除渠道 #${id}${record.name ? `（${record.name}）` : ""} 吗？此操作不可撤销。`)) return;
+        setMeta(`正在删除渠道 #${id}…`);
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/channels/${id}`, { method: "DELETE" });
+          NAUi.toast(payload.message || "渠道已删除", "ok"); await loadRows();
+        } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
+      }
+      async function deleteToken(record) {
+        const id = Number(record.id);
+        if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该令牌没有有效 ID", "warn"); return; }
+        if (!confirm(`确定删除令牌 #${id}${record.name ? `（${record.name}）` : ""} 吗？此操作不可撤销。`)) return;
+        setMeta(`正在删除令牌 #${id}…`);
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/tokens/${id}`, { method: "DELETE" });
+          NAUi.toast(payload.message || "令牌已删除", "ok"); await loadRows();
+        } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
       }
       async function init() {
         try {
