@@ -287,6 +287,19 @@
       color: var(--na-accent);
     }
     .platform-copy:disabled { opacity: 0.42; cursor: not-allowed; }
+    .platform-batch-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.42rem;
+      max-width: 100%;
+      min-width: 0;
+    }
+    .platform-batch-cell .platform-copy-cell { flex: 1; min-width: 0; }
+    .platform-batch-empty {
+      color: var(--na-text-muted);
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
     .platform-state {
       display: inline-flex;
       align-items: center;
@@ -443,14 +456,14 @@
           ["响应时间", (r) => responseTimeText(r.response_time)],
           ["近一月活跃统计", (r) => activityText(r)],
           ["已用/剩余", (r) => `${formatQuota(r.used_quota)} / ${formatQuota(r.balance)}`],
-          ["优先级", (r) => r.priority ?? ""], ["权重", (r) => r.weight ?? ""], ["操作", () => ""],
+          ["优先级", (r) => r.priority ?? ""], ["权重", (r) => r.weight ?? ""], ["批量配置", () => ""], ["操作", () => ""],
         ],
         tokens: [
           ["名称", (r) => r.name || ""], ["状态", (r) => tokenStatePill(r.status)],
           ["剩余额度/总额度", (r) => quotaText(r)], ["分组", (r) => r.group === "auto" ? "智能熔断" : (r.group || "")],
           ["密钥", (r) => tokenKeyText(r.key || r.token || "")], ["可用模型", (r) => r.token_model_limit_enabled && r.token_model_limit ? r.token_model_limit : "无限制"],
           ["模型限流", (r) => rateLimitText(r)], ["IP限制", (r) => r.allow_ips ? r.allow_ips.replace(/\s*[\r\n]+\s*/g, ", ") : "无限制"],
-          ["创建时间", (r) => timestamp(r.created_time)], ["过期时间", (r) => Number(r.expired_time) === -1 ? "永不过期" : timestamp(r.expired_time)], ["操作", () => ""],
+          ["创建时间", (r) => timestamp(r.created_time)], ["过期时间", (r) => Number(r.expired_time) === -1 ? "永不过期" : timestamp(r.expired_time)], ["批量配置", () => ""], ["操作", () => ""],
         ],
       };
       function channelTypeLabel(value) { return CHANNEL_TYPES[value] || (value ? String(value) : ""); }
@@ -564,6 +577,70 @@
         if (name === "密钥") return "key";
         return "medium";
       }
+      function normalizeBatchModels(value) {
+        return safeText(value)
+          .split(/[,，、;；\s]+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .join(",");
+      }
+      function batchModelMapping(record, models) {
+        let mapping = record.model_mapping || {};
+        if (typeof mapping === "string") {
+          try { mapping = JSON.parse(mapping || "{}"); } catch (_) { mapping = {}; }
+        }
+        if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) return models;
+        return models.split(",").map((model) => {
+          const target = mapping[model];
+          return typeof target === "string" && target.trim() ? target.trim() : model;
+        }).join(",");
+      }
+      function channelApiVersion(record) {
+        if (Number(record.type) !== 3) return "";
+        return safeText(record.other || record.api_version || record.default_api_version || "").trim();
+      }
+      function recordToBatchLine(record) {
+        if (state.kind === "channels") {
+          const name = safeText(record.name || "").trim();
+          const group = safeText(record.group || "").trim();
+          const type = channelTypeLabel(record.type).trim();
+          const models = normalizeBatchModels(record.models);
+          const baseUrl = safeText(record.base_url || "").trim().replace(/\/+$/, "");
+          if (!name || !group || !type || !models || !baseUrl) return "";
+          const parts = [
+            name, group, type, models,
+            `${models}->${batchModelMapping(record, models)}`,
+            baseUrl,
+          ];
+          const apiVersion = channelApiVersion(record);
+          if (apiVersion) parts.push(apiVersion);
+          return parts.join("\t");
+        }
+
+        const name = safeText(record.name || "").trim();
+        const group = safeText(record.group || "").trim();
+        const models = record.token_model_limit_enabled ? normalizeBatchModels(record.token_model_limit) : "";
+        if (!name || !group || !models) return "";
+        const parts = [name, group, models];
+        if (!record.unlimited_quota) parts.push(String(record.remain_quota ?? 0));
+        return parts.join("\t");
+      }
+      function applyBatchLine(record, button) {
+        const line = recordToBatchLine(record);
+        if (!line) {
+          NAUi.toast(state.kind === "channels" ? "渠道缺少名称、分组、类型、模型或 Base URL" : "令牌缺少名称、分组或可用模型", "warn");
+          return;
+        }
+        let batchFrame = null;
+        try { batchFrame = window.parent?.document?.getElementById("batchFrame"); } catch (_) { batchFrame = null; }
+        const apply = batchFrame?.contentWindow?.[state.kind === "channels" ? "__naBatchApplyChannelTextForUpdate" : "__naBatchApplyTokenText"];
+        if (typeof apply !== "function") {
+          copyToClipboard(line, button);
+          return;
+        }
+        apply(line);
+        NAUi.toast(state.kind === "channels" ? "已填入批量配置「更新原配置」" : "已填入批量配置「令牌管理」", "ok");
+      }
       function siteFor(env) { return state.sites.find((site) => site.env === env); }
       function safeText(value) { return value == null ? "" : String(value); }
       async function request(url, options) {
@@ -673,6 +750,35 @@
           const tr = document.createElement("tr");
           columns.forEach(([name, value], index) => {
             const td = document.createElement("td");
+            if (name === "批量配置") {
+              const line = recordToBatchLine(record);
+              const wrap = document.createElement("div");
+              wrap.className = "platform-batch-cell";
+              if (line) {
+                wrap.append(makeCopyCell(line, line, "wide", line));
+                const applyBtn = document.createElement("button");
+                applyBtn.type = "button";
+                applyBtn.className = "platform-edit";
+                applyBtn.textContent = state.kind === "channels" ? "填入更新" : "填入创建";
+                applyBtn.title = state.kind === "channels"
+                  ? "填入批量配置「更新原配置」（不携带渠道密钥）"
+                  : "填入批量配置「令牌管理」批量创建";
+                applyBtn.addEventListener("click", () => applyBatchLine(record, applyBtn));
+                wrap.append(applyBtn);
+              } else {
+                const empty = document.createElement("span");
+                empty.className = "platform-batch-empty";
+                empty.textContent = "字段不足";
+                empty.title = state.kind === "channels"
+                  ? "转换需要名称、分组、类型、模型和 Base URL"
+                  : "转换需要名称、分组和已启用的模型白名单";
+                wrap.append(empty);
+              }
+              td.classList.add("copyable", "wide");
+              td.append(wrap);
+              tr.append(td);
+              return;
+            }
             if (name === "操作") {
               if (state.kind === "channels") {
                 const testBtn = document.createElement("button"); testBtn.type = "button"; testBtn.className = "platform-edit"; testBtn.textContent = "测试";
