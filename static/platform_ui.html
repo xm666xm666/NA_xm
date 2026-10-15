@@ -508,6 +508,11 @@
         const value = String(key);
         return value.startsWith("sk-") ? value : `sk-${value}`;
       }
+      function tokenKeyDisplay(key) {
+        const full = tokenKeyText(key);
+        if (full.length <= 12) return full;
+        return `${full.slice(0, 7)}**********${full.slice(-4)}`;
+      }
       function setBusy(button, busy) { button.disabled = busy; button.classList.toggle("is-loading", busy); }
       async function copyToClipboard(value, button) {
         const original = button.textContent;
@@ -534,10 +539,10 @@
           button.disabled = false;
         }
       }
-      function makeCopyCell(display, value, className = "") {
+      function makeCopyCell(display, value, className = "", title = value || display) {
         const wrap = document.createElement("div");
         wrap.className = `platform-copy-cell${className ? ` ${className}` : ""}`.trim();
-        wrap.title = value || display;
+        wrap.title = title;
         const text = document.createElement("span");
         text.className = "platform-copy-text";
         text.textContent = display;
@@ -697,7 +702,8 @@
                 const isLongText = text.length >= 24 || /\s/.test(text.trim());
                 if (copyColumns.has(name) && (name === "密钥" || isLongText)) {
                   td.classList.add("copyable", copyColumnClass(name));
-                  td.append(makeCopyCell(text, text));
+                  const display = name === "密钥" ? tokenKeyDisplay(text) : text;
+                  td.append(makeCopyCell(display, text, "", name === "密钥" ? display : text));
                 } else {
                   td.textContent = text;
                   if (index === 1) td.classList.add("name");
