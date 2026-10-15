@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>平台信息 · NA 自动配置</title>
+  <title>NA信息 · NA 自动配置</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/static/na-theme.css?v=auth-1" />
   <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
@@ -397,8 +397,8 @@
   <div class="na-bg" aria-hidden="true"><div class="na-bg-grid"></div><div class="na-bg-orb na-bg-orb-1"></div><div class="na-bg-orb na-bg-orb-2"></div><div class="na-bg-noise"></div></div>
   <main class="na-wrap">
     <header class="na-hero na-animate-in">
-      <h1>平台<em>信息</em></h1>
-      <p class="na-subtitle"><span class="na-badge"><span class="na-badge-dot"></span>Platform Console</span>按 test、uat、prod 统一查看并编辑 ai-cloud 的渠道管理和令牌管理。账号、密码与 TOTP 仅由服务端从 <code>env/sites.json</code> 读取。</p>
+      <h1>NA<em>信息</em></h1>
+      <p class="na-subtitle"><span class="na-badge"><span class="na-badge-dot"></span>Platform Console</span>按 test、uat、prod 统一查看并编辑 ai-cloud 的 NA渠道和NA令牌。账号、密码与 TOTP 仅由服务端从 <code>env/sites.json</code> 读取。</p>
     </header>
 
     <section class="na-panel na-panel-static na-animate-in na-animate-in-1 platform-shell">
@@ -407,9 +407,9 @@
         <span class="platform-address" id="siteAddress">正在读取环境配置…</span>
         <button type="button" class="na-btn na-btn-secondary" id="refreshBtn"><span class="na-spinner"></span><span class="na-btn-label">刷新列表</span></button>
       </div>
-      <div class="platform-tabs" role="tablist" aria-label="平台资源">
-        <button type="button" class="active" data-kind="channels" role="tab" aria-selected="true">渠道管理</button>
-        <button type="button" data-kind="tokens" role="tab" aria-selected="false">令牌管理</button>
+      <div class="platform-tabs" role="tablist" aria-label="NA信息资源">
+        <button type="button" class="active" data-kind="channels" role="tab" aria-selected="true">NA渠道</button>
+        <button type="button" data-kind="tokens" role="tab" aria-selected="false">NA令牌</button>
       </div>
       <div class="platform-meta" id="tableMeta">选择已配置环境后读取列表。</div>
       <div class="platform-table-wrap"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
@@ -830,7 +830,7 @@
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}`);
           state.rows = Array.isArray(payload.data) ? payload.data : [];
           state.page = 1;
-          renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "渠道管理" : "令牌管理"} · ${state.rows.length} 条记录`);
+          renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · ${state.rows.length} 条记录`);
         } catch (error) {
           state.rows = []; renderTable(); setMeta(error.message, "error"); NAUi.toast(error.message, "err");
         } finally { setBusy(button, false); }
