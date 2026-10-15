@@ -722,7 +722,10 @@ def api_platform_channel_test(env: str, channel_id: int):
         env_key, _site, client = _platform_site_client(env)
         data = BATCH["platform_test_channel"](client, channel_id, model=model)
         IDENTITY.store.audit("platform.channel.tested", resource=f"{env_key}:channel:{channel_id}", detail={"env": env_key, "channel_id": channel_id, "model": model})
-        return jsonify({"success": True, "env": env_key, "data": data, "message": "渠道测试完成"})
+        if not isinstance(data, dict) or not data.get("success"):
+            message = str((data or {}).get("message") or "").strip() if isinstance(data, dict) else ""
+            return jsonify({"success": False, "env": env_key, "data": data, "message": message or "渠道测试失败"}), 400
+        return jsonify({"success": True, "env": env_key, "data": data, "message": str(data.get("message") or "渠道测试完成")})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

@@ -735,13 +735,21 @@
         setMeta(`正在测试渠道 #${id}…`);
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/channels/${id}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
-          const time = payload.data?.time;
-          if (record && time != null) {
-            record.response_time = Math.round(Number(time) * 1000);
+          const result = payload.data || {};
+          const ok = result.success === true;
+          const time = Number(result.time || 0);
+          if (record && ok && time > 0) {
+            record.response_time = Math.round(time * 1000);
             renderTable();
           }
-          setMeta(`渠道 #${id} 测试完成${time ? ` · ${Number(time).toFixed(2)} 秒` : ""}`);
-          NAUi.toast(payload.message || "渠道测试完成", "ok");
+          if (ok) {
+            setMeta(`渠道 #${id} 测试完成${time > 0 ? ` · ${Number(time).toFixed(2)} 秒` : ""}`);
+            NAUi.toast(payload.message || result.message || "渠道测试完成", "ok");
+          } else {
+            const message = result.message || payload.message || "渠道测试失败";
+            setMeta(message, "error");
+            NAUi.toast(message, "err");
+          }
         } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
       }
       async function toggleChannelStatus(record) {
