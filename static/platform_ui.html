@@ -249,6 +249,44 @@
     .platform-table td.name { max-width: 360px; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono, ui-monospace, monospace); }
     .platform-table td.activity { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .platform-table td.quota { font-variant-numeric: tabular-nums; }
+    .platform-table td.copyable {
+      max-width: clamp(190px, 21vw, 320px);
+      overflow: hidden;
+    }
+    .platform-table td.copyable.name { max-width: clamp(200px, 22vw, 340px); }
+    .platform-table td.copyable.activity { max-width: clamp(240px, 25vw, 380px); }
+    .platform-table td.copyable.wide { max-width: clamp(240px, 27vw, 440px); }
+    .platform-table td.copyable.key { max-width: clamp(210px, 23vw, 360px); font-family: var(--font-mono, ui-monospace, monospace); }
+    .platform-copy-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.42rem;
+      max-width: 100%;
+      min-width: 0;
+    }
+    .platform-copy-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .platform-copy {
+      flex: 0 0 auto;
+      padding: 0.24rem 0.46rem;
+      border: 1px solid var(--na-border);
+      border-radius: 7px;
+      background: rgba(2, 6, 23, 0.18);
+      color: var(--na-text-muted);
+      cursor: pointer;
+      font: 650 0.68rem/1 inherit;
+      transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    }
+    .platform-copy:hover:not(:disabled) {
+      border-color: rgba(34, 211, 238, 0.48);
+      background: var(--na-accent-soft);
+      color: var(--na-accent);
+    }
+    .platform-copy:disabled { opacity: 0.42; cursor: not-allowed; }
     .platform-state {
       display: inline-flex;
       align-items: center;
@@ -331,12 +369,15 @@
     html[data-theme="light"] .platform-table th { background: rgba(248, 250, 252, 0.96); }
     html[data-theme="light"] .platform-envs { background: rgba(248, 250, 252, 0.9); }
     html[data-theme="light"] .platform-address { background: rgba(248, 250, 252, 0.9); }
+    html[data-theme="light"] .platform-copy { background: rgba(248, 250, 252, 0.9); }
     @media (max-width: 700px) {
       .platform-toolbar { padding: 0.85rem; }
       .platform-address { width: 100%; max-width: none; margin-left: 0; }
       .platform-tabs { width: 100%; }
       .platform-tabs button { flex: 1; justify-content: center; }
       .platform-table-wrap { max-height: none; }
+      .platform-table td.copyable { max-width: min(68vw, 320px); }
+      .platform-copy { padding: 0.2rem 0.38rem; }
     }  </style>
 </head>
 <body class="na-app">
@@ -407,8 +448,8 @@
         tokens: [
           ["名称", (r) => r.name || ""], ["状态", (r) => tokenStatePill(r.status)],
           ["剩余额度/总额度", (r) => quotaText(r)], ["分组", (r) => r.group === "auto" ? "智能熔断" : (r.group || "")],
-          ["密钥", (r) => maskTokenKey(r.key || r.token || "")], ["可用模型", (r) => r.token_model_limit_enabled && r.token_model_limit ? r.token_model_limit : "无限制"],
-          ["模型限流", (r) => rateLimitText(r)], ["IP限制", (r) => r.allow_ips ? r.allow_ips.split("\n").slice(0, 2).join(", ") : "无限制"],
+          ["密钥", (r) => tokenKeyText(r.key || r.token || "")], ["可用模型", (r) => r.token_model_limit_enabled && r.token_model_limit ? r.token_model_limit : "无限制"],
+          ["模型限流", (r) => rateLimitText(r)], ["IP限制", (r) => r.allow_ips ? r.allow_ips.replace(/\s*[\r\n]+\s*/g, ", ") : "无限制"],
           ["创建时间", (r) => timestamp(r.created_time)], ["过期时间", (r) => Number(r.expired_time) === -1 ? "永不过期" : timestamp(r.expired_time)], ["操作", () => ""],
         ],
       };
@@ -462,15 +503,62 @@
         const total = used + remain;
         return `${formatQuota(remain)} / ${formatQuota(total)}`;
       }
-      function maskTokenKey(key) {
+      function tokenKeyText(key) {
         if (!key) return "";
-        const str = String(key);
-        const full = str.startsWith("sk-") ? str : `sk-${str}`;
-        if (full.length <= 12) return full;
-        return `${full.slice(0, 7)}**********${full.slice(-4)}`;
+        const value = String(key);
+        return value.startsWith("sk-") ? value : `sk-${value}`;
       }
       function setBusy(button, busy) { button.disabled = busy; button.classList.toggle("is-loading", busy); }
+      async function copyToClipboard(value, button) {
+        const original = button.textContent;
+        button.disabled = true;
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+          } else {
+            const helper = document.createElement("textarea");
+            helper.value = value;
+            helper.style.position = "fixed";
+            helper.style.opacity = "0";
+            document.body.append(helper);
+            helper.select();
+            document.execCommand("copy");
+            helper.remove();
+          }
+          NAUi.toast("已复制", "ok");
+          button.textContent = "已复制";
+          setTimeout(() => { button.textContent = original; button.disabled = false; }, 1200);
+        } catch (error) {
+          NAUi.toast(error?.message || "复制失败", "err");
+          button.textContent = original;
+          button.disabled = false;
+        }
+      }
+      function makeCopyCell(display, value, className = "") {
+        const wrap = document.createElement("div");
+        wrap.className = `platform-copy-cell${className ? ` ${className}` : ""}`.trim();
+        wrap.title = value || display;
+        const text = document.createElement("span");
+        text.className = "platform-copy-text";
+        text.textContent = display;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "platform-copy";
+        button.textContent = "复制";
+        button.setAttribute("aria-label", `复制 ${display}`);
+        button.disabled = !value;
+        button.addEventListener("click", () => copyToClipboard(value, button));
+        wrap.append(text, button);
+        return wrap;
+      }
       function setMeta(message, kind = "") { const el = $("tableMeta"); el.textContent = message; el.dataset.kind = kind; }
+      function copyColumnClass(name) {
+        if (name === "名称") return "name";
+        if (name === "近一月活跃统计") return "activity";
+        if (name === "可用模型" || name === "IP限制") return "wide";
+        if (name === "密钥") return "key";
+        return "medium";
+      }
       function siteFor(env) { return state.sites.find((site) => site.env === env); }
       function safeText(value) { return value == null ? "" : String(value); }
       async function request(url, options) {
@@ -601,7 +689,22 @@
             } else {
               const output = value(record);
               if (output && typeof output === "object" && "label" in output) { const badge = document.createElement("span"); badge.className = `platform-state ${output.className}`; badge.textContent = output.label; td.append(badge); }
-              else { td.textContent = safeText(output); if (index === 1) td.classList.add("name"); if (columns[index][0] === "近一月活跃统计") td.classList.add("activity"); if (columns[index][0] === "已用/剩余" || columns[index][0] === "剩余额度/总额度") td.classList.add("quota"); }
+              else {
+                const text = safeText(output);
+                const copyColumns = state.kind === "channels"
+                  ? new Set(["名称", "分组", "类型", "近一月活跃统计", "已用/剩余"])
+                  : new Set(["名称", "分组", "密钥", "可用模型", "模型限流", "IP限制"]);
+                const isLongText = text.length >= 24 || /\s/.test(text.trim());
+                if (copyColumns.has(name) && (name === "密钥" || isLongText)) {
+                  td.classList.add("copyable", copyColumnClass(name));
+                  td.append(makeCopyCell(text, text));
+                } else {
+                  td.textContent = text;
+                  if (index === 1) td.classList.add("name");
+                  if (name === "近一月活跃统计") td.classList.add("activity");
+                  if (name === "已用/剩余" || name === "剩余额度/总额度") td.classList.add("quota");
+                }
+              }
             }
             tr.append(td);
           });
