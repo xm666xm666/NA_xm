@@ -391,6 +391,18 @@
       .platform-table-wrap { max-height: none; }
       .platform-table td.copyable { max-width: min(68vw, 320px); }
       .platform-copy { padding: 0.2rem 0.38rem; }
+    }
+
+    .platform-upstream-backdrop {
+      position: fixed; inset: 0; z-index: 1200; display: flex; justify-content: flex-end;
+      background: rgba(15, 23, 42, .42); backdrop-filter: blur(6px);
+    }
+    .platform-upstream-frame {
+      width: min(600px, 100vw); height: 100dvh; border: 0; background: #fff; box-shadow: -20px 0 55px rgba(15, 23, 42, .28);
+    }
+    @media (max-width: 700px) {
+      .platform-upstream-backdrop { justify-content: stretch; }
+      .platform-upstream-frame { width: 100%; }
     }  </style>
 </head>
 <body class="na-app">
@@ -431,6 +443,10 @@
         <button type="button" class="na-btn na-btn-primary" id="saveEdit"><span class="na-spinner"></span><span class="na-btn-label">保存修改</span></button>
       </div>
     </section>
+  </div>
+
+  <div class="platform-upstream-backdrop" id="upstreamEditorBackdrop" hidden>
+    <iframe id="upstreamEditorFrame" class="platform-upstream-frame" title="上游编辑界面" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
   </div>
 
   <script>
@@ -906,16 +922,8 @@
         const id = Number(record.id);
         if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该记录没有有效 ID，无法编辑", "warn"); return; }
         state.editingId = id; state.editingRecord = null;
-        $("editorTitle").textContent = `编辑 ${state.kind === "channels" ? "渠道" : "令牌"} #${id}`;
-        $("editorForm").replaceChildren(); $("editorForm").textContent = "正在读取完整记录…";
-        $("editorBackdrop").hidden = false;
-        try {
-          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}/${id}`);
-          state.editingRecord = payload.data;
-          if (state.kind === "channels") renderChannelForm(payload.data); else renderTokenForm(payload.data);
-        } catch (error) {
-          $("editorBackdrop").hidden = true; NAUi.toast(error.message, "err");
-        }
+        $("upstreamEditorFrame").src = `/static/platform-edit/platform-edit.html?kind=${encodeURIComponent(state.kind)}&id=${id}&env=${encodeURIComponent(state.env)}`;
+        $("upstreamEditorBackdrop").hidden = false;
       }
       function collectFormValues() {
         const form = $("editorForm");
@@ -1022,6 +1030,13 @@
       $("refreshBtn").addEventListener("click", loadRows); $("cancelEdit").addEventListener("click", closeEditor); $("saveEdit").addEventListener("click", saveEditor);
       $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
       document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("editorBackdrop").hidden) closeEditor(); });
+      window.addEventListener("message", (event) => {
+        if (event.data?.type !== "na-platform-edit-close") return;
+        $("upstreamEditorBackdrop").hidden = true;
+        $("upstreamEditorFrame").src = "";
+        state.editingId = null; state.editingRecord = null;
+        if (event.data.changed) loadRows();
+      });
       init();
     })();
   </script>

@@ -6,6 +6,7 @@ import atexit
 import importlib
 import json
 import re
+import requests
 import sys
 import threading
 import time
@@ -859,6 +860,45 @@ def api_platform_token_delete(env: str, token_id: int):
         return jsonify({"success": True, "env": env_key, "data": data, "message": "令牌已删除"})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+_PLATFORM_UPSTREAM_ALLOWED_PREFIXES = (
+    "api/channel/",
+    "api/group/",
+    "api/models",
+    "api/prefill_group",
+    "api/token/",
+    "api/user/models",
+    "api/user/self",
+)
+
+
+@app.route("/api/platform/<env>/upstream/<path:upstream_path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+def api_platform_upstream_proxy(env: str, upstream_path: str):
+    """供上游真实编辑弹窗使用；上游凭据与会话仅保留在服务端。"""
+    path = upstream_path.strip("/")
+    if ".." in path.split("/") or not path.startswith(_PLATFORM_UPSTREAM_ALLOWED_PREFIXES):
+        return jsonify({"success": False, "message": "不支持的上游接口"}), 404
+    try:
+        env_key, _site, client = _platform_site_client(env)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+    target = f"{client.base_url.rstrip('/')}/{path}"
+    if request.query_string:
+        target = f"{target}?{request.query_string.decode('latin-1')}"
+    headers = {**client._headers(), "Content-Type": request.headers.get("Content-Type", "application/json")}
+    try:
+        upstream = client.session.request(
+            request.method,
+            target,
+            data=request.get_data(cache=False),
+            headers=headers,
+            timeout=client.timeout,
+        )
+    except requests.RequestException as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 502
+    return Response(upstream.content, status=upstream.status_code, content_type=upstream.headers.get("Content-Type", "application/json"))
 
 
 def _parse_volc_cred_dict(raw: Any) -> dict[str, Any]:
