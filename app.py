@@ -888,12 +888,12 @@ def api_platform_token_delete(env: str, token_id: int):
 
 
 _PLATFORM_UPSTREAM_ALLOWED_PREFIXES = (
-    "api/channel/",
+    "api/channel",
     "api/group/",
     "api/models",
-    "api/model_quota/",
+    "api/model_quota",
     "api/prefill_group",
-    "api/token/",
+    "api/token",
     "api/user/2fa/status",
     "api/user/passkey",
     "api/user/models",
