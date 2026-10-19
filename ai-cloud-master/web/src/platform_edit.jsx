@@ -21,10 +21,20 @@ API.defaults.headers.common['Cache-Control'] = 'no-store';
 const originalGet = API.get.bind(API);
 const EMPTY_SUCCESS_RESPONSE = { data: { success: true, data: [] } };
 
+function withNormalizedData(payload, data) {
+  return {
+    ...payload,
+    data: { ...(payload?.data || {}), data },
+  };
+}
+
 function flattenDashboardModels(payload) {
   const data = payload?.data?.data;
   if (Array.isArray(data)) {
-    return data.map((model) => (typeof model === 'string' ? model : String(model?.id || '')))
+    return data
+      .map((model) =>
+        typeof model === 'string' ? model : String(model?.id || ''),
+      )
       .filter(Boolean);
   }
   if (data && typeof data === 'object') {
@@ -34,6 +44,99 @@ function flattenDashboardModels(payload) {
       .filter(Boolean);
   }
   return [];
+}
+
+function normalizeUserGroupMap(payload) {
+  const rawData = payload?.data?.data;
+  const normalized = {};
+
+  if (Array.isArray(rawData)) {
+    rawData.forEach((item, index) => {
+      const groupName =
+        typeof item === 'string'
+          ? item.trim()
+          : String(
+              item?.name || item?.group || item?.value || item?.id || index,
+            ).trim();
+      if (!groupName) return;
+      const info = typeof item === 'object' && item !== null ? item : {};
+      normalized[groupName] = {
+        ratio: info.ratio ?? 1,
+        desc: info.desc || info.label || groupName,
+      };
+    });
+  } else if (rawData && typeof rawData === 'object') {
+    Object.entries(rawData).forEach(([groupName, info]) => {
+      const normalizedGroup = String(groupName).trim();
+      if (!normalizedGroup) return;
+      if (info && typeof info === 'object') {
+        normalized[normalizedGroup] = {
+          ratio: info.ratio ?? 1,
+          desc: info.desc || info.label || normalizedGroup,
+        };
+      } else {
+        normalized[normalizedGroup] = {
+          ratio: 1,
+          desc: info == null ? normalizedGroup : String(info),
+        };
+      }
+    });
+  }
+
+  return withNormalizedData(payload, normalized);
+}
+
+function normalizeDashboardGroupNames(payload) {
+  const rawData = payload?.data?.data;
+  let groupNames = [];
+  if (Array.isArray(rawData)) {
+    groupNames = rawData
+      .map((item) =>
+        typeof item === 'string'
+          ? item.trim()
+          : String(
+              item?.name || item?.group || item?.value || item?.id || '',
+            ).trim(),
+      )
+      .filter(Boolean);
+  } else if (rawData && typeof rawData === 'object') {
+    groupNames = Object.keys(rawData)
+      .map((groupName) => String(groupName).trim())
+      .filter(Boolean);
+  }
+  return withNormalizedData(payload, groupNames);
+}
+
+function normalizeUserModelNames(payload) {
+  return withNormalizedData(payload, flattenDashboardModels(payload));
+}
+
+function normalizeChannelModelOptions(payload) {
+  const modelNames = flattenDashboardModels(payload);
+  return withNormalizedData(
+    payload,
+    modelNames.map((modelName) => ({ id: modelName })),
+  );
+}
+
+function normalizeTokenQuotaCandidates(payload) {
+  const rawData = payload?.data?.data;
+  if (Array.isArray(rawData)) {
+    return withNormalizedData(payload, { candidates: rawData });
+  }
+  if (
+    rawData &&
+    typeof rawData === 'object' &&
+    !Array.isArray(rawData.candidates)
+  ) {
+    return withNormalizedData(payload, {
+      ...(rawData || {}),
+      candidates: Object.values(rawData).filter(
+        (item) => item && typeof item === 'object',
+      ),
+    });
+  }
+  return payload;
 }
 
 API.get = async (url, config = {}) => {
@@ -70,7 +173,11 @@ API.get = async (url, config = {}) => {
   }
   if (requestUrl.startsWith('/api/channel/models')) {
     try {
-      return await originalGet(url, { ...config, skipErrorHandler: true });
+      const response = await originalGet(url, {
+        ...config,
+        skipErrorHandler: true,
+      });
+      return normalizeChannelModelOptions(response);
     } catch (error) {
       if (error.response?.status !== 404) {
         throw error;
@@ -80,8 +187,9 @@ API.get = async (url, config = {}) => {
           ...config,
           skipErrorHandler: true,
         });
-        const models = flattenDashboardModels(fallback.data)
-          .map((model) => ({ id: model }));
+        const models = flattenDashboardModels(fallback.data).map((model) => ({
+          id: model,
+        }));
         return { data: { success: true, data: models } };
       } catch (fallbackError) {
         if (fallbackError.response?.status === 404) {
@@ -93,7 +201,11 @@ API.get = async (url, config = {}) => {
   }
   if (requestUrl.startsWith('/api/user/models')) {
     try {
-      return await originalGet(url, { ...config, skipErrorHandler: true });
+      const response = await originalGet(url, {
+        ...config,
+        skipErrorHandler: true,
+      });
+      return normalizeUserModelNames(response);
     } catch (error) {
       if (error.response?.status !== 404) {
         throw error;
@@ -103,7 +215,9 @@ API.get = async (url, config = {}) => {
           ...config,
           skipErrorHandler: true,
         });
-        return { data: { success: true, data: flattenDashboardModels(fallback.data) } };
+        return {
+          data: { success: true, data: flattenDashboardModels(fallback.data) },
+        };
       } catch (fallbackError) {
         if (fallbackError.response?.status === 404) {
           return EMPTY_SUCCESS_RESPONSE;
@@ -114,7 +228,11 @@ API.get = async (url, config = {}) => {
   }
   if (requestUrl.startsWith('/api/user/self/groups')) {
     try {
-      return await originalGet(url, { ...config, skipErrorHandler: true });
+      const response = await originalGet(url, {
+        ...config,
+        skipErrorHandler: true,
+      });
+      return normalizeUserGroupMap(response);
     } catch (error) {
       if (error.response?.status !== 404) {
         throw error;
@@ -133,11 +251,7 @@ API.get = async (url, config = {}) => {
             ...config,
             skipErrorHandler: true,
           });
-          const groupData = (groups.data?.data || []).reduce((result, groupName) => {
-            result[groupName] = { desc: groupName, ratio: 1 };
-            return result;
-          }, {});
-          return { data: { success: true, data: groupData } };
+          return normalizeUserGroupMap(groups);
         } catch (_) {
           return { data: { success: true, data: {} } };
         }
@@ -146,7 +260,11 @@ API.get = async (url, config = {}) => {
   }
   if (requestUrl.startsWith('/api/group/')) {
     try {
-      return await originalGet(url, { ...config, skipErrorHandler: true });
+      const response = await originalGet(url, {
+        ...config,
+        skipErrorHandler: true,
+      });
+      return normalizeDashboardGroupNames(response);
     } catch (error) {
       if (error.response?.status !== 404) {
         throw error;
@@ -157,11 +275,12 @@ API.get = async (url, config = {}) => {
           skipErrorHandler: true,
         });
         const data = groups.data?.data || {};
-        const groupNames = data && typeof data === 'object' && !Array.isArray(data)
-          ? Object.keys(data)
-          : Array.isArray(data)
-            ? data.map((item) => String(item || '')).filter(Boolean)
-            : [];
+        const groupNames =
+          data && typeof data === 'object' && !Array.isArray(data)
+            ? Object.keys(data)
+            : Array.isArray(data)
+              ? data.map((item) => String(item || '')).filter(Boolean)
+              : [];
         return { data: { success: true, data: groupNames } };
       } catch (_) {
         return EMPTY_SUCCESS_RESPONSE;
@@ -170,7 +289,11 @@ API.get = async (url, config = {}) => {
   }
   if (requestUrl.startsWith('/api/token/model_quota_candidates')) {
     try {
-      return await originalGet(url, { ...config, skipErrorHandler: true });
+      const response = await originalGet(url, {
+        ...config,
+        skipErrorHandler: true,
+      });
+      return normalizeTokenQuotaCandidates(response);
     } catch (error) {
       if (error.response?.status === 404) {
         return { data: { success: true, data: { candidates: [] } } };
@@ -223,17 +346,26 @@ const PlatformEditPage = () => {
 
   const notifySubmitResult = (result) => {
     if (!result || typeof result !== 'object') return;
-    window.parent?.postMessage({
-      type: 'na-platform-edit-result',
-      status: result.status === 'success' ? 'success' : 'error',
-      message: String(result.message || (result.status === 'success' ? '保存成功' : '保存失败')),
-    }, '*');
+    window.parent?.postMessage(
+      {
+        type: 'na-platform-edit-result',
+        status: result.status === 'success' ? 'success' : 'error',
+        message: String(
+          result.message ||
+            (result.status === 'success' ? '保存成功' : '保存失败'),
+        ),
+      },
+      '*',
+    );
   };
 
   const handleClose = (result) => {
     setVisible(false);
     if (result) notifySubmitResult(result);
-    window.parent?.postMessage({ type: 'na-platform-edit-close', changed: result?.status === 'success' }, '*');
+    window.parent?.postMessage(
+      { type: 'na-platform-edit-close', changed: result?.status === 'success' },
+      '*',
+    );
   };
 
   const modalProps = {
@@ -244,17 +376,26 @@ const PlatformEditPage = () => {
   };
 
   if (error) {
-    return <div className="platform-edit-state platform-edit-error">{error}</div>;
+    return (
+      <div className='platform-edit-state platform-edit-error'>{error}</div>
+    );
   }
   if (!ready) {
-    return <div className="platform-edit-state platform-edit-loading">正在加载编辑器...</div>;
+    return (
+      <div className='platform-edit-state platform-edit-loading'>
+        正在加载编辑器...
+      </div>
+    );
   }
   return (
     <React.StrictMode>
       <StatusProvider>
         <LocaleProvider locale={zh_CN}>
           {kind === 'channels' ? (
-            <EditChannelModal editingChannel={{ id: recordId }} {...modalProps} />
+            <EditChannelModal
+              editingChannel={{ id: recordId }}
+              {...modalProps}
+            />
           ) : (
             <EditTokenModal editingToken={{ id: recordId }} {...modalProps} />
           )}
@@ -264,4 +405,6 @@ const PlatformEditPage = () => {
   );
 };
 
-ReactDOM.createRoot(document.getElementById('root')).render(<PlatformEditPage />);
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <PlatformEditPage />,
+);
