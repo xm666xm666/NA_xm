@@ -196,6 +196,8 @@ def _apply_session_cache(client: "NewAPIClient", key: str) -> bool:
         client.auth_mode = "token"
     else:
         client.auth_mode = "password"
+    client.session_cache_hit = True
+    client.session_cache_expires_at = float(entry.get("expires_at") or 0)
     _log.info("复用会话缓存 | base=%s | user_id=%s", client.base_url, client.user_id)
     return True
 
@@ -244,6 +246,8 @@ class NewAPIClient:
         self.role: int | None = None
         self.timeout = timeout
         self.auth_mode: str = ""  # "password" | "token"
+        self.session_cache_hit = False
+        self.session_cache_expires_at = 0.0
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
         self.set_verify_ssl(verify_ssl)
@@ -1209,6 +1213,8 @@ def authenticate_client(client: NewAPIClient, auth: dict[str, Any]) -> None:
             pass
         if not skip_cache:
             _store_session_cache(cache_key, client)
+            client.session_cache_hit = False
+            client.session_cache_expires_at = time.time() + _SESSION_CACHE_TTL_SEC
         return
 
     username = str(auth.get("username") or "").strip()
@@ -1245,6 +1251,8 @@ def authenticate_client(client: NewAPIClient, auth: dict[str, Any]) -> None:
         raise RuntimeError("登录成功但未返回用户 ID")
     if not skip_cache:
         _store_session_cache(cache_key, client)
+        client.session_cache_hit = False
+        client.session_cache_expires_at = time.time() + _SESSION_CACHE_TTL_SEC
 
 
 def refresh_auth_session_cache(client: NewAPIClient, auth: dict[str, Any]) -> None:

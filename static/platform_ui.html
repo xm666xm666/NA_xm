@@ -454,7 +454,7 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], editingId: null, editingRecord: null, page: 1, pageSize: 50 };
+      const state = { env: "", kind: "channels", sites: [], rows: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 50 };
       const CHANNEL_TYPES = {
         1: "OpenAI", 2: "Midjourney Proxy", 3: "Azure OpenAI", 4: "Ollama", 5: "Midjourney Proxy Plus",
         8: "自定义渠道", 11: "Google PaLM2", 14: "Anthropic Claude", 15: "百度文心千帆", 16: "智谱 ChatGLM",
@@ -674,11 +674,46 @@
           button.type = "button"; button.className = "platform-env" + (site.env === state.env ? " active" : "");
           button.textContent = site.label; button.disabled = !site.configured;
           button.title = site.configured ? site.base_url : `${site.label} 未配置`;
-          button.addEventListener("click", () => { if (state.env !== site.env) { state.env = site.env; renderEnvButtons(); loadRows(); } });
+          button.addEventListener("click", async () => {
+            if (state.env === site.env) return;
+            state.env = site.env;
+            renderEnvButtons();
+            try { await warmupSession(site.env); await loadRows(); }
+            catch (_) { state.rows = []; renderTable(); }
+          });
           box.append(button);
         });
         const current = siteFor(state.env);
-        $("siteAddress").textContent = current?.configured ? current.base_url : "请先在 env/sites.json 配置环境";
+        renderSessionStatus();
+      }
+      function renderSessionStatus() {
+        const current = siteFor(state.env);
+        const session = state.sessions[state.env];
+        if (!current?.configured) { $("siteAddress").textContent = "请先在 env/sites.json 配置环境"; return; }
+        if (!session) { $("siteAddress").textContent = `${current.base_url} · 未登录`; return; }
+        const expires = Number(session.expires_at || 0);
+        const expired = expires && expires * 1000 < Date.now();
+        const stateText = expired ? "缓存已过期" : (session.cached ? "已登录（缓存）" : "已登录");
+        $("siteAddress").textContent = `${current.base_url} · ${stateText}`;
+      }
+      async function warmupSession(env) {
+        const label = siteFor(env)?.label || String(env || "").toUpperCase();
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(env)}/session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({})
+          });
+          state.sessions[env] = payload.data || {};
+          renderSessionStatus();
+          return payload.data;
+        } catch (error) {
+          delete state.sessions[env];
+          renderSessionStatus();
+          setMeta(`${label} 登录失败：${error.message}`, "error");
+          NAUi.toast(`${label} 登录失败：${error.message}`, "err");
+          throw error;
+        }
       }
       function getPaginatedRows() {
         if (state.pageSize === Infinity || state.pageSize >= state.rows.length) return state.rows;
@@ -1020,7 +1055,8 @@
         try {
           const payload = await request("/api/platform/sites"); state.sites = Array.isArray(payload.data) ? payload.data : [];
           state.env = state.sites.find((site) => site.configured)?.env || ""; renderEnvButtons();
-          if (state.env) await loadRows(); else { renderTable(); setMeta("未检测到已配置的 test / uat / prod；请填写 env/sites.json。", "error"); }
+          if (state.env) { await warmupSession(state.env); await loadRows(); }
+          else { renderTable(); setMeta("未检测到已配置的 test / uat / prod；请填写 env/sites.json。", "error"); }
         } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
       }
       document.querySelectorAll(".platform-tabs button").forEach((button) => button.addEventListener("click", () => {

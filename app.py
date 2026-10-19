@@ -732,6 +732,27 @@ def api_platform_sites():
     return jsonify({"success": True, "data": items})
 
 
+@app.post("/api/platform/<env>/session")
+def api_platform_session(env: str):
+    """预热指定 NA 站点会话；只返回非敏感登录状态，凭据不出服务端。"""
+    try:
+        env_key, site, client = _platform_site_client(env)
+        return jsonify({
+            "success": True,
+            "env": env_key,
+            "data": {
+                "base_url": str(site.get("base_url") or ""),
+                "user_id": int(client.user_id or 0),
+                "role": int(client.role or 0),
+                "cached": bool(getattr(client, "session_cache_hit", False)),
+                "expires_at": float(getattr(client, "session_cache_expires_at", 0) or 0),
+            },
+            "message": "会话已就绪",
+        })
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
 @app.get("/api/platform/<env>/channels")
 def api_platform_channels(env: str):
     try:
