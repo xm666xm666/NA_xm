@@ -267,6 +267,7 @@ def _load_batch_modules():
             "public_host": env_clusters.public_host,
             "ordered_site_keys": env_clusters.ordered_site_keys,
             "platform_connected_client": platform_info.connected_client,
+            "platform_probe_capabilities": platform_info.probe_capabilities,
             "platform_list_channels": platform_info.list_channels,
             "platform_get_channel": platform_info.get_channel,
             "platform_update_channel": platform_info.update_channel,
@@ -749,6 +750,18 @@ def api_platform_session(env: str):
             },
             "message": "会话已就绪",
         })
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.get("/api/platform/<env>/capabilities")
+def api_platform_capabilities(env: str):
+    """探测并缓存当前 NA 版本可用的编辑器接口，避免自建接口被误认为必选。"""
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        force_refresh = str(request.args.get("refresh") or "").lower() in {"1", "true"}
+        capabilities = BATCH["platform_probe_capabilities"](client, force_refresh=force_refresh)
+        return jsonify({"success": True, "env": env_key, "data": capabilities})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

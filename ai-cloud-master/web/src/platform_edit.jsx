@@ -20,6 +20,9 @@ API.defaults.headers.common['Cache-Control'] = 'no-store';
 
 const originalGet = API.get.bind(API);
 const EMPTY_SUCCESS_RESPONSE = { data: { success: true, data: [] } };
+let platformCapabilities = {};
+
+const hasCapability = (name) => platformCapabilities[name] !== false;
 
 function withNormalizedData(payload, data) {
   return {
@@ -142,6 +145,9 @@ function normalizeTokenQuotaCandidates(payload) {
 API.get = async (url, config = {}) => {
   const requestUrl = String(url || '');
   if (requestUrl.startsWith('/api/user/2fa/status')) {
+    if (!hasCapability('two_factor')) {
+      return { data: { success: true, data: { enabled: false } } };
+    }
     try {
       return await originalGet(url, { ...config, skipErrorHandler: true });
     } catch (error) {
@@ -152,6 +158,9 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/user/passkey')) {
+    if (!hasCapability('passkey')) {
+      return { data: { success: true, data: { enabled: false } } };
+    }
     try {
       return await originalGet(url, { ...config, skipErrorHandler: true });
     } catch (error) {
@@ -162,6 +171,9 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/prefill_group')) {
+    if (!hasCapability('prefill_groups')) {
+      return EMPTY_SUCCESS_RESPONSE;
+    }
     try {
       return await originalGet(url, { ...config, skipErrorHandler: true });
     } catch (error) {
@@ -172,6 +184,19 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/channel/models')) {
+    if (!hasCapability('channel_models')) {
+      if (hasCapability('dashboard_models')) {
+        const fallback = await originalGet('/api/models', {
+          ...config,
+          skipErrorHandler: true,
+        });
+        const models = flattenDashboardModels(fallback.data).map((model) => ({
+          id: model,
+        }));
+        return { data: { success: true, data: models } };
+      }
+      return EMPTY_SUCCESS_RESPONSE;
+    }
     try {
       const response = await originalGet(url, {
         ...config,
@@ -200,6 +225,18 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/user/models')) {
+    if (!hasCapability('user_models')) {
+      if (hasCapability('dashboard_models')) {
+        const fallback = await originalGet('/api/models', {
+          ...config,
+          skipErrorHandler: true,
+        });
+        return {
+          data: { success: true, data: flattenDashboardModels(fallback.data) },
+        };
+      }
+      return EMPTY_SUCCESS_RESPONSE;
+    }
     try {
       const response = await originalGet(url, {
         ...config,
@@ -227,6 +264,23 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/user/self/groups')) {
+    if (!hasCapability('user_groups')) {
+      if (hasCapability('legacy_user_groups')) {
+        const response = await originalGet('/api/user/groups', {
+          ...config,
+          skipErrorHandler: true,
+        });
+        return normalizeUserGroupMap(response);
+      }
+      if (hasCapability('admin_groups')) {
+        const response = await originalGet('/api/group/', {
+          ...config,
+          skipErrorHandler: true,
+        });
+        return normalizeUserGroupMap(response);
+      }
+      return { data: { success: true, data: {} } };
+    }
     try {
       const response = await originalGet(url, {
         ...config,
@@ -259,6 +313,27 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/group/')) {
+    if (!hasCapability('admin_groups')) {
+      if (hasCapability('user_groups')) {
+        const groups = await originalGet('/api/user/self/groups', {
+          ...config,
+          skipErrorHandler: true,
+        });
+        const normalized = normalizeUserGroupMap(groups);
+        return withNormalizedData(
+          normalized,
+          Object.keys(normalized.data?.data || {}),
+        );
+      }
+      if (hasCapability('legacy_user_groups')) {
+        const groups = await originalGet('/api/user/groups', {
+          ...config,
+          skipErrorHandler: true,
+        });
+        return normalizeDashboardGroupNames(groups);
+      }
+      return EMPTY_SUCCESS_RESPONSE;
+    }
     try {
       const response = await originalGet(url, {
         ...config,
@@ -288,6 +363,9 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/token/model_quota_candidates')) {
+    if (!hasCapability('token_quota_candidates')) {
+      return { data: { success: true, data: { candidates: [] } } };
+    }
     try {
       const response = await originalGet(url, {
         ...config,
@@ -302,6 +380,9 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/token/model_quota_capabilities')) {
+    if (!hasCapability('token_quota_capabilities')) {
+      return { data: { success: true, data: {} } };
+    }
     try {
       return await originalGet(url, { ...config, skipErrorHandler: true });
     } catch (error) {
@@ -312,6 +393,9 @@ API.get = async (url, config = {}) => {
     }
   }
   if (requestUrl.startsWith('/api/model_quota/')) {
+    if (!hasCapability('model_quotas')) {
+      return { data: { success: true, data: [] } };
+    }
     try {
       return await originalGet(url, { ...config, skipErrorHandler: true });
     } catch (error) {
@@ -333,6 +417,18 @@ const bootstrapAuth = async () => {
   }
 };
 
+const bootstrapCapabilities = async () => {
+  const response = await fetch(
+    `/api/platform/${encodeURIComponent(env)}/capabilities`,
+    { credentials: 'same-origin' },
+  );
+  const payload = await response.json();
+  if (!response.ok || !payload?.success) {
+    throw new Error(payload?.message || '无法探测 NA 版本接口');
+  }
+  platformCapabilities = payload.data || {};
+};
+
 const PlatformEditPage = () => {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -340,6 +436,7 @@ const PlatformEditPage = () => {
 
   useEffect(() => {
     bootstrapAuth()
+      .then(bootstrapCapabilities)
       .then(() => setReady(true))
       .catch((exc) => setError(exc.message || 'NA 会话已失效，请重新登录'));
   }, []);

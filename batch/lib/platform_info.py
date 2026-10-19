@@ -6,13 +6,19 @@ import hashlib
 import json
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+
+import requests
 
 from .api_client import NewAPIClient, authenticate_client
 
 _CLIENT_CACHE: dict[str, tuple[NewAPIClient, float]] = {}
 _CLIENT_CACHE_LOCK = threading.Lock()
 _CLIENT_CACHE_TTL_SEC = 2 * 60 * 60.0
+_CAPABILITY_CACHE: dict[str, tuple[dict[str, bool], float]] = {}
+_CAPABILITY_CACHE_LOCK = threading.Lock()
+_CAPABILITY_CACHE_TTL_SEC = 10 * 60.0
 
 
 def _api_data(response: Any, fallback_message: str) -> Any:
@@ -22,6 +28,75 @@ def _api_data(response: Any, fallback_message: str) -> Any:
         message = payload.get("message") if isinstance(payload, dict) else ""
         raise RuntimeError(str(message or fallback_message))
     return payload.get("data")
+
+
+_CAPABILITY_PROBES: tuple[tuple[str, str, str, dict[str, Any] | None], ...] = (
+    ("channels", "GET", "/api/channel/", {"p": 1, "size": 1}),
+    ("tokens", "GET", "/api/token/", {"p": 1, "size": 1}),
+    ("admin_groups", "GET", "/api/group/", None),
+    ("user_groups", "GET", "/api/user/self/groups", None),
+    ("legacy_user_groups", "GET", "/api/user/groups", None),
+    ("user_models", "GET", "/api/user/models", None),
+    ("dashboard_models", "GET", "/api/models", {"p": 1, "size": 1}),
+    ("channel_models", "GET", "/api/channel/models", None),
+    ("prefill_groups", "GET", "/api/prefill_group/", {"type": "model"}),
+    ("two_factor", "GET", "/api/user/2fa/status", None),
+    ("passkey", "GET", "/api/user/passkey", None),
+    ("token_quota_capabilities", "GET", "/api/token/model_quota_capabilities", None),
+    ("token_quota_candidates", "GET", "/api/token/model_quota_candidates", None),
+    ("model_quotas", "GET", "/api/model_quota/", None),
+)
+
+
+def _capability_cache_key(client: NewAPIClient) -> str:
+    return f"{client.base_url.rstrip('/')}#user:{int(client.user_id or 0)}"
+
+
+def _probe_capability(
+    client: NewAPIClient,
+    method: str,
+    path: str,
+    params: dict[str, Any] | None,
+) -> bool:
+    session = requests.Session()
+    try:
+        session.headers.update(client.session.headers)
+        session.cookies.update(client.session.cookies)
+        session.verify = client.session.verify
+        response = session.request(
+            method,
+            f"{client.base_url.rstrip('/')}{path}",
+            params=params,
+            headers=client._headers(),
+            timeout=min(float(client.timeout), 8.0),
+        )
+        return response.status_code != 404 and response.status_code < 500
+    except Exception:
+        return False
+    finally:
+        session.close()
+
+
+def probe_capabilities(client: NewAPIClient, *, force_refresh: bool = False) -> dict[str, bool]:
+    """探测当前上游版本是否提供编辑器主要接口；只使用只读 GET 请求。"""
+    cache_key = _capability_cache_key(client)
+    now = time.time()
+    if not force_refresh:
+        with _CAPABILITY_CACHE_LOCK:
+            entry = _CAPABILITY_CACHE.get(cache_key)
+            if entry and entry[1] > now:
+                return dict(entry[0])
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {
+            name: executor.submit(_probe_capability, client, method, path, params)
+            for name, method, path, params in _CAPABILITY_PROBES
+        }
+        capabilities = {name: bool(future.result()) for name, future in futures.items()}
+
+    with _CAPABILITY_CACHE_LOCK:
+        _CAPABILITY_CACHE[cache_key] = (dict(capabilities), now + _CAPABILITY_CACHE_TTL_SEC)
+    return capabilities
 
 
 def connected_client(base_url: str, auth: dict[str, Any]) -> NewAPIClient:
