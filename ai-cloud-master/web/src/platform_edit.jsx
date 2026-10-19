@@ -221,9 +221,19 @@ const PlatformEditPage = () => {
       .catch((exc) => setError(exc.message || 'NA 会话已失效，请重新登录'));
   }, []);
 
-  const handleClose = () => {
+  const notifySubmitResult = (result) => {
+    if (!result || typeof result !== 'object') return;
+    window.parent?.postMessage({
+      type: 'na-platform-edit-result',
+      status: result.status === 'success' ? 'success' : 'error',
+      message: String(result.message || (result.status === 'success' ? '保存成功' : '保存失败')),
+    }, '*');
+  };
+
+  const handleClose = (result) => {
     setVisible(false);
-    window.parent?.postMessage({ type: 'na-platform-edit-close', changed: true }, '*');
+    if (result) notifySubmitResult(result);
+    window.parent?.postMessage({ type: 'na-platform-edit-close', changed: result?.status === 'success' }, '*');
   };
 
   const modalProps = {
