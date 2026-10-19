@@ -49,7 +49,7 @@
                                     │
                                     └──→ 数据汇总 ──→ excel/ai网关令牌及渠道列表_年月日时分秒.xlsx
 
-NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，呈现 ai-cloud NA渠道 / NA令牌列表，均按 ID 降序排列。渠道列含 ID、名称、分组、类型（完整 56 种映射）、状态、响应时间、近一月活跃统计（按模型级别展示 RPM/TPM）、已用/剩余、优先级、权重、批量配置；令牌列含名称、状态（已启用/已禁用/已过期/已耗尽）、剩余额度/总额度、分组、密钥（掩码显示 `sk-` 前缀与尾号，点击复制完整值）、可用模型、模型限流条数、IP限制、创建时间、过期时间、批量配置。两列表格按屏幕宽度自适应；长名称、分组、活跃统计、模型白名单、IP限制等字段在悬浮时展示完整内容并提供复制，批量配置列可把当前记录转换为一键填入的批量行。编辑弹窗复用上游源码组件；保存请求自动携带本站 CSRF Token。测试渠道后响应时间同步更新到列表
+NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，呈现 New API NA渠道 / NA令牌列表，均按 ID 降序排列。渠道列含 ID、名称、分组、类型（完整 56 种映射）、状态、响应时间、近一月活跃统计（按模型级别展示 RPM/TPM）、已用/剩余、优先级、权重、批量配置；令牌列含名称、状态（已启用/已禁用/已过期/已耗尽）、剩余额度/总额度、分组、密钥（掩码显示 `sk-` 前缀与尾号，点击复制完整值）、可用模型、模型限流条数、IP限制、创建时间、过期时间、批量配置。两列表格按屏幕宽度自适应；长名称、分组、活跃统计、模型白名单、IP限制等字段在悬浮时展示完整内容并提供复制，批量配置列可把当前记录转换为一键填入的批量行。编辑弹窗复用上游源码组件，同环境会话复用可降低重复登录 429；保存请求自动携带本站 CSRF Token。测试渠道后响应时间同步更新到列表
 
 智能体：异步任务（LLM 规划 → 门禁确认 → 智能提取、批量配置、数据汇总，可选上游信息 / 一表总览 / 智能分析；Web / Jobs API / 兼容 /api/agent/run）
 上游信息：采集云厂商资源（火山云 IAM + Azure OpenAI 服务主体；可一键写入同一工作簿；表末列为部署时间；表头可筛选）
@@ -206,7 +206,7 @@ NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，
 | **智能提取**   | **渠道**或**令牌**模式：渠道从杂乱文本/完整行/紧凑行提取；令牌支持三行/四行拼接，以及**令牌名(+人名) + 渠道批量行**反推分组与模型；多条批量；渠道可选 AI。渠道侧可先点「**更新**」再提取（不要求密钥，用于同步上游自动升级） |
 | **渠道管理**   | 批量创建 / **预更新·确认更新（原配置）** / 全量同步 Base URL 到备注 / 预删除·预禁用·预启用（名称+分组）；类型识别、去重、创建/更新模板锁定 |
 | **令牌管理**   | 批量创建令牌、模型限制与可选额度；**预更新·确认更新额度**、预删除·预禁用·预启用（名称+分组）；创建/更新模板锁定、导出名称+密钥 |
-| **NA信息**   | 位于批量配置右侧；按 **test / uat / prod** 统一呈现 ai-cloud / New API 的 **NA渠道** 与 **NA令牌** 列表；支持分页、长文本悬浮查看完整值和复制、测试/启停/编辑/删除，并可把行转换为批量配置格式后一键填入；测试失败同步上游错误且不清空响应时间；编辑时读取并保存完整原始 JSON 字段，账号、密码和 `totp_secret` 始终只由服务端读取 |
+| **NA信息**   | 位于批量配置右侧；按 **test / uat / prod** 统一呈现 New API 的 **NA渠道** 与 **NA令牌** 列表；支持分页、长文本悬浮查看完整值和复制、测试/启停/编辑/删除，并可把行转换为批量配置格式后一键填入；测试失败同步上游错误且不清空响应时间；编辑时读取并保存完整原始 JSON 字段，账号、密码和 `totp_secret` 始终只由服务端读取 |
 | **分组设置**   | 批量创建 / 删除分组；**分组切换**（勾选或全选，将该分组下渠道 / 令牌改到目标分组；需 Root 建分组） |
 | **渠道启停**   | 按上游模型 / 类型全部 / 勾选 ID 启用禁用；可视化清单；全选反选；单条操作；默认自定义渠道可改类型                              |
 | **渠道查询**   | 在**数据汇总**页：按已配置站点查询已用/剩余；常用区间；**配置时间段**（1/3/5/15/30/60/180/365 天或自定义）；**近一月活跃**按模型逐项填写（失败/无信息为 N/A）；导出写入 `excel/渠道余额_时间戳.xlsx`；点「下载 Excel」获取完整文件；按环境分表（历史表名仍可能是 `uat-渠道余额` 等） |
@@ -388,7 +388,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 | **工作台**     | 待办、最近产物、六任务卡、全局站点认证 | `static/index.html` 本页；hash `#workspace`（默认） |
 | **智能提取**   | 渠道/令牌模式切换、原始输入、LLM（仅渠道）、提取结果、一键填入 | `static/index.html`；hash `#extract` |
 | **批量配置**   | 连接配置、渠道/令牌/分组/启停/使用日志 | `batch/static/index.html`（iframe 经 `/static/batch_ui.html?embed=1` 代理）；hash `#write` |
-| **NA信息**   | test / uat / prod 的 ai-cloud / New API NA渠道、NA令牌列表；分页、悬浮复制、完整记录编辑、测试/启停/删除、批量配置转换 | `static/platform_ui.html`（iframe 经 `/static/platform_ui.html?embed=1` 代理）；hash `#platform` |
+| **NA信息**   | test / uat / prod 的 New API NA渠道、NA令牌列表；分页、悬浮复制、完整记录编辑、测试/启停/删除、批量配置转换 | `static/platform_ui.html`（iframe 经 `/static/platform_ui.html?embed=1` 代理）；hash `#platform` |
 | **数据汇总**   | 多站点采集、渠道余额查询、Excel 导入/导出、历史产物下拉 | `static/summary_ui.html`（iframe `?embed=1`）；hash `#inventory` |
 | **上游信息**   | 云厂商上游采集（一键汇总 / 火山云 / Azure OpenAI）、历史产物下拉；导出表头可筛选 | `static/upstream_ui.html`（iframe `?embed=1`）；hash `#upstream` |
 | **上游账单**   | 账期起止采集火山云 / Azure 费用（跨月则每月一份；一键汇总或分厂商）；导出表头可筛选 | `static/bill_ui.html`（iframe `?embed=1`）；hash `#bill` |
@@ -1887,7 +1887,7 @@ Azure OpenAI 账号在门户 **标记（Tags）** 里约定一条：
 
 ## NA信息
 
-进入批量配置右侧的 **NA信息** Tab（`#platform`）。此模块用于在一个页面切换 **test / uat / prod**，展示 ai-cloud / New API 管理端的 NA渠道与 NA令牌。两类列表均按 ID 降序排列，采用全宽自适应布局，窄屏下保留横向滚动。
+进入批量配置右侧的 **NA信息** Tab（`#platform`）。此模块用于在一个页面切换 **test / uat / prod**，展示 New API 管理端的 NA渠道与 NA令牌。两类列表均按 ID 降序排列，采用全宽自适应布局，窄屏下保留横向滚动。
 
 | 管理页 | 列 | 操作 |
 | --- | --- | --- |
@@ -1904,8 +1904,19 @@ Azure OpenAI 账号在门户 **标记（Tags）** 里约定一条：
 - **旧版上游兼容**：编辑器对部分可选上游接口的 404 做静默降级，例如预填组、模型列表、分组、2FA 与 Passkey 状态、模型配额候选；模型与分组缺失时会尝试用更通用的旧接口补齐，不阻塞基础编辑。
 - **批量配置转换**：新增「批量配置」列。渠道行会转换为不含密钥的 `名称 / 分组 / 类型 / 模型 / 模型重定向 / Base URL [API版本]` 行，用于「更新原配置」；令牌行会转换为 `名称 / 分组 / 模型白名单 [额度(tokens)]` 行，用于令牌创建。每行可复制完整批量行，也可一键填入批量配置对应输入区。
 
+#### 会话生命周期
+
+1. 进入 NA信息或切换 `test` / `uat` / `prod` 时，页面先请求 `POST /api/platform/<env>/session`。
+2. 服务端读取 `env/sites.json` 中该环境的地址、账号、密码和 TOTP 原始密钥，建立并缓存已认证的上游管理端客户端。
+3. 同一环境的 NA渠道、NA令牌、编辑详情和保存操作复用同一客户端，减少重复登录导致的 429。
+4. 页面只显示“已登录”或“已登录（缓存）”，不返回凭据。若缓存过期或上游会话失效，下一次接口会自动重建会话。
+
+#### 编辑代理与兼容性
+
+编辑器复用上游 `EditChannelModal` / `EditTokenModal`，请求统一经过 `/api/platform/<env>/upstream/...` 服务端代理。代理只放行编辑弹窗需要的渠道、令牌、模型、分组、预填组、安全验证和模型配额接口，并兼容有无末尾斜杠的路径。微页面启动时读取 `/auth/me` 并自动注入 `X-CSRF-Token`；浏览器不会收到上游账号、密码、TOTP 或上游会话 Cookie。
+
 1. 复制 `env/sites.example.json` 为 `env/sites.json`，为需要管理的 `test`、`uat`、`prod` 分别填写 `base_url`、`username`、`password`；账号开启登录两步验证时填入该环境自己的 `totp_secret`。
-2. 请让该环境账号具备 ai-cloud 管理端权限（New API 的 Admin 或更高角色）。渠道管理接口要求管理员权限；令牌管理也按上游站点的实际授权返回。
+2. 请让该环境账号具备 New API 管理端权限（Admin 或更高角色）。渠道管理接口要求管理员权限；令牌管理也按上游站点的实际授权返回。
 3. 超管在「管理用户」中给网站账户授予“NA信息”功能后，用户才能看到此 Tab；每次读取和保存均同时受页面、API 和 CSRF 校验保护。
 4. 选择环境后，切换「NA渠道」或「NA令牌」，点“编辑”读取单条完整记录；如需清理废弃记录，可在对应行使用删除按钮并二次确认。
 
@@ -2528,10 +2539,11 @@ python agent/tests/test_pipeline_runner.py
 | 方法 | 路径 | 说明 |
 | ---- | ---- | ---- |
 | `GET` | `/api/platform/sites` | 返回 test / uat / prod 是否已配置及其地址，不返回账号、密码或 TOTP |
-| `GET` | `/api/platform/<env>/channels` | 以该环境管理端账号读取 ai-cloud 渠道管理列表（含近一月活跃统计） |
+| `POST` | `/api/platform/<env>/session` | 预热或复用指定环境的管理端会话；返回 `base_url`、`user_id`、`role`、`cached` 和 `expires_at` |
+| `GET` | `/api/platform/<env>/channels` | 以该环境管理端账号读取 New API 渠道管理列表（含近一月活跃统计） |
 | `GET` | `/api/platform/<env>/channels/<id>` | 读取一条完整渠道记录 |
 | `PUT` | `/api/platform/<env>/channels/<id>` | 保存 `{ "record": { ...完整渠道记录... } }`；路径 ID 覆盖记录中的 `id`
-| `POST` | `/api/platform/<env>/channels/<id>/test` | 测试指定渠道连通性（与 ai-cloud「测试」按钮一致）
+| `POST` | `/api/platform/<env>/channels/<id>/test` | 测试指定渠道连通性（与 New API「测试」按钮一致）
 | `PUT` | `/api/platform/<env>/channels/<id>/status` | 更新渠道状态：`{ "status": 1 }` 启用 / `{ "status": 2 }` 禁用 |
 | `DELETE` | `/api/platform/<env>/channels/<id>` | 删除指定渠道 |
 | `GET` | `/api/platform/<env>/tokens` | 读取该环境全部令牌管理记录 |
@@ -2539,8 +2551,9 @@ python agent/tests/test_pipeline_runner.py
 | `PUT` | `/api/platform/<env>/tokens/<id>` | 保存 `{ "record": { ...完整令牌记录... } }`；保留模型级限流字段 |
 | `PUT` | `/api/platform/<env>/tokens/<id>/status` | 更新令牌状态：`{ "status": 1 }` 启用 / `{ "status": 2 }` 禁用 |
 | `DELETE` | `/api/platform/<env>/tokens/<id>` | 删除指定令牌 |
+| `ANY` | `/api/platform/<env>/upstream/<path>` | 上游编辑弹窗专用代理；支持 `GET` / `POST` / `PUT` / `PATCH` / `DELETE`，仅转发白名单内接口 |
 
-模型编辑调用上游 `/api/models/`，令牌编辑调用上游 `/api/token/`。模型和令牌的列表、详情与保存结果使用上游原始字段，兼容 ai-cloud / New API 的版本差异。模型、令牌的保存操作会写入本网站审计日志，但审计内容仅记录环境和记录 ID，不记录令牌或凭据。
+模型编辑调用上游 `/api/models/`，令牌编辑调用上游 `/api/token/`。模型和令牌的列表、详情与保存结果使用上游原始字段，兼容 New API 的版本差异。模型、令牌的保存操作会写入本网站审计日志，但审计内容仅记录环境和记录 ID，不记录令牌或凭据。
 
 ### 数据汇总 API
 
@@ -3122,6 +3135,9 @@ python app.py token-batch -c batch/config.json -f tokens.tsv
 
 **Q: 渠道启停时报登录 429 / 过于频繁？**  
 短时间多次密码登录触发限流。可：等待 1–2 分钟；改用 Access Token；使用已含会话缓存的版本并**重启服务**后再操作。
+
+**Q: NA信息编辑弹窗报 404 / 400？**
+404 通常是使用了旧版前端或上游接口缺失。请拉取最新 `container` 分支并重启服务；编辑器会兼容部分旧版接口。400 常见为本站 CSRF 校验失败，请刷新页面或重新登录后重试。若仍失败，把浏览器 Network 中红条请求的完整 URL 发给维护者排查。
 
 **Q: 数据汇总 / 批量创建报** `No module named 'lib.rate_budget'` **、** `lib.data_summary_exporter` **或** `lib.channel_types`**？**  
 batch 与 agent 共用包名 `lib`。首页加载 LLM 预设会切到 agent。请使用最新代码（批量接口会自动切回 batch）并**重启** `run.bat`。若页面仍只显示英文模块名，刷新后再试。
