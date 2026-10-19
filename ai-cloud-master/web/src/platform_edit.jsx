@@ -18,30 +18,34 @@ const env = params.get('env') || '';
 API.defaults.baseURL = `/api/platform/${encodeURIComponent(env)}/upstream`;
 API.defaults.headers.common['Cache-Control'] = 'no-store';
 
-const [visible, setVisible] = React.useState(true);
+const PlatformEditPage = () => {
+  const [visible, setVisible] = useState(true);
 
-const handleClose = () => {
-  setVisible(false);
-  window.parent?.postMessage({ type: 'na-platform-edit-close', changed: true }, '*');
+  const handleClose = () => {
+    setVisible(false);
+    window.parent?.postMessage({ type: 'na-platform-edit-close', changed: true }, '*');
+  };
+
+  const modalProps = {
+    refresh: () => {},
+    handleClose,
+    visible,
+    visiable: visible,
+  };
+
+  return (
+    <React.StrictMode>
+      <StatusProvider>
+        <LocaleProvider locale={zh_CN}>
+          {kind === 'channels' ? (
+            <EditChannelModal editingChannel={{ id: recordId }} {...modalProps} />
+          ) : (
+            <EditTokenModal editingToken={{ id: recordId }} {...modalProps} />
+          )}
+        </LocaleProvider>
+      </StatusProvider>
+    </React.StrictMode>
+  );
 };
 
-const modalProps = {
-  refresh: () => {},
-  handleClose,
-  visible,
-  visiable: visible,
-};
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <StatusProvider>
-      <LocaleProvider locale={zh_CN}>
-        {kind === 'channels' ? (
-          <EditChannelModal editingChannel={{ id: recordId }} {...modalProps} />
-        ) : (
-          <EditTokenModal editingToken={{ id: recordId }} {...modalProps} />
-        )}
-      </LocaleProvider>
-    </StatusProvider>
-  </React.StrictMode>,
-);
+ReactDOM.createRoot(document.getElementById('root')).render(<PlatformEditPage />);
