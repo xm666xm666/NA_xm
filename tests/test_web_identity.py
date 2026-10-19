@@ -7,6 +7,7 @@ import re
 import sys
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 from flask import Flask, jsonify
@@ -22,6 +23,7 @@ from webapp.identity import (
     FEATURE_DATA_SUMMARY,
     FEATURE_EXTRACTION,
     FEATURE_OVERVIEW,
+    FEATURE_PLATFORM,
     FEATURE_UPSTREAM,
     FEATURE_UPSTREAM_BILL,
     FEATURE_USER_ADMIN,
@@ -71,6 +73,10 @@ class WebsiteIdentityTests(unittest.TestCase):
 
         @self.app.get("/api/artifacts/download")
         def artifacts_download():
+            return jsonify({"success": True})
+
+        @self.app.get("/api/platform/test/capabilities")
+        def platform_capabilities():
             return jsonify({"success": True})
 
         @self.app.get("/")
@@ -131,6 +137,7 @@ class WebsiteIdentityTests(unittest.TestCase):
             {
                 FEATURE_WORKSPACE,
                 FEATURE_BATCH,
+                FEATURE_PLATFORM,
                 FEATURE_DATA_SUMMARY,
                 FEATURE_UPSTREAM,
                 FEATURE_UPSTREAM_BILL,
@@ -161,7 +168,8 @@ class WebsiteIdentityTests(unittest.TestCase):
             username="operator", email="operator@example.com", password="test-password-2026", role=ROLE_USER, email_verified=True
         )
         response = self.client.post(
-            f"/admin/users/{target.id}/role", data={"role": ROLE_ADMIN, "csrf_token": self._csrf()}
+            f"/admin/users/{target.id}/permissions",
+            data={"feature": FEATURE_BATCH, "csrf_token": self._csrf()},
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.identity.store.session().get(User, target.id).role, ROLE_ADMIN)
@@ -178,25 +186,35 @@ class WebsiteIdentityTests(unittest.TestCase):
         )
         csrf = self._assume_user(user)
         self.assertEqual(self.client.get("/").status_code, 200)
-        self.assertEqual(self.client.get("/batch-view").status_code, 200)
+        self.assertEqual(self.client.get("/batch-view").status_code, 403)
         self.assertEqual(self.client.get("/summary-view").status_code, 403)
         self.assertEqual(self.client.get("/agent-view").status_code, 403)
         self.assertEqual(self.client.get("/api/data-summary/anything").status_code, 403)
         self.assertNotIn(FEATURE_UPSTREAM, self.client.get("/auth/me").get_json()["features"])
         self.assertFalse(self.identity.has_feature(FEATURE_UPSTREAM, user))
         self.assertEqual(self.client.post("/api/batch-create").status_code, 400)
-        self.assertEqual(self.client.post("/api/batch-create", headers={"X-CSRF-Token": csrf}).status_code, 200)
+        self.assertEqual(self.client.post("/api/batch-create", headers={"X-CSRF-Token": csrf}).status_code, 403)
 
     def test_role_matrix_and_api_mapping_do_not_restore_restricted_features(self) -> None:
         admin = self.identity.store.create_user(
             username="role-admin", email="role-admin@example.com", password="test-password-2026", role=ROLE_ADMIN, email_verified=True
         )
+        admin.features_json = json.dumps(
+            [FEATURE_WORKSPACE, FEATURE_BATCH, FEATURE_PLATFORM, FEATURE_DATA_SUMMARY, FEATURE_UPSTREAM, FEATURE_EXTRACTION]
+        )
+        self.identity.store.session().commit()
         self._assume_user(admin)
         self.assertSetEqual(
             set(self.client.get("/auth/me").get_json()["features"]),
-            {FEATURE_WORKSPACE, FEATURE_BATCH, FEATURE_DATA_SUMMARY, FEATURE_UPSTREAM, FEATURE_EXTRACTION},
+            {FEATURE_WORKSPACE, FEATURE_BATCH, FEATURE_PLATFORM, FEATURE_DATA_SUMMARY, FEATURE_UPSTREAM, FEATURE_EXTRACTION},
         )
-        for path in ("/api/workspace/summary", "/api/artifacts?kind=summary", "/api/artifacts?kind=balance", "/api/artifacts?kind=upstream"):
+        for path in (
+            "/api/workspace/summary",
+            "/api/artifacts?kind=summary",
+            "/api/artifacts?kind=balance",
+            "/api/artifacts?kind=upstream",
+            "/api/platform/test/capabilities",
+        ):
             self.assertEqual(self.client.get(path).status_code, 200, path)
         for path in (
             "/api/policy/hygiene",
@@ -213,9 +231,10 @@ class WebsiteIdentityTests(unittest.TestCase):
             username="role-user", email="role-user@example.com", password="test-password-2026", role=ROLE_USER, email_verified=True
         )
         self._assume_user(user)
-        self.assertSetEqual(set(self.client.get("/auth/me").get_json()["features"]), {FEATURE_BATCH, FEATURE_EXTRACTION})
+        self.assertSetEqual(set(self.client.get("/auth/me").get_json()["features"]), {FEATURE_EXTRACTION})
         for path in ("/api/workspace/summary", "/api/artifacts?kind=summary", "/api/artifacts?kind=upstream"):
             self.assertEqual(self.client.get(path).status_code, 403, path)
+        self.assertEqual(self.client.get("/api/platform/test/capabilities").status_code, 403)
 
         self.assertEqual(ARTIFACT_KIND_FEATURES["summary"], FEATURE_DATA_SUMMARY)
         self.assertEqual(ARTIFACT_KIND_FEATURES["upstream"], FEATURE_UPSTREAM)
