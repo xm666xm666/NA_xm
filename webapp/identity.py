@@ -550,7 +550,18 @@ class IdentityManager:
         app.teardown_appcontext(self.store.close)
         app.before_request(self._load_current_user)
         app.before_request(self._guard_api)
+        app.after_request(self._set_auth_no_cache)
         app.register_blueprint(self._build_blueprint())
+
+    @staticmethod
+    def _set_auth_no_cache(response: Response) -> Response:
+        path = request.path
+        if path in {"/", "/login", "/register", "/forgot-password", "/account", "/auth/me"} or path.startswith(
+            ("/reset-password/", "/verify-email/", "/admin/users")
+        ):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+            response.headers["Pragma"] = "no-cache"
+        return response
 
     def _configure_server_sessions(self, production: bool, root_dir: Path) -> None:
         redis_url = os.getenv("REDIS_URL", "")
@@ -814,7 +825,13 @@ class IdentityManager:
             if user:
                 self.store.audit("auth.logout", resource=f"user:{user.id}")
             session.clear()
-            return redirect(url_for("identity.login"))
+            response = redirect(url_for("identity.login"))
+            response.delete_cookie(
+                current_app.config.get("SESSION_COOKIE_NAME", "session"),
+                path=current_app.config.get("SESSION_COOKIE_PATH", "/"),
+                domain=current_app.config.get("SESSION_COOKIE_DOMAIN"),
+            )
+            return response
 
         @bp.get("/auth/me")
         def me():
