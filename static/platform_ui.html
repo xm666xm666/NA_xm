@@ -923,7 +923,7 @@
         const id = Number(record.id);
         if (!Number.isInteger(id) || id <= 0) { NAUi.toast("该记录没有有效 ID，无法编辑", "warn"); return; }
         state.editingId = id; state.editingRecord = null;
-        $("upstreamEditorFrame").src = `/static/platform-edit/platform-edit.html?kind=${encodeURIComponent(state.kind)}&id=${id}&env=${encodeURIComponent(state.env)}`;
+        $("upstreamEditorFrame").src = `/static/platform-edit/platform-edit.html?kind=${encodeURIComponent(state.kind)}&id=${id}&env=${encodeURIComponent(state.env)}&v=${Date.now()}`;
         $("upstreamEditorBackdrop").hidden = false;
       }
       function collectFormValues() {

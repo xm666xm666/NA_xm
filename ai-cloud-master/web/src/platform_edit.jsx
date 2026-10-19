@@ -18,6 +18,68 @@ const env = params.get('env') || '';
 API.defaults.baseURL = `/api/platform/${encodeURIComponent(env)}/upstream`;
 API.defaults.headers.common['Cache-Control'] = 'no-store';
 
+const originalGet = API.get.bind(API);
+const EMPTY_SUCCESS_RESPONSE = { data: { success: true, data: [] } };
+
+API.get = async (url, config = {}) => {
+  const requestUrl = String(url || '');
+  if (requestUrl.startsWith('/api/user/2fa/status')) {
+    try {
+      return await originalGet(url, { ...config, skipErrorHandler: true });
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return { data: { success: true, data: { enabled: false } } };
+      }
+      throw error;
+    }
+  }
+  if (requestUrl.startsWith('/api/user/passkey')) {
+    try {
+      return await originalGet(url, { ...config, skipErrorHandler: true });
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return { data: { success: true, data: { enabled: false } } };
+      }
+      throw error;
+    }
+  }
+  if (requestUrl.startsWith('/api/prefill_group')) {
+    try {
+      return await originalGet(url, { ...config, skipErrorHandler: true });
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return EMPTY_SUCCESS_RESPONSE;
+      }
+      throw error;
+    }
+  }
+  if (requestUrl.startsWith('/api/channel/models')) {
+    try {
+      return await originalGet(url, { ...config, skipErrorHandler: true });
+    } catch (error) {
+      if (error.response?.status !== 404) {
+        throw error;
+      }
+      try {
+        const fallback = await originalGet('/api/models', {
+          ...config,
+          skipErrorHandler: true,
+        });
+        const models = (fallback.data?.data || []).map((model) =>
+          typeof model === 'string' ? { id: model } : model,
+        );
+        return { ...fallback, data: { ...fallback.data, data: models } };
+      } catch (fallbackError) {
+        if (fallbackError.response?.status === 404) {
+          return EMPTY_SUCCESS_RESPONSE;
+        }
+        throw fallbackError;
+      }
+    }
+  }
+  return originalGet(url, config);
+};
+
 const bootstrapAuth = async () => {
   const response = await fetch('/auth/me', { credentials: 'same-origin' });
   if (!response.ok) throw new Error('NA 会话已失效，请重新登录');

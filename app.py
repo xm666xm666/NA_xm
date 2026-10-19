@@ -543,6 +543,10 @@ def static_files(filename: str):
         blocked = IDENTITY.page_guard(feature)
         if blocked:
             return blocked
+    if filename == "platform-edit/platform-edit.html":
+        response = send_from_directory(STATIC_DIR, filename)
+        response.headers["Cache-Control"] = "no-store"
+        return response
     if filename == "batch_ui.html":
         return send_from_directory(BATCH_STATIC, "index.html")
     if filename == "platform_ui.html":
