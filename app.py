@@ -866,10 +866,14 @@ _PLATFORM_UPSTREAM_ALLOWED_PREFIXES = (
     "api/channel/",
     "api/group/",
     "api/models",
+    "api/model_quota/",
     "api/prefill_group",
     "api/token/",
+    "api/user/2fa/status",
+    "api/user/passkey",
     "api/user/models",
     "api/user/self",
+    "api/verify",
 )
 
 

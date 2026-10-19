@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { LocaleProvider } from '@douyinfe/semi-ui';
 import zh_CN from '@douyinfe/semi-ui/lib/es/locale/source/zh_CN';
@@ -18,8 +18,25 @@ const env = params.get('env') || '';
 API.defaults.baseURL = `/api/platform/${encodeURIComponent(env)}/upstream`;
 API.defaults.headers.common['Cache-Control'] = 'no-store';
 
+const bootstrapAuth = async () => {
+  const response = await fetch('/auth/me', { credentials: 'same-origin' });
+  if (!response.ok) throw new Error('NA 会话已失效，请重新登录');
+  const payload = await response.json();
+  if (payload?.csrf_token) {
+    API.defaults.headers.common['X-CSRF-Token'] = payload.csrf_token;
+  }
+};
+
 const PlatformEditPage = () => {
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
   const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    bootstrapAuth()
+      .then(() => setReady(true))
+      .catch((exc) => setError(exc.message || 'NA 会话已失效，请重新登录'));
+  }, []);
 
   const handleClose = () => {
     setVisible(false);
@@ -33,6 +50,12 @@ const PlatformEditPage = () => {
     visiable: visible,
   };
 
+  if (error) {
+    return <div className="platform-edit-state platform-edit-error">{error}</div>;
+  }
+  if (!ready) {
+    return <div className="platform-edit-state platform-edit-loading">正在加载编辑器...</div>;
+  }
   return (
     <React.StrictMode>
       <StatusProvider>
