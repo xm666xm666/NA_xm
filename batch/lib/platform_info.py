@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import threading
+import time
 from typing import Any
 
 from .api_client import NewAPIClient, authenticate_client
+
+_CLIENT_CACHE: dict[str, tuple[NewAPIClient, float]] = {}
+_CLIENT_CACHE_LOCK = threading.Lock()
+_CLIENT_CACHE_TTL_SEC = 2 * 60 * 60.0
 
 
 def _api_data(response: Any, fallback_message: str) -> Any:
@@ -17,11 +25,36 @@ def _api_data(response: Any, fallback_message: str) -> Any:
 
 
 def connected_client(base_url: str, auth: dict[str, Any]) -> NewAPIClient:
-    """建立已认证的管理端会话，复用项目原有的登录与 TOTP 会话缓存。"""
+    """建立并复用已认证的管理端会话；同一站点凭据不重复登录。"""
+    signature_payload = {
+        "base_url": base_url,
+        "username": str(auth.get("username") or ""),
+        "password": str(auth.get("password") or ""),
+        "access_token": str(auth.get("access_token") or ""),
+        "user_id": auth.get("user_id"),
+        "totp_secret": str(auth.get("totp_secret") or ""),
+        "verify_ssl": auth.get("verify_ssl", True),
+    }
+    signature = hashlib.sha256(
+        json.dumps(signature_payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    now = time.time()
+    with _CLIENT_CACHE_LOCK:
+        entry = _CLIENT_CACHE.get(signature)
+        if entry:
+            client, expires_at = entry
+            if expires_at >= now and client.is_admin():
+                client.session_cache_hit = True
+                client.session_cache_expires_at = expires_at
+                return client
+            _CLIENT_CACHE.pop(signature, None)
+
     client = NewAPIClient(base_url)
     authenticate_client(client, auth)
     if not client.is_admin():
         raise RuntimeError("ai-cloud 账号没有管理端权限，无法读取渠道或令牌管理")
+    with _CLIENT_CACHE_LOCK:
+        _CLIENT_CACHE[signature] = (client, now + _CLIENT_CACHE_TTL_SEC)
     return client
 
 
