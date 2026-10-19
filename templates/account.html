@@ -22,5 +22,9 @@
     <label><span>验证当前登录密码 <small>用于确认是本人操作</small></span><span class="auth-input-action"><input type="password" name="current_password" autocomplete="current-password" required><button class="password-toggle" type="button" data-password-toggle aria-label="显示密码">显示</button></span></label>
     <button class="auth-secondary" type="submit">验证后生成新恢复验证码</button>
   </form>
+  <form method="post" action="/logout" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="auth-secondary" type="submit">返回登录页面</button>
+  </form>
   <div class="auth-links auth-links-center"><a href="/">返回控制台</a></div>
 {% endblock %}
