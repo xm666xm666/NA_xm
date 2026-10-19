@@ -454,7 +454,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 - 采集 / 导出成功后，子页调用 `notifyArtifactsChanged(kinds)`，父页广播 `na-artifacts-changed` 给所有 `iframe.na-iframe`，并刷新工作台摘要
 - 切 Tab 时会对当前 iframe 再发一次
 - 数据汇总、上游信息、上游账单、一表总览、批量·使用日志的历史下拉旁有 **刷新**；工作台本身有刷新按钮
-- 批量配置与智能提取切换同名 `lib` 包后，工作台产物列表的排序函数已在模块加载期固定绑定，不再触发 `No module named 'lib.data_summary_exporter'`
+- 批量配置与智能提取切换同名 `lib` 包后，`BATCH` 与提取入口会在每次调用前校验并自动切回对应 `lib`，不再触发 `No module named 'lib.data_summary_exporter'` 这类跨模块加载错误
 
 不必为了看到刚导出的文件而整页重载。
 

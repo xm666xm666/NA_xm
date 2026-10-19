@@ -12,7 +12,9 @@ import time
 import uuid
 import webbrowser
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
+from types import FunctionType
 from typing import Any
 
 from flask import Flask, Response, g, jsonify, request, send_from_directory, stream_with_context
@@ -132,7 +134,7 @@ def _load_batch_modules():
         volc_openapi = importlib.import_module("lib.volc_openapi")
         env_clusters = importlib.import_module("lib.env_clusters")
         platform_info = importlib.import_module("lib.platform_info")
-        return {
+        modules = {
             "NewAPIClient": api_client.NewAPIClient,
             "authenticate_client": api_client.authenticate_client,
             "run_batch_create": batch_processor.run_batch_create,
@@ -277,6 +279,21 @@ def _load_batch_modules():
             "platform_delete_token": platform_info.delete_token,
         }
 
+        def _bound_batch_callable(name: str, value: Any):
+            if not isinstance(value, FunctionType):
+                return value
+
+            @wraps(value)
+            def _call(*args, **kwargs):
+                with _LIB_LOCK:
+                    if not _lib_is_batch():
+                        _reload_batch_modules()
+                    return value(*args, **kwargs)
+
+            return _call
+
+        return {name: _bound_batch_callable(name, value) for name, value in modules.items()}
+
 
 def _reload_batch_modules():
     """agent 与 batch 共用 lib 包名，加载 agent 后会清掉 batch 的 lib；数据汇总等需重新加载。"""
@@ -292,6 +309,17 @@ def _lib_is_batch() -> bool:
         return False
     try:
         return Path(lib_file).resolve().parent == (BATCH_DIR / "lib").resolve()
+    except OSError:
+        return False
+
+
+def _lib_is_agent() -> bool:
+    lib = sys.modules.get("lib")
+    lib_file = getattr(lib, "__file__", None)
+    if not lib_file:
+        return False
+    try:
+        return Path(lib_file).resolve().parent == (AGENT_DIR / "lib").resolve()
     except OSError:
         return False
 
@@ -335,14 +363,32 @@ def _load_agent_extractor():
     with _LIB_LOCK:
         _pin_lib_root(AGENT_DIR)
         channel_extractor = importlib.import_module("lib.channel_extractor")
-        return channel_extractor.extract_channels
+        value = channel_extractor.extract_channels
+
+        @wraps(value)
+        def _extract_channels(*args, **kwargs):
+            with _LIB_LOCK:
+                if not _lib_is_agent():
+                    _reload_agent_modules()
+                return value(*args, **kwargs)
+
+        return _extract_channels
 
 
 def _load_agent_token_extractor():
     with _LIB_LOCK:
         _pin_lib_root(AGENT_DIR)
         token_extractor = importlib.import_module("lib.token_extractor")
-        return token_extractor.extract_tokens
+        value = token_extractor.extract_tokens
+
+        @wraps(value)
+        def _extract_tokens(*args, **kwargs):
+            with _LIB_LOCK:
+                if not _lib_is_agent():
+                    _reload_agent_modules()
+                return value(*args, **kwargs)
+
+        return _extract_tokens
 
 
 def _reload_agent_modules():
