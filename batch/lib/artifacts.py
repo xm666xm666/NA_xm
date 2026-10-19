@@ -16,6 +16,7 @@ from .data_summary_exporter import (
     is_overview_excel,
     is_staging_excel,
     list_summary_excel_files,
+    sort_excel_files_latest_first,
 )
 from .overview_analyzer import ANALYSIS_STEM, list_analysis_excel_files
 from .overview_exporter import OVERVIEW_STEM, list_overview_excel_files
@@ -154,8 +155,6 @@ def list_upstream_files(root_dir: Path) -> list[Path]:
     for stem in (UPSTREAM_COMBINED_STEM, UPSTREAM_EXCEL_STEM, UPSTREAM_AZURE_STEM):
         for path in directory.glob(f"{stem}_*.xlsx"):
             found[str(path.resolve())] = path
-    from .data_summary_exporter import sort_excel_files_latest_first
-
     return sort_excel_files_latest_first(list(found.values()))
 
 
@@ -163,8 +162,6 @@ def list_balance_files(root_dir: Path) -> list[Path]:
     directory = excel_dir(root_dir)
     if not directory.exists():
         return []
-    from .data_summary_exporter import sort_excel_files_latest_first
-
     return sort_excel_files_latest_first(list(directory.glob(f"{BALANCE_EXCEL_STEM}_*.xlsx")))
 
 
@@ -172,8 +169,6 @@ def list_log_files(root_dir: Path) -> list[Path]:
     directory = excel_dir(root_dir)
     if not directory.exists():
         return []
-    from .data_summary_exporter import sort_excel_files_latest_first
-
     files = [p for p in directory.glob("usage_logs_*.xlsx") if not is_staging_excel(p)]
     files += list(directory.glob("usage_logs_*.csv"))
     return sort_excel_files_latest_first(files)
