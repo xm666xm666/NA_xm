@@ -692,21 +692,15 @@
       }
       function siteFor(env) { return state.sites.find((site) => site.env === env); }
       function safeText(value) { return value == null ? "" : String(value); }
-      function splitSearchValues(value) {
-        return safeText(value).split(/[,，;；|/\n\r\t ]+/).map((item) => item.trim()).filter(Boolean);
-      }
-      function rowModels(record) {
-        if (state.kind === "channels") return splitSearchValues(record.models);
-        return record.token_model_limit_enabled ? splitSearchValues(record.token_model_limit) : [];
-      }
       function normalizedTerm(value) { return safeText(value).trim().toLowerCase(); }
       function matchesFilter(record) {
         const nameTerm = normalizedTerm(state.search.name);
         const groupTerm = normalizedTerm(state.search.group);
         const modelTerm = normalizedTerm(state.search.model);
         if (nameTerm && !safeText(record.name).toLowerCase().includes(nameTerm)) return false;
-        if (groupTerm && !splitSearchValues(record.group).some((item) => item.toLowerCase().includes(groupTerm))) return false;
-        if (modelTerm && !rowModels(record).some((item) => item.toLowerCase().includes(modelTerm))) return false;
+        if (groupTerm && !safeText(record.group).toLowerCase().split(",").map((item) => item.trim()).includes(groupTerm)) return false;
+        const modelText = state.kind === "channels" ? safeText(record.models) : (record.token_model_limit_enabled ? safeText(record.token_model_limit) : "");
+        if (modelTerm && !modelText.toLowerCase().includes(modelTerm)) return false;
         return true;
       }
       function filteredRows() { return state.rows.filter(matchesFilter); }
