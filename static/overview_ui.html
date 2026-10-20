@@ -123,6 +123,8 @@
         </button>
         <button type="button" class="na-btn na-btn-secondary" id="btnDownload" disabled>下载 Excel</button>
         <button type="button" class="na-btn na-btn-secondary" id="btnDownloadAnalysis" disabled>下载分析表</button>
+        <button type="button" class="na-btn na-btn-secondary" id="btnExportChannels" disabled title="从所选总览还原为可创建的渠道批量 TXT；缺密钥或字段不全的行会跳过">导出渠道TXT</button>
+        <button type="button" class="na-btn na-btn-secondary" id="btnExportTokens" disabled title="从所选总览还原为令牌批量 TXT；无模型白名单的行会跳过">导出令牌TXT</button>
       </div>
       <div id="sheetWrap" hidden>
         <h3 style="margin:1rem 0 0.4rem;font-size:0.9rem">工作表</h3>
@@ -747,6 +749,8 @@
         analysisReady = !!info.analysis_exists;
         $("btnDownload").disabled = !fileReady;
         $("btnAnalyze").disabled = !fileReady;
+        $("btnExportChannels").disabled = !fileReady;
+        $("btnExportTokens").disabled = !fileReady;
         $("btnDownloadAnalysis").disabled = !analysisReady;
         renderChips(info.env_sites && info.env_sites.length ? info.env_sites.map((e) => `NA · ${e}`) : ["未配置 env 站点"]);
         const src = info.sources || {};
@@ -826,6 +830,8 @@
         $("btnDownload").disabled = true;
         $("btnFillKeys").disabled = true;
         $("btnAnalyze").disabled = true;
+        $("btnExportChannels").disabled = true;
+        $("btnExportTokens").disabled = true;
       try {
         await loadEnvSites();
         let sites = payloadSites();
@@ -1040,7 +1046,27 @@
       fileReady = Boolean(selectedFile("selOverview"));
       $("btnDownload").disabled = !fileReady;
       $("btnAnalyze").disabled = !fileReady;
+      $("btnExportChannels").disabled = !fileReady;
+      $("btnExportTokens").disabled = !fileReady;
     });
+
+    async function downloadBatchExport(kind) {
+      const file = selectedFile("selOverview");
+      if (!file) return;
+      try {
+        const name = await NAUi.downloadUrl(
+          `/api/overview/batch-export?kind=${encodeURIComponent(kind)}&file=${encodeURIComponent(file)}`,
+          `一表总览_${kind}.txt`,
+          { confirmSecrets: kind === "channels" },
+        );
+        addLog(`已开始浏览器下载：${name}`, "ok");
+      } catch (e) {
+        NAUi.showBanner("userBanner", e.message || "导出失败", "err");
+      }
+    }
+
+    $("btnExportChannels").addEventListener("click", () => downloadBatchExport("channels"));
+    $("btnExportTokens").addEventListener("click", () => downloadBatchExport("tokens"));
 
     $("btnSavePolicy").addEventListener("click", async () => {
       const btn = $("btnSavePolicy");

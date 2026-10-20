@@ -17,6 +17,7 @@ from functools import wraps
 from pathlib import Path
 from types import FunctionType
 from typing import Any
+from urllib.parse import quote
 
 from flask import Flask, Response, g, jsonify, request, send_from_directory, stream_with_context
 
@@ -80,6 +81,12 @@ def _send_excel_attachment(path: Path, extra_headers: dict[str, str] | None = No
     return resp
 
 
+def _send_txt_attachment(content: str, filename: str):
+    response = Response(content, content_type="text/plain; charset=utf-8")
+    response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(filename)}"
+    return response
+
+
 def _clear_lib_modules() -> None:
     for key in list(sys.modules):
         if key == "lib" or key.startswith("lib."):
@@ -124,6 +131,7 @@ def _load_batch_modules():
         upstream_exporter = importlib.import_module("lib.upstream_exporter")
         overview_exporter = importlib.import_module("lib.overview_exporter")
         overview_analyzer = importlib.import_module("lib.overview_analyzer")
+        overview_batch_export = importlib.import_module("lib.overview_batch_export")
         totp = importlib.import_module("lib.totp")
         hygiene_policy = importlib.import_module("lib.hygiene_policy")
         artifacts = importlib.import_module("lib.artifacts")
@@ -222,6 +230,8 @@ def _load_batch_modules():
             "ANALYSIS_STEM": overview_analyzer.ANALYSIS_STEM,
             "OVERVIEW_STEM": overview_exporter.OVERVIEW_STEM,
             "SHEET_INDEX": overview_exporter.SHEET_INDEX,
+            "build_overview_batch_export": overview_batch_export.build_overview_batch_export,
+            "build_batch_export_filename": overview_batch_export.build_batch_export_filename,
             "load_policy": hygiene_policy.load_policy,
             "save_policy": hygiene_policy.save_policy,
             "policy_summary_text": hygiene_policy.policy_summary_text,
@@ -2515,6 +2525,35 @@ def api_overview_download():
     if not excel_path or not excel_path.exists():
         return jsonify({"success": False, "message": "尚未生成一表总览，请先点「一键生成总览表」"}), 404
     return _send_excel_attachment(excel_path)
+
+
+@app.get("/api/overview/batch-export")
+def api_overview_batch_export():
+    """把总览工作表还原为可直接粘贴到批量配置的 TXT。"""
+    kind = str(request.args.get("kind") or "").strip().lower()
+    if kind not in {"channels", "tokens"}:
+        return jsonify({"success": False, "message": "kind 仅支持 channels 或 tokens"}), 400
+    include_disabled = str(request.args.get("include_disabled") or "").strip().lower() in {"1", "true", "yes", "on"}
+    try:
+        excel_path = _excel_query_path(
+            "file",
+            "id",
+            fallback=BATCH["latest_overview_excel_path"](NEW_DIR),
+            expected_kind="overview",
+        )
+        if not excel_path or not excel_path.exists():
+            return jsonify({"success": False, "message": "尚未生成一表总览，请先选择或生成总览表"}), 404
+        lines, _stats = BATCH["build_overview_batch_export"](
+            excel_path,
+            kind,
+            include_disabled=include_disabled,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+    if not lines:
+        return jsonify({"success": False, "message": "没有可导出的批量配置行；请检查启用状态、密钥、模型或分组字段"}), 404
+    filename = BATCH["build_batch_export_filename"](kind)
+    return _send_txt_attachment("\n".join(lines) + "\n", filename)
 
 
 @app.post("/api/overview/analyze")
