@@ -2661,7 +2661,7 @@ python agent/tests/test_pipeline_runner.py
 | `POST` | `/api/overview/analyze` | **必须**传 `source_overview` 或 `source`（所选总览文件名）；仅当 `allow_latest=1` 时才回退到最新一份。对照上下游密钥/部署；有渠道余额表则判定不用/不常用。宽限期与阈值读卫生策略。写入新的 `excel/智能分析表格_*.xlsx`（不覆盖总览）。无总览时返回错误 |
 | `GET` | `/api/overview/analyze/download` | 下载智能分析 Excel。可传 `file` / `id`；未传时回退最新一份 |
 | `GET` | `/api/overview/download` | 下载总览 Excel（只取总览文件名，不是数据汇总的 `ai网关令牌及渠道列表_时间戳.xlsx`）。可传 `file` / `id`；未传时回退最新一份 |
-| `GET` | `/api/overview/batch-export?kind=channels\|tokens&file=<总览文件>` | 把所选总览工作表还原为批量配置 TXT；可传 `include_disabled=1`。渠道默认仅导启用且含密钥的行，多模型拆成多行；令牌默认仅导启用且有模型白名单的行，剩余额度转换为 tokens |
+| `GET` | `/api/overview/batch-export?kind=channels\|tokens&file=<总览文件>` | 把所选总览工作表还原为批量配置 TXT；可传 `include_disabled=1`。渠道默认仅导启用且含密钥的行，多模型拆成多行；Azure 渠道必须带 `默认API版本` 才能导出；令牌默认仅导启用且有模型白名单的行，剩余额度转换为 tokens |
 
 `POST /api/overview/collect`：某一侧已有文件则**不连网**只读盘（密钥已齐时也不再拉密钥）。没有文件的一侧才现场采集。已配置站点默认含密钥，须 Root + 二次验证（`env/sites.json` 可预置 `totp_secret`；工作台已认证则不弹审查窗）。可选 `sites`（同数据汇总）、`include_keys: false` 关闭拉密钥。不传 `sites` 时用 `env/sites.json`。
 

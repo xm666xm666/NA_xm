@@ -24,17 +24,18 @@ from .url_utils import normalize_na_base_url
 ENVS = ("test", "uat", "prod")
 EXCEL_STEM = "ai网关令牌及渠道列表"
 DEFAULT_EXCEL_NAME = f"{EXCEL_STEM}.xlsx"  # 无时间戳的旧文件名，兼容历史文件
+AZURE_API_VERSION_HEADER = "默认API版本"
+TOKEN_HEADERS = ["名称", "项目环境", "状态", "剩余额度", "分组", "可用模型", "包含渠道", "IP限制", "创建时间", "过期时间"]
+BATCH_CONFIG_HEADER = "批量配置"
 
 CHANNEL_HEADERS = [
     "名称", "分组", "类型", "状态", "响应时间", "模型列表", "模型重定向",
-    "base_url", "备注", "部署时间",
+    "base_url", "备注", AZURE_API_VERSION_HEADER, "部署时间",
 ]
 CHANNEL_HEADERS_WITH_KEY = [
     "名称", "分组", "类型", "状态", "响应时间", "模型列表", "模型重定向",
-    "base_url", "备注", "密钥", "部署时间",
+    "base_url", "备注", AZURE_API_VERSION_HEADER, "密钥", "部署时间",
 ]
-TOKEN_HEADERS = ["名称", "项目环境", "状态", "剩余额度", "分组", "可用模型", "包含渠道", "IP限制", "创建时间", "过期时间"]
-BATCH_CONFIG_HEADER = "批量配置"
 DUP_CHANNEL_HEADERS = ["名称", "类型", "状态", "模型列表", "模型重定向", "base_url", "备注", "部署时间", "来源", "重复序号"]
 DUP_CHANNEL_HEADERS_WITH_KEY = [
     "名称", "类型", "状态", "模型列表", "模型重定向", "base_url", "备注", "密钥", "部署时间", "来源", "重复序号",
@@ -424,6 +425,7 @@ def channel_to_row(
         "模型列表": _format_models_list(channel.get("models")),
         "模型重定向": _format_model_mapping(channel.get("model_mapping")),
         "base_url": str(channel.get("base_url") or "").strip(),
+        AZURE_API_VERSION_HEADER: str(channel.get("other") or channel.get("default_api_version") or "").strip(),
         "备注": str(channel.get("remark") or "").strip(),
         "部署时间": _format_timestamp(channel.get("created_time")),
         "_sort_id": channel_id,

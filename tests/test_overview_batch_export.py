@@ -5,6 +5,7 @@ from pathlib import Path
 from openpyxl import Workbook
 
 from batch.lib.overview_batch_export import build_overview_batch_export
+from batch.lib.overview_batch_export import batch_line_for_row
 from batch.lib.data_summary_exporter import save_workbook_data
 
 
@@ -75,11 +76,31 @@ class OverviewBatchExportTests(unittest.TestCase):
             workbook = load_workbook(path)
             channel_sheet = workbook["test-渠道管理"]
             token_sheet = workbook["test-令牌管理"]
-            self.assertEqual(channel_sheet.cell(row=1, column=11).value, "批量配置")
-            self.assertEqual(channel_sheet.cell(row=2, column=11).value, "gateway-alpha\tgateway\tOpenAI\tmodel-a\tmodel-a->model-a\thttps://upstream.example.com\tsk-test")
+            self.assertEqual(channel_sheet.cell(row=1, column=12).value, "批量配置")
+            self.assertEqual(channel_sheet.cell(row=2, column=12).value, "gateway-alpha\tgateway\tOpenAI\tmodel-a\tmodel-a->model-a\thttps://upstream.example.com\tsk-test")
             self.assertEqual(token_sheet.cell(row=1, column=11).value, "批量配置")
             self.assertEqual(token_sheet.cell(row=2, column=11).value, "token-alpha\tgateway\tmodel-a、model-b\t120")
             workbook.close()
+
+    def test_azure_channel_requires_api_version(self):
+        row = {
+            "名称": "azure-alpha",
+            "分组": "azure",
+            "类型": "Azure OpenAI",
+            "状态": "已启用",
+            "模型列表": "gpt-x",
+            "模型重定向": "",
+            "base_url": "https://azure.example.com",
+            "密钥": "sk-test",
+            "默认API版本": "2025-04-01-preview",
+        }
+        self.assertEqual(
+            batch_line_for_row(row, "channels"),
+            "azure-alpha\tazure\tAzure OpenAI\tgpt-x\tgpt-x->gpt-x\thttps://azure.example.com\t2025-04-01-preview\tsk-test",
+        )
+
+        row.pop("默认API版本")
+        self.assertEqual(batch_line_for_row(row, "channels"), "")
 
     def test_skips_disabled_rows_by_default(self):
         workbook = Workbook()
