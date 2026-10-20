@@ -102,6 +102,29 @@ class OverviewBatchExportTests(unittest.TestCase):
         row.pop("默认API版本")
         self.assertEqual(batch_line_for_row(row, "channels"), "")
 
+    def test_models_self_map_when_redirect_is_blank(self):
+        row = {
+            "名称": "heditest-alpha",
+            "分组": "heditest",
+            "类型": "OpenAI",
+            "状态": "已启用",
+            "模型列表": "heditest-gpt-4, heditest-gpt-5",
+            "模型重定向": "",
+            "base_url": "https://heditest.example.com",
+            "密钥": "sk-test",
+            "部署时间": "",
+        }
+
+        self.assertEqual(
+            batch_line_for_row(row, "channels"),
+            "\n".join(
+                [
+                    "heditest-alpha\theditest\tOpenAI\theditest-gpt-4\theditest-gpt-4->heditest-gpt-4\thttps://heditest.example.com\tsk-test",
+                    "heditest-alpha\theditest\tOpenAI\theditest-gpt-5\theditest-gpt-5->heditest-gpt-5\thttps://heditest.example.com\tsk-test",
+                ]
+            ),
+        )
+
     def test_skips_disabled_rows_by_default(self):
         workbook = Workbook()
         workbook.active.title = "总览"
