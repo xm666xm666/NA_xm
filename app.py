@@ -269,6 +269,7 @@ def _load_batch_modules():
             "platform_connected_client": platform_info.connected_client,
             "platform_probe_capabilities": platform_info.probe_capabilities,
             "platform_list_channels": platform_info.list_channels,
+            "platform_list_groups": platform_info.list_groups,
             "platform_get_channel": platform_info.get_channel,
             "platform_update_channel": platform_info.update_channel,
             "platform_test_channel": platform_info.test_channel,
@@ -771,6 +772,15 @@ def api_platform_channels(env: str):
     try:
         env_key, _site, client = _platform_site_client(env)
         return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_channels"](client)})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.get("/api/platform/<env>/groups")
+def api_platform_groups(env: str):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_groups"](client)})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

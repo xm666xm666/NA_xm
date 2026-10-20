@@ -204,6 +204,11 @@ def list_channels(client: NewAPIClient) -> list[dict[str, Any]]:
     return rows
 
 
+def list_groups(client: NewAPIClient) -> list[str]:
+    """拉取渠道分组选项，与上游列表筛选保持一致。"""
+    return client.list_groups()
+
+
 def get_channel(client: NewAPIClient, channel_id: int) -> dict[str, Any]:
     """拉取单个渠道完整记录（不含明文密钥）。"""
     response = client.session.get(
