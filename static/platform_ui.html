@@ -205,6 +205,32 @@
       background: var(--na-accent-soft);
       box-shadow: 0 10px 24px rgba(2, 6, 23, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.04);
     }
+    .platform-search {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.55rem;
+      align-items: center;
+      padding: 0 0.1rem;
+    }
+    .platform-search input {
+      min-height: 2.45rem;
+      border: 1px solid var(--na-border);
+      border-radius: 10px;
+      background: rgba(2, 6, 23, 0.30);
+      color: var(--na-text);
+      font: 600 0.78rem/1.2 inherit;
+      padding: 0.55rem 0.7rem;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+    .platform-search input::placeholder { color: var(--na-text-muted); }
+    .platform-search input:hover { border-color: rgba(34, 211, 238, 0.32); }
+    .platform-search input:focus {
+      border-color: rgba(34, 211, 238, 0.58);
+      background: rgba(2, 6, 23, 0.38);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.10);
+    }
+    html[data-theme="light"] .platform-search input { background: rgba(248, 250, 252, 0.92); }
     .platform-meta {
       min-height: 1.5rem;
       padding: 0.55rem 0.72rem;
@@ -388,6 +414,7 @@
       .platform-address { width: 100%; max-width: none; margin-left: 0; }
       .platform-tabs { width: 100%; }
       .platform-tabs button { flex: 1; justify-content: center; }
+      .platform-search { grid-template-columns: 1fr; }
       .platform-table-wrap { max-height: none; }
       .platform-table td.copyable { max-width: min(68vw, 320px); }
       .platform-copy { padding: 0.2rem 0.38rem; }
@@ -424,6 +451,11 @@
         <button type="button" class="active" data-kind="channels" role="tab" aria-selected="true">NA渠道</button>
         <button type="button" data-kind="tokens" role="tab" aria-selected="false">NA令牌</button>
       </div>
+      <div class="platform-search" aria-label="列表筛选">
+        <input type="search" id="searchName" placeholder="搜索名称" autocomplete="off" />
+        <input type="search" id="searchGroup" placeholder="搜索分组" autocomplete="off" />
+        <input type="search" id="searchModel" placeholder="搜索模型" autocomplete="off" />
+      </div>
       <div class="platform-meta" id="tableMeta">选择已配置环境后读取列表。</div>
       <div class="platform-table-wrap"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
       <div class="platform-pagination" id="paginationBar"></div>
@@ -454,7 +486,7 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 50 };
+      const state = { env: "", kind: "channels", sites: [], rows: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 50, search: { name: "", group: "", model: "" } };
       const CHANNEL_TYPES = {
         1: "OpenAI", 2: "Midjourney Proxy", 3: "Azure OpenAI", 4: "Ollama", 5: "Midjourney Proxy Plus",
         8: "自定义渠道", 11: "Google PaLM2", 14: "Anthropic Claude", 15: "百度文心千帆", 16: "智谱 ChatGLM",
@@ -660,6 +692,24 @@
       }
       function siteFor(env) { return state.sites.find((site) => site.env === env); }
       function safeText(value) { return value == null ? "" : String(value); }
+      function splitSearchValues(value) {
+        return safeText(value).split(/[,，;；|/\n\r\t ]+/).map((item) => item.trim()).filter(Boolean);
+      }
+      function rowModels(record) {
+        if (state.kind === "channels") return splitSearchValues(record.models);
+        return record.token_model_limit_enabled ? splitSearchValues(record.token_model_limit) : [];
+      }
+      function normalizedTerm(value) { return safeText(value).trim().toLowerCase(); }
+      function matchesFilter(record) {
+        const nameTerm = normalizedTerm(state.search.name);
+        const groupTerm = normalizedTerm(state.search.group);
+        const modelTerm = normalizedTerm(state.search.model);
+        if (nameTerm && !safeText(record.name).toLowerCase().includes(nameTerm)) return false;
+        if (groupTerm && !splitSearchValues(record.group).some((item) => item.toLowerCase().includes(groupTerm))) return false;
+        if (modelTerm && !rowModels(record).some((item) => item.toLowerCase().includes(modelTerm))) return false;
+        return true;
+      }
+      function filteredRows() { return state.rows.filter(matchesFilter); }
       async function request(url, options) {
         const response = await fetch(url, options);
         let payload = {};
@@ -716,9 +766,10 @@
         }
       }
       function getPaginatedRows() {
-        if (state.pageSize === Infinity || state.pageSize >= state.rows.length) return state.rows;
+        const rows = filteredRows();
+        if (state.pageSize === Infinity || state.pageSize >= rows.length) return rows;
         const start = (state.page - 1) * state.pageSize;
-        return state.rows.slice(start, start + state.pageSize);
+        return rows.slice(start, start + state.pageSize);
       }
       function buildPageNumbers(current, total) {
         if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -734,7 +785,7 @@
       }
       function renderPagination() {
         const bar = $("paginationBar"); bar.replaceChildren();
-        const total = state.rows.length;
+        const total = filteredRows().length;
         if (!total) return;
         const totalPages = state.pageSize === Infinity ? 1 : Math.max(1, Math.ceil(total / state.pageSize));
         if (state.page > totalPages) state.page = totalPages;
@@ -882,7 +933,7 @@
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}`);
           state.rows = Array.isArray(payload.data) ? payload.data : [];
           state.page = 1;
-          renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · ${state.rows.length} 条记录`);
+          renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
         } catch (error) {
           state.rows = []; renderTable(); setMeta(error.message, "error"); NAUi.toast(error.message, "err");
         } finally { setBusy(button, false); }
@@ -1062,8 +1113,18 @@
       document.querySelectorAll(".platform-tabs button").forEach((button) => button.addEventListener("click", () => {
         const next = button.dataset.kind; if (next === state.kind) return; state.kind = next;
         document.querySelectorAll(".platform-tabs button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-selected", String(active)); });
+        state.search = { name: "", group: "", model: "" };
+        $("searchName").value = ""; $("searchGroup").value = ""; $("searchModel").value = "";
         state.page = 1; loadRows();
       }));
+      [["searchName", "name"], ["searchGroup", "group"], ["searchModel", "model"]].forEach(([elementId, key]) => {
+        $(elementId).addEventListener("input", (event) => {
+          state.search[key] = event.target.value;
+          state.page = 1;
+          renderTable();
+          setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
+        });
+      });
       $("refreshBtn").addEventListener("click", loadRows); $("cancelEdit").addEventListener("click", closeEditor); $("saveEdit").addEventListener("click", saveEditor);
       $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
       document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("editorBackdrop").hidden) closeEditor(); });
