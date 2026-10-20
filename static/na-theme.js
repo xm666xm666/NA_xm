@@ -5,18 +5,19 @@
   const STORAGE_KEY = "na_ui_theme";
   const MSG_TYPE = "na-theme-change";
   const THEMES = ["dark", "light"];
+  const DEFAULT_THEME = "light";
 
   function getStored() {
     try {
       const v = localStorage.getItem(STORAGE_KEY);
-      return THEMES.includes(v) ? v : "dark";
+      return THEMES.includes(v) ? v : DEFAULT_THEME;
     } catch (_) {
-      return "dark";
+      return DEFAULT_THEME;
     }
   }
 
   function applyTheme(theme, { persist = true, broadcast = true } = {}) {
-    const next = THEMES.includes(theme) ? theme : "dark";
+    const next = THEMES.includes(theme) ? theme : DEFAULT_THEME;
     document.documentElement.dataset.theme = next;
     if (persist) {
       try {
