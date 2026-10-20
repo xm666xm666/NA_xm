@@ -103,6 +103,57 @@ def _token_quota(raw: str) -> str:
     return str(max(value, 0))
 
 
+def channel_batch_lines(row: dict[str, Any]) -> list[str]:
+    name = _cell(row, "名称")
+    group = _cell(row, "分组")
+    channel_type = _cell(row, "类型")
+    models_raw = _cell(row, "模型列表", "模型", "models")
+    models = [item.strip() for item in re.split(r"[,，;；|]+", models_raw) if item.strip()]
+    base_url = _cell(row, "base_url", "Base URL").rstrip("/")
+    redirect = _mapping(_cell(row, "模型重定向", "model_mapping"))
+    key = _cell(row, "密钥", "秘钥", "key")
+    api_version = _cell(row, "默认API版本", "api_version", "default_api_version", "other")
+    if not name or not group or not channel_type or not models or not base_url or not key:
+        return []
+    if _is_azure(channel_type) and not api_version:
+        return []
+    lines: list[str] = []
+    for model in models:
+        target = redirect.get(model) or model
+        parts = [name, group, channel_type, model, f"{model}->{target}", base_url]
+        if api_version:
+            parts.append(api_version)
+        parts.append(key)
+        lines.append("\t".join(part.strip() for part in parts))
+    return lines
+
+
+def token_batch_line(row: dict[str, Any]) -> str:
+    name = _cell(row, "名称")
+    group = _cell(row, "分组")
+    models_raw = _cell(row, "可用模型", "模型限制", "token_model_limit")
+    if not name or not group:
+        return ""
+    if not models_raw or models_raw.lower() in _UNLIMITED_MODELS:
+        return ""
+    models = [item.strip() for item in re.split(r"[,，;；|]+", models_raw) if item.strip()]
+    if not models:
+        return ""
+    quota = _token_quota(_cell(row, "剩余额度", "额度", "额度(tokens)", "remain_quota"))
+    parts = [name, group, "、".join(models)]
+    if quota:
+        parts.append(quota)
+    return "\t".join(parts)
+
+
+def batch_line_for_row(row: dict[str, Any], kind: str) -> str:
+    if str(kind).strip().lower() == "channels":
+        return "\n".join(channel_batch_lines(row))
+    if str(kind).strip().lower() == "tokens":
+        return token_batch_line(row)
+    raise ValueError("kind 仅支持 channels 或 tokens")
+
+
 def _channel_lines(path: Path, *, include_disabled: bool) -> tuple[list[str], dict[str, int]]:
     lines: list[str] = []
     stats = {"rows": 0, "lines": 0, "skipped_disabled": 0, "skipped_missing_key": 0, "skipped_incomplete": 0}
@@ -112,32 +163,12 @@ def _channel_lines(path: Path, *, include_disabled: bool) -> tuple[list[str], di
             if not include_disabled and not _enabled(row.get("状态")):
                 stats["skipped_disabled"] += 1
                 continue
-            name = _cell(row, "名称")
-            group = _cell(row, "分组")
-            channel_type = _cell(row, "类型")
-            models_raw = _cell(row, "模型列表", "模型", "models")
-            models = [item.strip() for item in re.split(r"[,，;；|]+", models_raw) if item.strip()]
-            base_url = _cell(row, "base_url", "Base URL").rstrip("/")
-            redirect = _mapping(_cell(row, "模型重定向", "model_mapping"))
-            key = _cell(row, "密钥", "秘钥", "key")
-            api_version = _cell(row, "默认API版本", "api_version", "default_api_version", "other")
-            if not name or not group or not channel_type or not models or not base_url:
-                stats["skipped_incomplete"] += 1
-                continue
-            if not key:
+            generated = channel_batch_lines(row)
+            if not generated:
                 stats["skipped_missing_key"] += 1
                 continue
-            if _is_azure(channel_type) and not api_version:
-                stats["skipped_incomplete"] += 1
-                continue
-            for model in models:
-                target = redirect.get(model) or model
-                parts = [name, group, channel_type, model, f"{model}->{target}", base_url]
-                if api_version:
-                    parts.append(api_version)
-                parts.append(key)
-                lines.append("\t".join(part.strip() for part in parts))
-                stats["lines"] += 1
+            lines.extend(generated)
+            stats["lines"] += len(generated)
     return lines, stats
 
 
@@ -151,27 +182,14 @@ def _token_lines(path: Path, *, include_disabled: bool) -> tuple[list[str], dict
     for env in ENVS:
         for row in _read_rows(path, SHEET_TOKENS[env]):
             stats["rows"] += 1
-            if not include_disabled and not _enabled(row.get("状态")):
-                stats["skipped_disabled"] += 1
+            generated = token_batch_line(row)
+            if not generated:
+                if _cell(row, "可用模型", "模型限制", "token_model_limit").lower() in _UNLIMITED_MODELS:
+                    stats["skipped_unlimited_models"] += 1
+                else:
+                    stats["skipped_incomplete"] += 1
                 continue
-            name = _cell(row, "名称")
-            group = _cell(row, "分组")
-            models_raw = _cell(row, "可用模型", "模型限制", "token_model_limit")
-            if not name or not group:
-                stats["skipped_incomplete"] += 1
-                continue
-            if not models_raw or models_raw.lower() in _UNLIMITED_MODELS:
-                stats["skipped_unlimited_models"] += 1
-                continue
-            models = [item.strip() for item in re.split(r"[,，;；|]+", models_raw) if item.strip()]
-            if not models:
-                stats["skipped_incomplete"] += 1
-                continue
-            quota = _token_quota(_cell(row, "剩余额度", "额度", "额度(tokens)", "remain_quota"))
-            parts = [name, group, "、".join(models)]
-            if quota:
-                parts.append(quota)
-            lines.append("\t".join(parts))
+            lines.append(generated)
             stats["lines"] += 1
     return lines, stats
 

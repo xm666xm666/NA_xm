@@ -5,6 +5,7 @@ from pathlib import Path
 from openpyxl import Workbook
 
 from batch.lib.overview_batch_export import build_overview_batch_export
+from batch.lib.data_summary_exporter import save_workbook_data
 
 
 class OverviewBatchExportTests(unittest.TestCase):
@@ -36,6 +37,49 @@ class OverviewBatchExportTests(unittest.TestCase):
         self.assertEqual(tokens, ["token-alpha\tgateway\tmodel-a、model-b\t120"])
         self.assertEqual(token_stats["rows"], 1)
         self.assertEqual(token_stats["lines"], 1)
+
+    def test_save_workbook_data_writes_batch_config_column(self):
+        channel = {
+            "名称": "gateway-alpha",
+            "分组": "gateway",
+            "类型": "OpenAI",
+            "状态": "已启用",
+            "模型列表": "model-a",
+            "模型重定向": "",
+            "base_url": "https://upstream.example.com/",
+            "密钥": "sk-test",
+            "部署时间": "",
+        }
+        token = {
+            "名称": "token-alpha",
+            "项目环境": "test",
+            "状态": "已启用",
+            "剩余额度": "120/500",
+            "分组": "gateway",
+            "可用模型": "model-a、model-b",
+            "包含渠道": "gateway-alpha",
+            "IP限制": "无限制",
+            "创建时间": "",
+            "过期时间": "",
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "summary.xlsx"
+            save_workbook_data(
+                path,
+                channel_env_rows={"test": [channel], "uat": [], "prod": []},
+                token_env_rows={"test": [token], "uat": [], "prod": []},
+            )
+            from openpyxl import load_workbook
+
+            workbook = load_workbook(path)
+            channel_sheet = workbook["test-渠道管理"]
+            token_sheet = workbook["test-令牌管理"]
+            self.assertEqual(channel_sheet.cell(row=1, column=11).value, "批量配置")
+            self.assertEqual(channel_sheet.cell(row=2, column=11).value, "gateway-alpha\tgateway\tOpenAI\tmodel-a\tmodel-a->model-a\thttps://upstream.example.com\tsk-test")
+            self.assertEqual(token_sheet.cell(row=1, column=11).value, "批量配置")
+            self.assertEqual(token_sheet.cell(row=2, column=11).value, "token-alpha\tgateway\tmodel-a、model-b\t120")
+            workbook.close()
 
     def test_skips_disabled_rows_by_default(self):
         workbook = Workbook()

@@ -34,6 +34,7 @@ CHANNEL_HEADERS_WITH_KEY = [
     "base_url", "备注", "密钥", "部署时间",
 ]
 TOKEN_HEADERS = ["名称", "项目环境", "状态", "剩余额度", "分组", "可用模型", "包含渠道", "IP限制", "创建时间", "过期时间"]
+BATCH_CONFIG_HEADER = "批量配置"
 DUP_CHANNEL_HEADERS = ["名称", "类型", "状态", "模型列表", "模型重定向", "base_url", "备注", "部署时间", "来源", "重复序号"]
 DUP_CHANNEL_HEADERS_WITH_KEY = [
     "名称", "类型", "状态", "模型列表", "模型重定向", "base_url", "备注", "密钥", "部署时间", "来源", "重复序号",

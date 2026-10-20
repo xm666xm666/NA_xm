@@ -24,10 +24,12 @@ from .data_summary import (
     SHEET_DUP_TOKENS,
     SHEET_TOKENS,
     TOKEN_HEADERS,
+    BATCH_CONFIG_HEADER,
     build_duplicate_channels,
     build_duplicate_tokens,
     normalize_token_row,
 )
+from .overview_batch_export import batch_line_for_row
 
 TIMESTAMP_FORMAT = "%Y%m%d%H%M%S"
 _FILE_STAMP = re.compile(r"(\d{8,14})")
@@ -383,17 +385,20 @@ def save_workbook_data(
     ch_headers = list(channel_headers or CHANNEL_HEADERS)
     dup_ch_headers = list(dup_channel_headers or DUP_CHANNEL_HEADERS)
 
+    def rows_with_batch_config(rows: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
+        return [dict(row, **{BATCH_CONFIG_HEADER: batch_line_for_row(row, kind)}) for row in rows]
+
     for env in ENVS:
         _write_sheet(
             _ensure_sheet(wb, SHEET_CHANNELS[env], ch_headers),
-            ch_headers,
-            channel_env_rows.get(env, []),
+            ch_headers + [BATCH_CONFIG_HEADER],
+            rows_with_batch_config(channel_env_rows.get(env, []), "channels"),
             color_by="分组",
         )
         _write_sheet(
             _ensure_sheet(wb, SHEET_TOKENS[env], TOKEN_HEADERS),
-            TOKEN_HEADERS,
-            token_env_rows.get(env, []),
+            TOKEN_HEADERS + [BATCH_CONFIG_HEADER],
+            rows_with_batch_config(token_env_rows.get(env, []), "tokens"),
             color_by="分组",
         )
 
