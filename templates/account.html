@@ -26,5 +26,5 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button class="auth-secondary" type="submit">返回登录页面</button>
   </form>
-  <div class="auth-links auth-links-center"><a href="/">返回控制台</a></div>
+  <div class="auth-links auth-links-center"><a class="auth-console-link" href="/" aria-label="返回工作台">返回工作台 <span aria-hidden="true">→</span></a></div>
 {% endblock %}
