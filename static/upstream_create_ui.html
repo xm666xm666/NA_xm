@@ -613,8 +613,8 @@
         <div class="detail-block">
           <div class="search-row">
             <input id="modelSearch" placeholder="搜索模型" aria-label="搜索模型" />
-            <button id="btnLoadModels" class="na-btn na-btn-secondary" type="button">拉取模型</button>
-            <button id="btnLoadEnabledModels" class="na-btn na-btn-secondary" type="button">已开通模型</button>
+            <button id="btnLoadModels" class="na-btn na-btn-secondary" type="button">模型广场</button>
+            <button id="btnLoadEnabledModels" class="na-btn na-btn-secondary" type="button">刷新已开通</button>
           </div>
           <div id="modelGroups" class="group-row" aria-label="模型供应商分组"></div>
           <div class="table-wrap">
@@ -1022,7 +1022,7 @@
         <td><div class="row-actions"><button type="button" data-select="${esc(model.name)}">选择</button></div></td></tr>`).join("");
     }
 
-    async function loadModels({ enabled = false } = {}) {
+    async function loadModels({ enabled = true } = {}) {
       if (!selectedProject) { NAUi.showBanner("userBanner", "请先选择项目", "warn"); return; }
       const btn = enabled ? $("btnLoadEnabledModels") : $("btnLoadModels"); btn.disabled = true;
       try {
@@ -1418,7 +1418,7 @@
     $("formDescription").addEventListener("input", () => { updateProjectCounters(); validateProjectForm(); });
     $("formSubProject").addEventListener("change", validateProjectForm);
     $("formParent").addEventListener("change", validateProjectForm);
-    $("btnLoadModels").addEventListener("click", loadModels);
+    $("btnLoadModels").addEventListener("click", () => loadModels({ enabled: false }));
     $("btnLoadEnabledModels").addEventListener("click", () => loadModels({ enabled: true }));
     $("btnLoadEndpoints").addEventListener("click", loadEndpoints);
     $("btnLoadApiKeys").addEventListener("click", loadApiKeys);
