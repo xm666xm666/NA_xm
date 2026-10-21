@@ -404,11 +404,15 @@
     .form-footer .hint { margin: 0; }
     .na-modal-overlay {
       position: fixed; inset: 0; z-index: 1000;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(4, 8, 20, .58); backdrop-filter: blur(6px); padding: 1.2rem;
+      display: flex; align-items: flex-start; justify-content: center;
+      background: rgba(4, 8, 20, .58); backdrop-filter: blur(6px); padding: max(1rem, env(safe-area-inset-top)) 1.2rem max(1rem, env(safe-area-inset-bottom));
+      overflow-y: auto;
     }
     .na-modal {
       width: min(560px, 100%);
+      max-height: min(680px, calc(100dvh - 2rem));
+      margin: auto;
+      display: flex; flex-direction: column;
       border: 1px solid color-mix(in srgb, var(--na-border-bright) 65%, transparent);
       border-radius: 1rem;
       background: color-mix(in srgb, var(--na-panel-solid) 94%, transparent);
@@ -423,7 +427,10 @@
     }
     .na-modal-head h3 { margin: 0; font: 700 1rem var(--na-font-display); color: var(--na-text); }
     .na-modal-head p { margin: .25rem 0 0; font-size: .74rem; color: var(--na-text-muted); }
-    .na-modal-body { padding: 1.15rem; display: grid; gap: .8rem; }
+    .na-modal-body {
+      padding: 1.15rem; display: grid; gap: .8rem;
+      flex: 1; min-height: 0; overflow-y: auto;
+    }
     .na-modal-body label { display: grid; gap: .4rem; font-size: .74rem; font-weight: 600; color: var(--na-text-muted); }
     .na-modal-body input,
     .na-modal-body textarea {
