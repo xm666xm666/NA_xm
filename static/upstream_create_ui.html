@@ -1378,6 +1378,16 @@
     function openEndpointEdit(id) {
       const row = endpoints.find((item) => item.id === id);
       if (!row) return;
+      if (window.parent !== window) {
+        try {
+          window.parent.postMessage({
+            type: "na-upstream-endpoint-edit",
+            endpoint: row,
+            request: { ...credPayload(), endpoint_id: row.id },
+          }, window.location.origin);
+          return;
+        } catch (_) {}
+      }
       $("endpointEditId").value = row.id;
       $("endpointEditName").value = row.name || "";
       $("endpointEditDescription").value = row.description || "";
@@ -1491,6 +1501,10 @@
       if (deleteButton) await deleteEndpoint(deleteButton.dataset.deleteEndpoint);
     });
     window.addEventListener("message", (event) => { const data = event.data || {}; if (data.type === "na-theme-change") NATheme.apply(data.theme); });
+    window.addEventListener("message", async (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "na-upstream-endpoint-refresh") await loadEndpoints();
+    });
     loadConfig();
   </script>
 </body>

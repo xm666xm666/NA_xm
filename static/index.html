@@ -17,6 +17,45 @@
     .na-llm-note { margin: 0.55rem 0 0; font-size: 0.74rem; color: var(--na-text-muted); }
     code { font-family: var(--na-font-mono); font-size: 0.88em; color: var(--na-accent); }
     #rawInput { min-height: 200px; }
+    .na-parent-modal-overlay {
+      position: fixed; inset: 0; z-index: 1400;
+      display: flex; align-items: flex-start; justify-content: center;
+      background: rgba(4, 8, 20, .62); backdrop-filter: blur(7px);
+      padding: max(1rem, env(safe-area-inset-top)) 1.2rem max(1rem, env(safe-area-inset-bottom));
+      overflow-y: auto;
+    }
+    .na-parent-modal {
+      width: min(560px, 100%); max-height: min(680px, calc(100dvh - 2rem)); margin: auto;
+      display: flex; flex-direction: column;
+      border: 1px solid var(--na-border-bright); border-radius: 1rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 96%, transparent);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, .32); overflow: hidden;
+    }
+    .na-parent-modal-head {
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+      padding: 1.05rem 1.15rem; border-bottom: 1px solid var(--na-border);
+      background: var(--na-accent-soft);
+    }
+    .na-parent-modal-head h3 { margin: 0; font: 700 1rem var(--na-font-display); color: var(--na-text); }
+    .na-parent-modal-head p { margin: .25rem 0 0; font-size: .74rem; color: var(--na-text-muted); }
+    .na-parent-modal-body {
+      flex: 1; min-height: 0; overflow-y: auto;
+      display: grid; gap: .8rem; padding: 1.15rem;
+    }
+    .na-parent-modal-body label { display: grid; gap: .4rem; font-size: .74rem; font-weight: 600; color: var(--na-text-muted); }
+    .na-parent-modal-body input,
+    .na-parent-modal-body textarea {
+      width: 100%; box-sizing: border-box; border: 1px solid var(--na-border);
+      border-radius: var(--na-radius-sm); background: color-mix(in srgb, var(--na-panel-solid) 80%, transparent);
+      color: var(--na-text); padding: .62rem .75rem; font: 500 .82rem/1.45 var(--na-font-body);
+    }
+    .na-parent-modal-body textarea { min-height: 6rem; resize: vertical; }
+    .na-parent-modal-body input:focus,
+    .na-parent-modal-body textarea:focus { outline: none; border-color: var(--na-border-bright); box-shadow: 0 0 0 3px var(--na-accent-soft); }
+    .na-parent-modal-footer {
+      display: flex; justify-content: flex-end; gap: .65rem; padding: 1rem 1.15rem 1.15rem;
+      border-top: 1px solid var(--na-border);
+    }
     #channelLine.na-output.has-data { color: var(--na-text); border-color: rgba(34,211,238,0.25); }
     .na-extract-mode { display: flex; gap: 0.45rem; margin: 0 0 0.85rem; flex-wrap: wrap; }
     .na-extract-mode button {
@@ -270,7 +309,7 @@
   </div>
 
   <div id="viewUpstreamCreate" class="na-view" role="tabpanel" aria-labelledby="tabUpstreamCreate" hidden>
-    <iframe id="upstreamCreateFrame" class="na-iframe" title="上游创建" data-src="/static/upstream_create_ui.html?embed=1&v=creation-23"></iframe>
+    <iframe id="upstreamCreateFrame" class="na-iframe" title="上游创建" data-src="/static/upstream_create_ui.html?embed=1&v=creation-24"></iframe>
   </div>
 
   <div id="viewBill" class="na-view" role="tabpanel" aria-labelledby="tabBill" hidden>
@@ -283,6 +322,25 @@
 
   <div id="viewPipeline" class="na-view" role="tabpanel" aria-labelledby="tabPipeline" hidden>
     <iframe id="pipelineFrame" class="na-iframe" title="全流程智能体" data-src="/static/agent_ui.html?embed=1&v=art-1"></iframe>
+  </div>
+
+  <div id="endpointParentEditOverlay" class="na-parent-modal-overlay" hidden>
+    <div class="na-parent-modal" role="dialog" aria-modal="true" aria-labelledby="endpointParentEditTitle">
+      <div class="na-parent-modal-head">
+        <div><h3 id="endpointParentEditTitle">编辑接入点信息</h3><p>修改后同步更新上游推理接入点。</p></div>
+        <button id="btnCancelParentEndpointEdit" class="na-btn na-btn-ghost" type="button">取消</button>
+      </div>
+      <div class="na-parent-modal-body">
+        <label>接入点 ID<input id="endpointParentEditId" readonly /></label>
+        <label>接入点名称<input id="endpointParentEditName" maxlength="64" /></label>
+        <label>描述<textarea id="endpointParentEditDescription" maxlength="300"></textarea></label>
+        <div class="field-counter" style="text-align:right"><span id="endpointParentEditDescCount">0/300</span></div>
+      </div>
+      <div class="na-parent-modal-footer">
+        <button id="btnCancelParentEndpointEditFooter" class="na-btn na-btn-ghost" type="button">取消</button>
+        <button id="btnSubmitParentEndpointEdit" class="na-btn na-btn-primary" type="button">保存</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -1094,6 +1152,59 @@
       switchView(HASH_VIEW[parsed.view] || "workspace", { analysis: parsed.params.get("analysis") || "" });
     });
     window.addEventListener("resize", updateNavIndicator);
+    let parentEndpointEditPayload = null;
+    let parentEndpointEditSource = null;
+
+    function setParentEndpointEditVisible(visible) {
+      $("endpointParentEditOverlay").hidden = !visible;
+    }
+
+    async function submitParentEndpointEdit() {
+      if (!parentEndpointEditPayload) return;
+      const name = $("endpointParentEditName").value.trim();
+      const description = $("endpointParentEditDescription").value.trim();
+      if (!name) { NAUi.toast("请填写接入点名称", "err"); return; }
+      const button = $("btnSubmitParentEndpointEdit");
+      button.disabled = true;
+      try {
+        const response = await fetch("/api/upstream-create/volc/endpoints/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...parentEndpointEditPayload, name, description }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) throw new Error(result.message || `HTTP ${response.status}`);
+        NAUi.showBanner("userBanner", result.message || "接入点信息已更新", "ok");
+        NAUi.toast("接入点信息已更新", "ok");
+        parentEndpointEditSource?.postMessage({ type: "na-upstream-endpoint-refresh" }, location.origin);
+        setParentEndpointEditVisible(false);
+      } catch (error) {
+        NAUi.showBanner("userBanner", error.message, "err");
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    window.addEventListener("message", (message) => {
+      if (message.origin !== location.origin) return;
+      const data = message.data || {};
+      if (data.type === "na-upstream-endpoint-edit") {
+        parentEndpointEditSource = message.source;
+        const endpoint = data.endpoint || {};
+        parentEndpointEditPayload = data.request || {};
+        $("endpointParentEditId").value = endpoint.id || "";
+        $("endpointParentEditName").value = endpoint.name || "";
+        $("endpointParentEditDescription").value = endpoint.description || "";
+        $("endpointParentEditDescCount").textContent = `${$("endpointParentEditDescription").value.length}/300`;
+        setParentEndpointEditVisible(true);
+      }
+    });
+    $("btnCancelParentEndpointEdit").addEventListener("click", () => setParentEndpointEditVisible(false));
+    $("btnCancelParentEndpointEditFooter").addEventListener("click", () => setParentEndpointEditVisible(false));
+    $("btnSubmitParentEndpointEdit").addEventListener("click", submitParentEndpointEdit);
+    $("endpointParentEditDescription").addEventListener("input", () => {
+      $("endpointParentEditDescCount").textContent = `${$("endpointParentEditDescription").value.length}/300`;
+    });
     window.addEventListener("na-permissions-ready", (event) => {
       permissionFeatures = new Set(event.detail?.features || []);
       permissionsReady = true;
