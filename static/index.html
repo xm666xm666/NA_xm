@@ -24,6 +24,7 @@
       padding: max(1rem, env(safe-area-inset-top)) 1.2rem max(1rem, env(safe-area-inset-bottom));
       overflow-y: auto;
     }
+    .na-parent-modal-overlay[hidden] { display: none; }
     .na-parent-modal {
       width: min(560px, 100%); max-height: min(680px, calc(100dvh - 2rem)); margin: auto;
       display: flex; flex-direction: column;
@@ -309,7 +310,7 @@
   </div>
 
   <div id="viewUpstreamCreate" class="na-view" role="tabpanel" aria-labelledby="tabUpstreamCreate" hidden>
-    <iframe id="upstreamCreateFrame" class="na-iframe" title="上游创建" data-src="/static/upstream_create_ui.html?embed=1&v=creation-24"></iframe>
+    <iframe id="upstreamCreateFrame" class="na-iframe" title="上游创建" data-src="/static/upstream_create_ui.html?embed=1&v=creation-25"></iframe>
   </div>
 
   <div id="viewBill" class="na-view" role="tabpanel" aria-labelledby="tabBill" hidden>
