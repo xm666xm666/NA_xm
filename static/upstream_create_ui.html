@@ -713,6 +713,7 @@
     let projects = [];
     let models = [];
     let endpoints = [];
+    let pendingEndpointOperations = new Map();
     let apiKeys = [];
     let selectedApiKey = "";
     let editingApiKey = "";
@@ -967,6 +968,7 @@
     }
 
     async function selectProject(name, mode = "model") {
+      pendingEndpointOperations.clear();
       selectedProject = name;
       $("selectedProject").textContent = name;
       setProjectDetailMode(mode);
@@ -1061,11 +1063,16 @@
         <td>${esc(row.model_service || "-")}</td><td>${statusPill(row.status)}</td>
         <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(row.create_time || "-")}</td>
         <td><div class="row-actions">
-          <button type="button" data-edit-endpoint="${esc(row.id)}">编辑信息</button>
-          ${row.status === "Stopped"
-            ? `<button type="button" data-start-endpoint="${esc(row.id)}">启动</button>`
-            : `<button type="button" data-stop-endpoint="${esc(row.id)}">停止</button>`}
-          <button type="button" class="danger" data-delete-endpoint="${esc(row.id)}" ${row.status !== "Stopped" ? "disabled" : ""}>删除</button>
+          <button type="button" data-edit-endpoint="${esc(row.id)}" ${pendingEndpointOperations.has(row.id) ? "disabled" : ""}>编辑信息</button>
+          ${(() => {
+            const pendingOperation = pendingEndpointOperations.get(row.id);
+            if (pendingOperation === "stop") return `<button type="button" disabled>停止中</button>`;
+            if (pendingOperation === "start") return `<button type="button" disabled>启动中</button>`;
+            return row.status === "Stopped"
+              ? `<button type="button" data-start-endpoint="${esc(row.id)}">启动</button>`
+              : `<button type="button" data-stop-endpoint="${esc(row.id)}">停止</button>`;
+          })()}
+          <button type="button" class="danger" data-delete-endpoint="${esc(row.id)}" ${row.status !== "Stopped" || pendingEndpointOperations.has(row.id) ? "disabled" : ""}>删除</button>
         </div></td></tr>`).join("")
         : '<tr><td colspan="7">该项目还没有接入点。</td></tr>';
     }
@@ -1316,6 +1323,33 @@
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
     }
 
+    async function refreshEndpointStatus(id, expectedStatus, pendingOperation) {
+      try {
+        const data = await requestJson("/api/upstream-create/volc/endpoints", {
+          method: "POST", body: { ...credPayload(), project_name: selectedProject },
+        });
+        endpoints = data.data?.items || [];
+        const item = endpoints.find((row) => row.id === id);
+        if (!item) {
+          pendingEndpointOperations.delete(id);
+          renderEndpoints(endpoints);
+          return;
+        }
+        if (item.status === expectedStatus) {
+          pendingEndpointOperations.delete(id);
+          renderEndpoints(endpoints);
+          return;
+        }
+        pendingEndpointOperations.set(id, pendingOperation);
+        renderEndpoints(endpoints);
+        setTimeout(() => refreshEndpointStatus(id, expectedStatus, pendingOperation), 1500);
+      } catch (e) {
+        pendingEndpointOperations.delete(id);
+        renderEndpoints(endpoints);
+        NAUi.showBanner("userBanner", e.message, "err");
+      }
+    }
+
     async function createEndpoint() {
       const body = {
         ...credPayload(), project_name: selectedProject,
@@ -1423,18 +1457,25 @@
 
     async function stopEndpoint(id, button) {
       if (!confirm("确定停止该接入点？")) return;
+      pendingEndpointOperations.set(id, "stop");
+      renderEndpoints(endpoints);
       button.disabled = true;
       try {
         const data = await requestJson("/api/upstream-create/volc/endpoints/stop", {
           method: "POST", body: { ...credPayload(), endpoint_id: id },
         });
         const item = endpoints.find((row) => row.id === id);
-        if (item) item.status = data.data?.status || "Stopped";
+        const nextStatus = data.data?.status || "Stopped";
+        if (item) item.status = nextStatus;
+        if (nextStatus === "Stopped") {
+          pendingEndpointOperations.delete(id);
+          renderEndpoints(endpoints);
+        }
         NAUi.showBanner("userBanner", data.message || "接入点停止成功", "ok");
         renderEndpoints(endpoints);
-        await loadEndpoints();
+        await refreshEndpointStatus(id, "Stopped", "stop");
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
-      finally { button.disabled = false; }
+      finally { pendingEndpointOperations.delete(id); renderEndpoints(endpoints); }
     }
 
     async function deleteEndpoint(id) {
@@ -1451,6 +1492,8 @@
 
     async function startEndpoint(id, button) {
       if (!confirm("确定启动该接入点？")) return;
+      pendingEndpointOperations.set(id, "start");
+      renderEndpoints(endpoints);
       button.disabled = true;
       button.textContent = "启动中";
       try {
@@ -1458,12 +1501,19 @@
           method: "POST", body: { ...credPayload(), endpoint_id: id },
         });
         const item = endpoints.find((row) => row.id === id);
-        if (item) item.status = data.data?.status || "Running";
+        const nextStatus = data.data?.status || "Running";
+        if (item) item.status = nextStatus;
+        if (nextStatus === "Running") {
+          pendingEndpointOperations.delete(id);
+          renderEndpoints(endpoints);
+        }
         NAUi.showBanner("userBanner", data.message || "接入点启动成功", "ok");
         renderEndpoints(endpoints);
-        await loadEndpoints();
+        await refreshEndpointStatus(id, "Running", "start");
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
       finally {
+        pendingEndpointOperations.delete(id);
+        renderEndpoints(endpoints);
         button.disabled = false;
         button.textContent = "启动";
       }
