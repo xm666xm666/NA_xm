@@ -86,6 +86,12 @@
       color: var(--na-text-muted);
     }
     .form-grid .full { grid-column: 1 / -1; }
+    .field-hint { font-size: .68rem; line-height: 1.45; color: var(--na-text-muted); }
+    .field-error { min-height: .8rem; font-size: .68rem; color: var(--na-danger, #dc2626); }
+    .field-counter { font-size: .68rem; color: var(--na-text-muted); }
+    .label-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+    .label-head .required { color: var(--na-danger, #dc2626); font-style: normal; }
+    .form-grid input.invalid, .form-grid select.invalid { border-color: var(--na-danger, #dc2626); box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
     .form-grid input, .form-grid select, .form-grid textarea {
       width: 100%;
       box-sizing: border-box;
@@ -103,6 +109,54 @@
       border-color: var(--na-border-bright);
       box-shadow: 0 0 0 3px var(--na-accent-soft);
     }
+    .project-form {
+      margin-top: .85rem; padding: 1rem; border-radius: .8rem;
+      border: 1px solid color-mix(in srgb, var(--na-border) 82%, transparent);
+      background: color-mix(in srgb, var(--na-panel-solid) 42%, transparent);
+    }
+    .project-form-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: .9rem; }
+    .project-form-head h3 { margin: 0; font: 700 .95rem var(--na-font-display); color: var(--na-text); }
+    .project-form-head p { margin: .3rem 0 0; font-size: .72rem; line-height: 1.5; color: var(--na-text-muted); }
+    .project-form-grid { grid-template-columns: repeat(3, minmax(180px, 1fr)); }
+    .subproject-row {
+      display: grid; grid-template-columns: minmax(260px, .55fr) minmax(320px, .45fr);
+      gap: 1rem; align-items: end; margin-top: 1rem;
+    }
+    .subproject-toggle {
+      display: flex; align-items: center; gap: .75rem; min-height: 3.9rem;
+      border: 1px solid color-mix(in srgb, var(--na-border) 82%, transparent);
+      border-radius: .65rem; padding: .65rem .8rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 58%, transparent);
+    }
+    .subproject-toggle strong { display: block; font-size: .78rem; color: var(--na-text); }
+    .subproject-toggle p { margin: .2rem 0 0; font-size: .68rem; color: var(--na-text-muted); }
+    .na-switch { position: relative; flex: 0 0 auto; width: 2.45rem; height: 1.35rem; cursor: pointer; }
+    .na-switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+    .na-switch span {
+      position: absolute; inset: 0; border-radius: 999px; transition: all .2s;
+      background: color-mix(in srgb, var(--na-border) 82%, transparent);
+      border: 1px solid var(--na-border);
+    }
+    .na-switch span::after {
+      content: ""; position: absolute; top: .16rem; left: .18rem;
+      width: .92rem; height: .92rem; border-radius: 50%;
+      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .2s;
+    }
+    .na-switch input:checked + span { background: var(--na-accent); border-color: color-mix(in srgb, var(--na-accent) 70%, transparent); }
+    .na-switch input:checked + span::after { transform: translateX(1.05rem); }
+    .parent-field { display: grid; gap: .4rem; }
+    .parent-field.disabled { opacity: .55; pointer-events: none; }
+    .parent-field > label { font-size: .74rem; font-weight: 600; color: var(--na-text-muted); }
+    .parent-field .required { color: var(--na-danger, #dc2626); font-style: normal; margin-left: .15rem; }
+    .parent-control { display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: stretch; }
+    .parent-control select { min-height: 2.72rem; }
+    .parent-control button {
+      display: inline-flex; align-items: center; justify-content: center; min-width: 2.72rem;
+      border: 1px solid var(--na-border); border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 76%, transparent);
+      color: var(--na-text-muted); cursor: pointer; transition: all .18s;
+    }
+    .parent-control button:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
     .search-row { display: flex; gap: .6rem; align-items: center; }
     .search-row input, .search-row button { min-height: 2.7rem; }
     .search-row input {
@@ -356,6 +410,8 @@
     .api-key-only #endpointTableWrap { display: none; }
     @media (max-width: 1160px) {
       .detail-grid { grid-template-columns: 1fr; }
+      .project-form-grid { grid-template-columns: 1fr; }
+      .subproject-row { grid-template-columns: 1fr; align-items: stretch; }
     }
     @media (max-width: 700px) {
       .na-card { padding: 1rem; }
@@ -411,15 +467,51 @@
         </div>
       <div id="projectForm" hidden>
         <hr class="na-divider" />
-        <div class="form-grid">
-          <label>项目名称<input id="formProjectName" maxlength="64" placeholder="AI_Ops" /></label>
-          <label>负责人<input id="formOwner" placeholder="张三" /></label>
-          <label>显示名称<input id="formDisplayName" maxlength="64" placeholder="留空自动生成：项目名-负责人" /></label>
-          <label class="full">项目备注<textarea id="formDescription" maxlength="128" placeholder="项目用途说明"></textarea></label>
-          <div class="switch-row full">
-            <input id="formSubProject" type="checkbox" checked />
-            <label for="formSubProject">作为子项目</label>
-            <select id="formParent"><option value="default">default（默认项目）</option></select>
+        <div class="project-form">
+          <div class="project-form-head">
+            <div>
+              <h3 id="projectFormTitle">新建项目</h3>
+              <p>输入规则与火山云一致；项目创建后名称不可修改。</p>
+            </div>
+          </div>
+          <div class="form-grid project-form-grid">
+            <label>
+              <span class="label-head"><span>项目名称<span class="required">*</span></span><span class="field-counter" id="projectNameCount">0/64</span></span>
+              <input id="formProjectName" maxlength="64" autocomplete="off" spellcheck="false" placeholder="请输入" />
+              <span class="field-hint">长度为1-64个字符，可包含英文字母、数字、符号（-_），项目名称不区分大小写，创建后不可修改。</span>
+              <span class="field-error" id="projectNameError"></span>
+            </label>
+            <label>
+              <span class="label-head"><span>负责人</span></span>
+              <input id="formOwner" autocomplete="off" placeholder="张三" />
+              <span class="field-hint">留空时生成规则会记为 N/A。</span>
+              <span class="field-error"></span>
+            </label>
+            <label>
+              <span class="label-head"><span>显示名称</span><span class="field-counter" id="displayNameCount">0/64</span></span>
+              <input id="formDisplayName" maxlength="64" autocomplete="off" placeholder="请输入" />
+              <span class="field-hint">长度为1-64个字符，可包含中英文字母、数字、符号；留空自动生成：项目名-负责人。</span>
+              <span class="field-error" id="displayNameError"></span>
+            </label>
+            <label class="full">
+              <span class="label-head"><span>备注</span><span class="field-counter" id="descriptionCount">0/128</span></span>
+              <textarea id="formDescription" maxlength="128" placeholder="可包含中英文字母、数字、符号"></textarea>
+              <span class="field-error"></span>
+            </label>
+          </div>
+          <div class="subproject-row full">
+            <div class="subproject-toggle">
+              <label class="na-switch" for="formSubProject"><input id="formSubProject" type="checkbox" checked /><span></span></label>
+              <div><strong>是否为子项目</strong><p>关闭后将作为独立项目创建。</p></div>
+            </div>
+            <div class="parent-field" id="parentProjectField">
+              <label for="formParent">父级项目<span class="required">*</span></label>
+              <div class="parent-control">
+                <select id="formParent"><option value="default">default（默认项目）</option></select>
+                <button id="btnRefreshParents" type="button" title="刷新父级项目" aria-label="刷新父级项目">↻</button>
+              </div>
+              <span class="field-error" id="parentProjectError"></span>
+            </div>
           </div>
         </div>
         <div class="actions">
@@ -579,6 +671,53 @@
       return payload;
     }
 
+    const PROJECT_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+    function updateProjectCounters() {
+      $("projectNameCount").textContent = `${$("formProjectName").value.length}/64`;
+      $("displayNameCount").textContent = `${$("formDisplayName").value.length}/64`;
+      $("descriptionCount").textContent = `${$("formDescription").value.length}/128`;
+    }
+
+    function renderParentOptions(preferredValue = "") {
+      const select = $("formParent");
+      const previous = preferredValue || select.value || "default";
+      const values = ["default", previous, ...projects.map((item) => item.project_name).filter(Boolean)].filter(Boolean);
+      const uniqueValues = [...new Set(values)];
+      select.innerHTML = uniqueValues.map((value) => {
+        const item = projects.find((project) => project.project_name === value);
+        const label = value === "default" ? "default（默认项目）" : (item?.display_name ? `${value}｜${item.display_name}` : value);
+        return `<option value="${esc(value)}">${esc(label)}</option>`;
+      }).join("");
+      select.value = uniqueValues.includes(previous) ? previous : "default";
+    }
+
+    function setProjectFieldError(fieldId, errorId, message) {
+      $(fieldId).classList.toggle("invalid", !!message);
+      $(errorId).textContent = message || "";
+    }
+
+    function validateProjectForm() {
+      const projectName = $("formProjectName").value.trim();
+      const displayName = $("formDisplayName").value.trim();
+      const description = $("formDescription").value.trim();
+      const subProject = $("formSubProject").checked;
+      $("parentProjectField").classList.toggle("disabled", !subProject);
+      $("formParent").disabled = !subProject;
+      const parentProject = subProject ? $("formParent").value.trim() : "";
+      const projectNameError = !projectName
+        ? "项目名称不能为空"
+        : (PROJECT_NAME_PATTERN.test(projectName) ? "" : "项目名称仅支持英文字母、数字、下划线和短横线，长度1-64位");
+      const displayNameError = displayName.length > 64 ? "显示名称长度不能超过64个字符" : "";
+      const descriptionError = description.length > 128 ? "备注长度不能超过128个字符" : "";
+      const parentError = subProject && !parentProject ? "父级项目不能为空" : "";
+      setProjectFieldError("formProjectName", "projectNameError", projectNameError);
+      setProjectFieldError("formDisplayName", "displayNameError", displayNameError);
+      setProjectFieldError("formDescription", "", descriptionError);
+      setProjectFieldError("formParent", "parentProjectError", parentError);
+      return !projectNameError && !displayNameError && !descriptionError && !parentError;
+    }
+
     async function requestJson(url, init = {}) {
       const resp = await fetch(url, {
         ...init,
@@ -654,22 +793,32 @@
     function openCreateForm() {
       editingProject = "";
       $("projectForm").hidden = false;
+      $("projectFormTitle").textContent = "新建项目";
       $("btnSubmitProject").textContent = "创建项目";
+      $("formProjectName").disabled = false;
       $("formProjectName").value = ""; $("formOwner").value = ""; $("formDisplayName").value = "";
       $("formDescription").value = ""; $("formSubProject").checked = true; $("formParent").value = "default";
+      renderParentOptions("default");
+      updateProjectCounters();
+      validateProjectForm();
       $("formProjectName").focus();
     }
 
     function openEditForm(project) {
       editingProject = project.project_name;
       $("projectForm").hidden = false;
+      $("projectFormTitle").textContent = "编辑项目";
       $("btnSubmitProject").textContent = "保存项目";
+      $("formProjectName").disabled = true;
       $("formProjectName").value = project.project_name;
       $("formOwner").value = project.owner === "N/A" ? "" : project.owner;
       $("formDisplayName").value = project.display_name;
       $("formDescription").value = project.description;
       $("formSubProject").checked = !!project.parent_project_name;
       $("formParent").value = project.parent_project_name || "default";
+      renderParentOptions(project.parent_project_name || "default");
+      updateProjectCounters();
+      validateProjectForm();
     }
 
     async function loadProjects() {
@@ -680,6 +829,7 @@
           body: { ...credPayload(), search: $("projectSearch").value.trim() },
         });
         projects = data.data?.items || [];
+        renderParentOptions();
         renderProjects();
         NAUi.showBanner("userBanner", `已加载 ${projects.length} 个项目`, "ok");
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); addLog(e.message, "warn"); }
@@ -687,6 +837,7 @@
     }
 
     async function submitProject() {
+      if (!validateProjectForm()) { NAUi.showBanner("userBanner", "请检查项目表单输入", "err"); return; }
       const isEdit = !!editingProject;
       const body = {
         ...credPayload(),
@@ -1044,6 +1195,12 @@
     $("btnShowCreate").addEventListener("click", openCreateForm);
     $("btnSubmitProject").addEventListener("click", submitProject);
     $("btnCancelProject").addEventListener("click", () => $("projectForm").hidden = true);
+    $("btnRefreshParents").addEventListener("click", loadProjects);
+    $("formProjectName").addEventListener("input", validateProjectForm);
+    $("formDisplayName").addEventListener("input", validateProjectForm);
+    $("formDescription").addEventListener("input", () => { updateProjectCounters(); validateProjectForm(); });
+    $("formSubProject").addEventListener("change", validateProjectForm);
+    $("formParent").addEventListener("change", validateProjectForm);
     $("btnLoadModels").addEventListener("click", loadModels);
     $("btnLoadEndpoints").addEventListener("click", loadEndpoints);
     $("btnLoadApiKeys").addEventListener("click", loadApiKeys);

@@ -142,6 +142,12 @@ class UpstreamCreationTests(unittest.TestCase):
         ])
         self.assertEqual(result["parent_project_name"], "default")
 
+    def test_create_project_validates_volcano_name_rules(self):
+        with self.assertRaisesRegex(ValueError, "项目名称"):
+            upstream_creation.create_project(
+                "ak", "sk", project_name="invalid name", owner="张三"
+            )
+
     def test_update_and_delete_project(self):
         fake = FakeClient("ak", "sk")
         original = upstream_creation.VolcOpenAPIClient

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 from typing import Any
 
 from .volc_openapi import VolcOpenAPIClient
@@ -15,6 +16,9 @@ def build_project_display_name(project_name: str, owner: str = "") -> str:
     name = str(project_name or "").strip()
     person = str(owner or "").strip() or "N/A"
     return f"{name}-{person}" if name else ""
+
+
+PROJECT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def normalize_project(item: dict[str, Any]) -> dict[str, Any]:
@@ -217,7 +221,15 @@ def create_project(
     name = str(project_name or "").strip()
     if not name:
         raise ValueError("项目名称不能为空")
+    if not PROJECT_NAME_PATTERN.fullmatch(name):
+        raise ValueError("项目名称仅支持英文字母、数字、下划线和短横线，长度1-64位")
+    if len(str(parent_project_name or "").strip()) > 64:
+        raise ValueError("父级项目名称长度不能超过64个字符")
     display = str(display_name or "").strip() or build_project_display_name(name, owner)
+    if len(display) > 64:
+        raise ValueError("显示名称长度不能超过64个字符")
+    if len(str(description or "").strip()) > 128:
+        raise ValueError("备注长度不能超过128个字符")
     client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
     client.create_project(
         project_name=name,
