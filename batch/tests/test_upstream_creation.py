@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from lib import upstream_creation
+from lib.volc_openapi import VolcOpenAPIError
 
 
 class FakeClient:
@@ -217,6 +218,64 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(rows[0]["id"], "ep-20261014144019-smrv7")
         self.assertEqual(rows[0]["model_service"], "GLM-5.3-Flash｜260828")
         self.assertEqual(created["endpoint_id"], "ep-new")
+
+    def test_create_endpoint_activates_model_service_and_retries(self):
+        class ServiceNotOpenClient:
+            def __init__(self, access_key_id: str, secret_access_key: str, *, region: str = "cn-beijing") -> None:
+                self.access_key_id = access_key_id
+                self.secret_access_key = secret_access_key
+                self.region = region
+                self.calls = []
+
+            def create_endpoint(self, **kwargs):
+                self.calls.append(("create_endpoint", kwargs))
+                if len([call for call in self.calls if call[0] == "create_endpoint"]) == 1:
+                    raise VolcOpenAPIError(
+                        "CreateEndpoint 失败: service not open",
+                        code="OperationDenied.ServiceNotOpen",
+                    )
+                return {"Id": "ep-new"}
+
+            def activate_model_service(self, **kwargs):
+                self.calls.append(("activate_model_service", kwargs))
+                return {"State": "Available"}
+
+        fake = ServiceNotOpenClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = lambda *args, **kwargs: fake
+        try:
+            result = upstream_creation.create_endpoint(
+                "ak",
+                "sk",
+                name="demo-ep",
+                project_name="AIOps",
+                model_name="DeepSeek-V4.1-Flash",
+                model_version="economy",
+            )
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertEqual(result["endpoint_id"], "ep-new")
+        self.assertEqual(fake.calls, [
+            ("create_endpoint", {
+                "name": "demo-ep",
+                "project_name": "AIOps",
+                "model_name": "DeepSeek-V4.1-Flash",
+                "model_version": "economy",
+                "description": "",
+                "rpm": None,
+                "tpm": None,
+            }),
+            ("activate_model_service", {"model_name": "DeepSeek-V4.1-Flash", "sub_services": ["base"]}),
+            ("create_endpoint", {
+                "name": "demo-ep",
+                "project_name": "AIOps",
+                "model_name": "DeepSeek-V4.1-Flash",
+                "model_version": "economy",
+                "description": "",
+                "rpm": None,
+                "tpm": None,
+            }),
+        ])
 
     def test_list_api_keys_does_not_expose_plain_key(self):
         fake = FakeClient("ak", "sk")

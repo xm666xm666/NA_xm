@@ -500,3 +500,23 @@ class VolcOpenAPIClient:
             version="2024-01-01",
             body=body,
         )
+
+    def activate_model_service(
+        self,
+        *,
+        model_name: str,
+        sub_services: list[str] | None = None,
+    ) -> dict[str, Any]:
+        if not str(model_name or "").strip():
+            raise ValueError("模型名称不能为空")
+        body: dict[str, Any] = {"FoundationModelName": str(model_name).strip()}
+        if sub_services:
+            body["SubServices"] = [str(value).strip() for value in sub_services if str(value).strip()]
+        return self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="OpenModelChargeItem",
+            version="2024-01-01",
+            body=body,
+        )

@@ -7,7 +7,7 @@ import ipaddress
 import re
 from typing import Any
 
-from .volc_openapi import VolcOpenAPIClient
+from .volc_openapi import VolcOpenAPIError, VolcOpenAPIClient
 from .upstream_volc import format_model_service
 
 
@@ -526,15 +526,22 @@ def create_endpoint(
     if not str(model_version or "").strip():
         raise ValueError("模型版本不能为空")
     client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
-    result = client.create_endpoint(
-        name=str(name).strip(),
-        project_name=str(project_name).strip(),
-        model_name=str(model_name).strip(),
-        model_version=str(model_version).strip(),
-        description=str(description or "").strip(),
-        rpm=rpm,
-        tpm=tpm,
-    )
+    create_kwargs = {
+        "name": str(name).strip(),
+        "project_name": str(project_name).strip(),
+        "model_name": str(model_name).strip(),
+        "model_version": str(model_version).strip(),
+        "description": str(description or "").strip(),
+        "rpm": rpm,
+        "tpm": tpm,
+    }
+    try:
+        result = client.create_endpoint(**create_kwargs)
+    except VolcOpenAPIError as exc:
+        if exc.code != "OperationDenied.ServiceNotOpen":
+            raise
+        client.activate_model_service(model_name=str(model_name).strip(), sub_services=["base"])
+        result = client.create_endpoint(**create_kwargs)
     return {
         "endpoint_id": str(result.get("Id") or result.get("EndpointId") or "").strip(),
         "request": {

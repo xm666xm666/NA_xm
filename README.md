@@ -2655,7 +2655,7 @@ python agent/tests/test_pipeline_runner.py
 | `GET/POST` | `/api/upstream-create/volc/models` | 拉取模型目录 |
 | `GET/POST` | `/api/upstream-create/volc/model-versions` | 按模型拉取版本 |
 | `GET/POST` | `/api/upstream-create/volc/endpoints` | 拉取项目下推理接入点 |
-| `POST` | `/api/upstream-create/volc/endpoints/create` | 创建推理接入点 |
+| `POST` | `/api/upstream-create/volc/endpoints/create` | 创建推理接入点；遇到 `ServiceNotOpen` 自动开通基础模型服务并重试 |
 | `POST` | `/api/upstream-create/volc/api-keys` | 拉取项目下 API Key、权限与白名单（不含明文） |
 | `POST` | `/api/upstream-create/volc/api-keys/create` | 创建 API Key，权限默认全部 |
 | `POST` | `/api/upstream-create/volc/api-keys/raw` | 按需拉取 API Key 明文，用于复制 |
