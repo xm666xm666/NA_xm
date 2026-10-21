@@ -262,7 +262,7 @@
     </header>
 
     <div class="creation-stack">
-      <section class="na-card na-animate-in">
+      <section class="na-card na-animate-in" id="credentialSection">
         <div class="na-card-head">
           <div><h2 class="na-card-title">访问凭证</h2><p class="na-card-desc">连接火山云 IAM。Secret 由服务端配置时无需重复填写。</p></div>
         </div>
@@ -278,7 +278,7 @@
         </div>
       </section>
 
-      <section class="na-card na-animate-in">
+      <section class="na-card na-animate-in" id="projectManager">
         <div class="na-card-head">
           <div><h2 class="na-card-title">项目管理</h2><p class="na-card-desc">选择项目后可拉取模型版本并创建推理接入点。</p></div>
           <span class="status-pill">IAM 签名代理</span>
@@ -320,8 +320,11 @@
 
     <section class="na-card na-animate-in" id="projectDetail" hidden>
       <div class="na-card-head">
-        <div><h2 class="na-card-title">推理接入点 · <span id="selectedProject"></span></h2><p class="na-card-desc">先选择模型版本，再在项目下创建接入点并查看部署状态。</p></div>
-        <button id="btnLoadEndpoints" class="na-btn na-btn-ghost" type="button">刷新接入点</button>
+        <div><h2 class="na-card-title">推理接入点 · <span id="selectedProject"></span></h2><p class="na-card-desc">点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。</p></div>
+        <div class="actions">
+          <button id="btnChangeProject" class="na-btn na-btn-secondary" type="button">切换项目</button>
+          <button id="btnLoadEndpoints" class="na-btn na-btn-ghost" type="button">刷新接入点</button>
+        </div>
       </div>
 
       <div class="detail-grid">
@@ -531,7 +534,12 @@
       if (!confirm(`确认删除项目 ${name}？火山云要求项目下无资源才可删除。`)) return;
       try {
         await requestJson("/api/upstream-create/volc/projects/delete", { method: "POST", body: { ...credPayload(), project_name: name } });
-        if (selectedProject === name) { selectedProject = ""; $("projectDetail").hidden = true; }
+        if (selectedProject === name) {
+          selectedProject = "";
+          $("credentialSection").hidden = false;
+          $("projectManager").hidden = false;
+          $("projectDetail").hidden = true;
+        }
         NAUi.showBanner("userBanner", "项目删除成功", "ok");
         await loadProjects();
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
@@ -541,6 +549,8 @@
       selectedProject = name;
       $("selectedProject").textContent = name;
       $("projectDetail").hidden = false;
+      $("credentialSection").hidden = true;
+      $("projectManager").hidden = true;
       models = [];
       renderModelGroups();
       renderModels();
@@ -548,6 +558,7 @@
       $("endpointModel").value = ""; $("endpointVersion").value = "";
       $("endpointName").value = "";
       renderProjects();
+      $("projectDetail").scrollIntoView({ behavior: "smooth", block: "start" });
       await loadModels();
       await loadEndpoints();
     }
@@ -559,10 +570,10 @@
         : models;
       if (!visibleModels.length) { rows.innerHTML = '<tr><td colspan="6">该分组暂无模型。</td></tr>'; return; }
       rows.innerHTML = visibleModels.map((model) => `
-        <tr class="clickable" data-model="${esc(model.name)}" title="点击选择模型版本"><td class="wrap">${esc(model.name)}</td><td>${esc(model.display_name || "-")}</td>
+        <tr class="clickable" data-model="${esc(model.name)}" title="点击填入接入点"><td class="wrap">${esc(model.name)}</td><td>${esc(model.display_name || "-")}</td>
         <td>${esc(model.vendor || "-")}</td><td>${esc(model.primary_version || "-")}</td>
         <td>${statusPill(model.state)}</td>
-        <td><div class="row-actions"><button type="button" data-versions="${esc(model.name)}">选择版本</button></div></td></tr>`).join("");
+        <td><div class="row-actions"><button type="button" data-select="${esc(model.name)}">选择</button></div></td></tr>`).join("");
     }
 
     async function loadModels() {
@@ -579,6 +590,15 @@
         NAUi.showBanner("userBanner", `已返回 ${models.length} 个模型`, "ok");
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
       finally { btn.disabled = false; }
+    }
+
+    async function selectModel(modelName) {
+      const model = models.find((item) => item.name === modelName);
+      if (model?.primary_version) {
+        useModel(modelName, model.primary_version);
+        return;
+      }
+      await loadVersions(modelName);
     }
 
     async function loadVersions(modelName) {
@@ -600,10 +620,11 @@
     }
 
     function useModel(modelName, version) {
+      const model = models.find((item) => item.name === modelName);
       $("endpointModel").value = modelName;
       $("endpointVersion").value = version;
-      const model = models.find((item) => item.name === modelName);
-      $("endpointName").value = `${modelName}.${version}`.replace(/[^a-z0-9_.-]+/gi, "-").toLowerCase();
+      $("endpointName").value = `${modelName}-${version}`.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+      if (!$("endpointDescription").value.trim()) $("endpointDescription").value = model?.display_name || "";
       $("versionPanel").hidden = true;
       NAUi.toast(`已选择 ${modelName}｜${version}`, "ok");
     }
@@ -662,6 +683,13 @@
     $("btnCancelProject").addEventListener("click", () => $("projectForm").hidden = true);
     $("btnLoadModels").addEventListener("click", loadModels);
     $("btnLoadEndpoints").addEventListener("click", loadEndpoints);
+    $("btnChangeProject").addEventListener("click", () => {
+      $("projectDetail").hidden = true;
+      $("credentialSection").hidden = false;
+      $("projectManager").hidden = false;
+      renderProjects();
+      $("projectManager").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     $("btnCreateEndpoint").addEventListener("click", createEndpoint);
     $("projectRows").addEventListener("click", async (event) => {
       const btn = event.target.closest("button"); if (!btn) return;
@@ -676,7 +704,9 @@
       renderModels();
     });
     $("modelRows").addEventListener("click", (event) => {
-      const row = event.target.closest("tr[data-model]"); if (row?.dataset.model) loadVersions(row.dataset.model);
+      const target = event.target.closest("button[data-select], tr[data-model]");
+      const modelName = target?.dataset.select || target?.dataset.model;
+      if (modelName) selectModel(modelName);
     });
     $("versionRows").addEventListener("click", (event) => {
       const target = event.target.closest("button[data-use], tr[data-use]");
