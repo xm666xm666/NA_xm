@@ -465,8 +465,9 @@ class UpstreamCreationTests(unittest.TestCase):
         client.request = lambda **kwargs: calls.append(kwargs) or {}
         client.update_endpoint(endpoint_id="ep-1", name="new-name", description="desc")
         client.stop_endpoint(endpoint_id="ep-1")
+        client.start_endpoint(endpoint_id="ep-1")
         client.delete_endpoint(endpoint_id="ep-1")
-        self.assertEqual([call["action"] for call in calls], ["UpdateEndpoint", "StopEndpoint", "DeleteEndpoint"])
+        self.assertEqual([call["action"] for call in calls], ["UpdateEndpoint", "StopEndpoint", "StartEndpoint", "DeleteEndpoint"])
         self.assertEqual(calls[0]["body"], {"Id": "ep-1", "Name": "new-name", "Description": "desc"})
 
 

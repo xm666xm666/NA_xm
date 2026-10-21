@@ -573,6 +573,18 @@ class VolcOpenAPIClient:
             body={"Id": str(endpoint_id).strip()},
         )
 
+    def start_endpoint(self, *, endpoint_id: str) -> dict[str, Any]:
+        if not str(endpoint_id or "").strip():
+            raise ValueError("接入点 ID 不能为空")
+        return self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="StartEndpoint",
+            version="2024-01-01",
+            body={"Id": str(endpoint_id).strip()},
+        )
+
     def delete_endpoint(self, *, endpoint_id: str) -> dict[str, Any]:
         if not str(endpoint_id or "").strip():
             raise ValueError("接入点 ID 不能为空")

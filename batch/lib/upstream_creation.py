@@ -635,6 +635,20 @@ def stop_endpoint(
     return {"id": str(endpoint_id).strip(), "status": "Stopped"}
 
 
+def start_endpoint(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    endpoint_id: str,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    if not str(endpoint_id or "").strip():
+        raise ValueError("接入点 ID 不能为空")
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    client.start_endpoint(endpoint_id=str(endpoint_id).strip())
+    return {"id": str(endpoint_id).strip(), "status": "Running"}
+
+
 def delete_endpoint(
     access_key_id: str,
     secret_access_key: str,

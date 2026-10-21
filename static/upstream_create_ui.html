@@ -1062,7 +1062,9 @@
         <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(row.create_time || "-")}</td>
         <td><div class="row-actions">
           <button type="button" data-edit-endpoint="${esc(row.id)}">编辑信息</button>
-          <button type="button" data-stop-endpoint="${esc(row.id)}" ${row.status === "Stopped" ? "disabled" : ""}>停止</button>
+          ${row.status === "Stopped"
+            ? `<button type="button" data-start-endpoint="${esc(row.id)}">启动</button>`
+            : `<button type="button" data-stop-endpoint="${esc(row.id)}">停止</button>`}
           <button type="button" class="danger" data-delete-endpoint="${esc(row.id)}" ${row.status !== "Stopped" ? "disabled" : ""}>删除</button>
         </div></td></tr>`).join("")
         : '<tr><td colspan="7">该项目还没有接入点。</td></tr>';
@@ -1446,6 +1448,26 @@
         await loadEndpoints();
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
     }
+
+    async function startEndpoint(id, button) {
+      if (!confirm("确定启动该接入点？")) return;
+      button.disabled = true;
+      button.textContent = "启动中";
+      try {
+        const data = await requestJson("/api/upstream-create/volc/endpoints/start", {
+          method: "POST", body: { ...credPayload(), endpoint_id: id },
+        });
+        const item = endpoints.find((row) => row.id === id);
+        if (item) item.status = data.data?.status || "Running";
+        NAUi.showBanner("userBanner", data.message || "接入点启动成功", "ok");
+        renderEndpoints(endpoints);
+        await loadEndpoints();
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+      finally {
+        button.disabled = false;
+        button.textContent = "启动";
+      }
+    }
     $("btnCreateEndpoint").addEventListener("click", createEndpoint);
     $("btnCancelEndpointEdit").addEventListener("click", closeEndpointEdit);
     $("btnCancelEndpointEditFooter").addEventListener("click", closeEndpointEdit);
@@ -1498,6 +1520,8 @@
       if (editButton) openEndpointEdit(editButton.dataset.editEndpoint);
       const stopButton = event.target.closest("button[data-stop-endpoint]");
       if (stopButton) await stopEndpoint(stopButton.dataset.stopEndpoint, stopButton);
+      const startButton = event.target.closest("button[data-start-endpoint]");
+      if (startButton) await startEndpoint(startButton.dataset.startEndpoint, startButton);
       const deleteButton = event.target.closest("button[data-delete-endpoint]");
       if (deleteButton) await deleteEndpoint(deleteButton.dataset.deleteEndpoint);
     });
