@@ -874,9 +874,9 @@
           <td>${esc(p.create_date || "-")}</td>
           <td><div class="row-actions">
             <button type="button" class="primary" data-select="${esc(p.project_name)}">创建</button>
-            <button type="button" data-view-endpoints="${esc(p.project_name)}">接入点信息</button>
+            <button type="button" class="primary" data-view-endpoints="${esc(p.project_name)}">接入点信息</button>
             <button type="button" class="primary" data-manage-keys="${esc(p.project_name)}">API Key</button>
-            <button type="button" data-edit="${esc(p.project_name)}">编辑</button>
+            <button type="button" class="primary" data-edit="${esc(p.project_name)}">编辑</button>
             <button type="button" class="danger" data-delete="${esc(p.project_name)}">删除</button>
           </div></td>
         </tr>`).join("");
@@ -1092,7 +1092,7 @@
         <td>${esc(row.model_service || "-")}</td><td>${statusPill(row.status)}</td>
         <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(row.create_time || "-")}</td>
         <td><div class="row-actions">
-          <button type="button" data-edit-endpoint="${esc(row.id)}" ${pendingEndpointOperations.has(row.id) ? "disabled" : ""}>编辑信息</button>
+          <button type="button" class="primary" data-edit-endpoint="${esc(row.id)}" ${pendingEndpointOperations.has(row.id) ? "disabled" : ""}>编辑信息</button>
           ${(() => {
             const pendingOperation = pendingEndpointOperations.get(row.id);
             if (pendingOperation === "stop") return `<button type="button" disabled>停止中</button>`;
