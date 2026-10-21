@@ -216,6 +216,9 @@ def _load_batch_modules():
             "upstream_set_api_key_disabled": upstream_creation.set_api_key_disabled,
             "upstream_delete_api_key": upstream_creation.delete_api_key,
             "upstream_create_endpoint": upstream_creation.create_endpoint,
+            "upstream_update_endpoint": upstream_creation.update_endpoint,
+            "upstream_stop_endpoint": upstream_creation.stop_endpoint,
+            "upstream_delete_endpoint": upstream_creation.delete_endpoint,
             "build_upstream_path": upstream_exporter.build_upstream_path,
             "latest_upstream_excel_path": upstream_exporter.latest_upstream_excel_path,
             "save_upstream_workbook": upstream_exporter.save_upstream_workbook,
@@ -1930,6 +1933,65 @@ def api_upstream_create_endpoint():
             region=region,
         )
         return jsonify({"success": True, "message": "推理接入点创建成功", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/endpoints/update")
+def api_upstream_update_endpoint():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_update_endpoint"](
+            ak,
+            sk,
+            endpoint_id=str(body.get("endpoint_id") or "").strip(),
+            name=str(body.get("name") or "").strip(),
+            description=str(body.get("description") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "接入点信息已更新", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/endpoints/stop")
+def api_upstream_stop_endpoint():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_stop_endpoint"](
+            ak,
+            sk,
+            endpoint_id=str(body.get("endpoint_id") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "接入点停止成功", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/endpoints/delete")
+def api_upstream_delete_endpoint():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_delete_endpoint"](
+            ak,
+            sk,
+            endpoint_id=str(body.get("endpoint_id") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "接入点删除成功", "data": row})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

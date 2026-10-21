@@ -459,6 +459,16 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(calls[0]["action"], "UpdateApiKey")
         self.assertEqual(calls[0]["body"], {"Id": 12, "Disable": True})
 
+    def test_volc_client_endpoint_lifecycle_actions(self):
+        client = VolcOpenAPIClient("ak", "sk")
+        calls = []
+        client.request = lambda **kwargs: calls.append(kwargs) or {}
+        client.update_endpoint(endpoint_id="ep-1", name="new-name", description="desc")
+        client.stop_endpoint(endpoint_id="ep-1")
+        client.delete_endpoint(endpoint_id="ep-1")
+        self.assertEqual([call["action"] for call in calls], ["UpdateEndpoint", "StopEndpoint", "DeleteEndpoint"])
+        self.assertEqual(calls[0]["body"], {"Id": "ep-1", "Name": "new-name", "Description": "desc"})
+
 
 if __name__ == "__main__":
     unittest.main()

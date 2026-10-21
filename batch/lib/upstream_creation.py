@@ -597,3 +597,53 @@ def create_endpoint(
             "model_version": model_version,
         },
     }
+
+
+def update_endpoint(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    endpoint_id: str,
+    name: str = "",
+    description: str = "",
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    if not str(endpoint_id or "").strip():
+        raise ValueError("接入点 ID 不能为空")
+    if len(str(description or "")) > 300:
+        raise ValueError("接入点描述长度不能超过300个字符")
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    client.update_endpoint(
+        endpoint_id=str(endpoint_id).strip(),
+        name=str(name or "").strip(),
+        description=str(description or "").strip(),
+    )
+    return {"id": str(endpoint_id).strip(), "name": str(name or "").strip(), "description": str(description or "").strip()}
+
+
+def stop_endpoint(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    endpoint_id: str,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    if not str(endpoint_id or "").strip():
+        raise ValueError("接入点 ID 不能为空")
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    client.stop_endpoint(endpoint_id=str(endpoint_id).strip())
+    return {"id": str(endpoint_id).strip(), "status": "Stopped"}
+
+
+def delete_endpoint(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    endpoint_id: str,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    if not str(endpoint_id or "").strip():
+        raise ValueError("接入点 ID 不能为空")
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    client.delete_endpoint(endpoint_id=str(endpoint_id).strip())
+    return {"id": str(endpoint_id).strip(), "deleted": True}

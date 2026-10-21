@@ -248,6 +248,8 @@
       transition: all .18s;
     }
     .row-actions button:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
+    .row-actions button.danger { color: var(--na-danger, #dc2626); border-color: color-mix(in srgb, var(--na-danger, #dc2626) 35%, transparent); }
+    .row-actions button.danger:hover { color: #fff; border-color: var(--na-danger, #dc2626); background: var(--na-danger, #dc2626); }
     .row-actions button.primary {
       border-color: color-mix(in srgb, var(--na-accent) 42%, transparent);
       background: var(--na-accent-soft); color: var(--na-text);
@@ -400,12 +402,53 @@
       margin-top: 1rem; padding-top: .85rem; border-top: 1px solid color-mix(in srgb, var(--na-border) 72%, transparent);
     }
     .form-footer .hint { margin: 0; }
+    .na-modal-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(4, 8, 20, .58); backdrop-filter: blur(6px); padding: 1.2rem;
+    }
+    .na-modal {
+      width: min(560px, 100%);
+      border: 1px solid color-mix(in srgb, var(--na-border-bright) 65%, transparent);
+      border-radius: 1rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 94%, transparent);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .28);
+      overflow: hidden;
+    }
+    .na-modal-head {
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+      padding: 1.05rem 1.15rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--na-border) 75%, transparent);
+      background: color-mix(in srgb, var(--na-accent-soft) 36%, transparent);
+    }
+    .na-modal-head h3 { margin: 0; font: 700 1rem var(--na-font-display); color: var(--na-text); }
+    .na-modal-head p { margin: .25rem 0 0; font-size: .74rem; color: var(--na-text-muted); }
+    .na-modal-body { padding: 1.15rem; display: grid; gap: .8rem; }
+    .na-modal-body label { display: grid; gap: .4rem; font-size: .74rem; font-weight: 600; color: var(--na-text-muted); }
+    .na-modal-body input,
+    .na-modal-body textarea {
+      width: 100%; box-sizing: border-box;
+      border: 1px solid var(--na-border); border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 78%, transparent);
+      color: var(--na-text); padding: .62rem .75rem;
+      font: 500 .82rem/1.45 var(--na-font-body);
+    }
+    .na-modal-body input:focus,
+    .na-modal-body textarea:focus { outline: none; border-color: var(--na-border-bright); box-shadow: 0 0 0 3px var(--na-accent-soft); }
+    .na-modal-footer {
+      display: flex; justify-content: flex-end; gap: .65rem; padding: 1rem 1.15rem 1.15rem;
+      border-top: 1px solid color-mix(in srgb, var(--na-border) 70%, transparent);
+    }
     @media (max-width: 900px) {
       .api-key-row { grid-template-columns: 1fr; align-items: stretch; }
       .api-key-actions { justify-content: flex-start; }
       .form-footer { align-items: flex-start; flex-direction: column; }
       .form-footer button { width: 100%; }
     }
+    #projectDetail.model-only .api-key-block,
+    #projectDetail.model-only > .table-wrap,
+    #projectDetail.endpoint-info .detail-grid,
+    #projectDetail.endpoint-info .api-key-block,
     #projectDetail.api-key-only .detail-grid,
     #projectDetail.api-key-only > .table-wrap,
     #projectDetail.api-key-only > .na-card-head .actions,
@@ -631,9 +674,28 @@
 
       <div class="table-wrap" id="endpointTableWrap">
         <table class="creation-table endpoint-table">
-          <thead><tr><th>接入点</th><th>部署 ID</th><th>模型服务</th><th>状态</th><th class="wrap">描述</th><th>创建时间</th></tr></thead>
-          <tbody id="endpointRows"><tr><td colspan="6">尚未加载。</td></tr></tbody>
+          <thead><tr><th>接入点</th><th>部署 ID</th><th>模型服务</th><th>状态</th><th class="wrap">描述</th><th>创建时间</th><th>操作</th></tr></thead>
+          <tbody id="endpointRows"><tr><td colspan="7">尚未加载。</td></tr></tbody>
         </table>
+      </div>
+
+      <div id="endpointEditOverlay" class="na-modal-overlay" hidden>
+        <div class="na-modal" role="dialog" aria-modal="true" aria-labelledby="endpointEditTitle">
+          <div class="na-modal-head">
+            <div><h3 id="endpointEditTitle">编辑接入点信息</h3><p>修改后同步更新上游推理接入点。</p></div>
+            <button id="btnCancelEndpointEdit" class="na-btn na-btn-ghost" type="button">取消</button>
+          </div>
+          <div class="na-modal-body">
+            <label>接入点 ID<input id="endpointEditId" readonly /></label>
+            <label>接入点名称<input id="endpointEditName" maxlength="64" /></label>
+            <label>描述<textarea id="endpointEditDescription" maxlength="300" style="min-height:6rem;resize:vertical"></textarea></label>
+            <div class="hint" style="text-align:right"><span id="endpointEditDescCount">0/300</span></div>
+          </div>
+          <div class="na-modal-footer">
+            <button id="btnCancelEndpointEditFooter" class="na-btn na-btn-ghost" type="button">取消</button>
+            <button id="btnSubmitEndpointEdit" class="na-btn na-btn-primary" type="button">保存</button>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -642,6 +704,7 @@
     const $ = (id) => document.getElementById(id);
     let projects = [];
     let models = [];
+    let endpoints = [];
     let apiKeys = [];
     let selectedApiKey = "";
     let editingApiKey = "";
@@ -786,6 +849,7 @@
           <td>${esc(p.create_date || "-")}</td>
           <td><div class="row-actions">
             <button type="button" data-select="${esc(p.project_name)}">选择</button>
+            <button type="button" data-view-endpoints="${esc(p.project_name)}">接入点信息</button>
             <button type="button" class="primary" data-manage-keys="${esc(p.project_name)}">API Key</button>
             <button type="button" data-edit="${esc(p.project_name)}">编辑</button>
             <button type="button" data-delete="${esc(p.project_name)}">删除</button>
@@ -879,15 +943,22 @@
 
     function setProjectDetailMode(mode) {
       const apiKeyMode = mode === "api-keys";
+      const endpointInfoMode = mode === "endpoint-info";
+      const modelMode = mode === "model";
+      $("projectDetail").classList.remove("model-only", "endpoint-info", "api-key-only");
+      if (modelMode) $("projectDetail").classList.add("model-only");
+      if (endpointInfoMode) $("projectDetail").classList.add("endpoint-info");
       $("projectDetail").classList.toggle("api-key-only", apiKeyMode);
-      $("detailModeTitle").textContent = apiKeyMode ? "API Key 管理" : "推理接入点";
+      $("detailModeTitle").textContent = apiKeyMode ? "API Key 管理" : endpointInfoMode ? "接入点信息" : "创建模型接入点";
       $("detailModeDesc").textContent = apiKeyMode
         ? "为当前项目创建、复制或编辑调用凭证。"
-        : "点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。";
+        : endpointInfoMode
+          ? "查看并编辑当前项目的推理接入点，停止后才能删除。"
+          : "点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。";
       $("btnLoadEndpoints").hidden = apiKeyMode;
     }
 
-    async function selectProject(name, mode = "endpoints") {
+    async function selectProject(name, mode = "model") {
       selectedProject = name;
       $("selectedProject").textContent = name;
       setProjectDetailMode(mode);
@@ -903,10 +974,12 @@
       $("apiKeyForm").hidden = true;
       renderProjects();
       $("projectDetail").scrollIntoView({ behavior: "smooth", block: "start" });
-      await loadApiKeys();
-      if (mode !== "api-keys") {
-        await loadModels();
+      if (mode === "api-keys") {
+        await loadApiKeys();
+      } else if (mode === "endpoint-info") {
         await loadEndpoints();
+      } else {
+        await loadModels();
       }
     }
 
@@ -974,11 +1047,17 @@
     }
 
     function renderEndpoints(rows) {
+      endpoints = rows;
       $("endpointRows").innerHTML = rows.length ? rows.map((row) => `
         <tr><td class="wrap">${esc(row.name)}</td><td class="wrap">${esc(row.id)}</td>
         <td>${esc(row.model_service || "-")}</td><td>${statusPill(row.status)}</td>
-        <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(row.create_time || "-")}</td></tr>`).join("")
-        : '<tr><td colspan="6">该项目还没有接入点。</td></tr>';
+        <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(row.create_time || "-")}</td>
+        <td><div class="row-actions">
+          <button type="button" data-edit-endpoint="${esc(row.id)}">编辑信息</button>
+          <button type="button" data-stop-endpoint="${esc(row.id)}" ${row.status === "Stopped" ? "disabled" : ""}>停止</button>
+          <button type="button" class="danger" data-delete-endpoint="${esc(row.id)}" ${row.status !== "Stopped" ? "disabled" : ""}>删除</button>
+        </div></td></tr>`).join("")
+        : '<tr><td colspan="7">该项目还没有接入点。</td></tr>';
     }
 
     function permissionText(value) { return value === "custom" ? "自定义" : "全部"; }
@@ -1222,7 +1301,8 @@
           method: "POST",
           body: { ...credPayload(), project_name: selectedProject },
         });
-        renderEndpoints(data.data?.items || []);
+        endpoints = data.data?.items || [];
+        renderEndpoints(endpoints);
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
     }
 
@@ -1287,10 +1367,81 @@
       $("apiKeyForm").hidden = true;
       $("apiKeyBlock").scrollIntoView({ behavior: "smooth", block: "start" });
     }
+
+    function openEndpointEdit(id) {
+      const row = endpoints.find((item) => item.id === id);
+      if (!row) return;
+      $("endpointEditId").value = row.id;
+      $("endpointEditName").value = row.name || "";
+      $("endpointEditDescription").value = row.description || "";
+      $("endpointEditDescCount").textContent = `${$("endpointEditDescription").value.length}/300`;
+      $("endpointEditOverlay").hidden = false;
+    }
+
+    function closeEndpointEdit() {
+      $("endpointEditOverlay").hidden = true;
+    }
+
+    async function submitEndpointEdit() {
+      const id = $("endpointEditId").value.trim();
+      const name = $("endpointEditName").value.trim();
+      const description = $("endpointEditDescription").value.trim();
+      if (!id || !name) { NAUi.showBanner("userBanner", "请填写接入点名称", "err"); return; }
+      const button = $("btnSubmitEndpointEdit"); button.disabled = true;
+      try {
+        const data = await requestJson("/api/upstream-create/volc/endpoints/update", {
+          method: "POST",
+          body: { ...credPayload(), endpoint_id: id, name, description },
+        });
+        NAUi.showBanner("userBanner", data.message || "接入点信息已更新", "ok");
+        NAUi.toast("接入点信息已更新", "ok");
+        closeEndpointEdit();
+        await loadEndpoints();
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+      finally { button.disabled = false; }
+    }
+
+    async function stopEndpoint(id, button) {
+      if (!confirm("确定停止该接入点？")) return;
+      button.disabled = true;
+      try {
+        const data = await requestJson("/api/upstream-create/volc/endpoints/stop", {
+          method: "POST", body: { ...credPayload(), endpoint_id: id },
+        });
+        const item = endpoints.find((row) => row.id === id);
+        if (item) item.status = data.data?.status || "Stopped";
+        NAUi.showBanner("userBanner", data.message || "接入点停止成功", "ok");
+        renderEndpoints(endpoints);
+        await loadEndpoints();
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+      finally { button.disabled = false; }
+    }
+
+    async function deleteEndpoint(id) {
+      if (!confirm("删除后不可恢复，确定删除该接入点？")) return;
+      try {
+        const data = await requestJson("/api/upstream-create/volc/endpoints/delete", {
+          method: "POST", body: { ...credPayload(), endpoint_id: id },
+        });
+        NAUi.showBanner("userBanner", data.message || "接入点删除成功", "ok");
+        NAUi.toast("接入点删除成功", "ok");
+        await loadEndpoints();
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+    }
     $("btnCreateEndpoint").addEventListener("click", createEndpoint);
+    $("btnCancelEndpointEdit").addEventListener("click", closeEndpointEdit);
+    $("btnCancelEndpointEditFooter").addEventListener("click", closeEndpointEdit);
+    $("btnSubmitEndpointEdit").addEventListener("click", submitEndpointEdit);
+    $("endpointEditDescription").addEventListener("input", () => {
+      $("endpointEditDescCount").textContent = `${$("endpointEditDescription").value.length}/300`;
+    });
     $("projectRows").addEventListener("click", async (event) => {
       const btn = event.target.closest("button"); if (!btn) return;
       if (btn.dataset.select) await selectProject(btn.dataset.select);
+      if (btn.dataset.viewEndpoints) {
+        await selectProject(btn.dataset.viewEndpoints, "endpoint-info");
+        $("endpointTableWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
       if (btn.dataset.manageKeys) await manageProjectApiKeys(btn.dataset.manageKeys);
       if (btn.dataset.edit) { const p = projects.find((x) => x.project_name === btn.dataset.edit); if (p) openEditForm(p); }
       if (btn.dataset.delete) await deleteProject(btn.dataset.delete);
@@ -1323,6 +1474,14 @@
       if (selectButton) selectApiKey(selectButton.dataset.selectKey);
       const editButton = event.target.closest("button[data-edit-key]");
       if (editButton) openApiKeyEdit(editButton.dataset.editKey);
+    });
+    $("endpointRows").addEventListener("click", async (event) => {
+      const editButton = event.target.closest("button[data-edit-endpoint]");
+      if (editButton) openEndpointEdit(editButton.dataset.editEndpoint);
+      const stopButton = event.target.closest("button[data-stop-endpoint]");
+      if (stopButton) await stopEndpoint(stopButton.dataset.stopEndpoint, stopButton);
+      const deleteButton = event.target.closest("button[data-delete-endpoint]");
+      if (deleteButton) await deleteEndpoint(deleteButton.dataset.deleteEndpoint);
     });
     window.addEventListener("message", (event) => { const data = event.data || {}; if (data.type === "na-theme-change") NATheme.apply(data.theme); });
     loadConfig();
