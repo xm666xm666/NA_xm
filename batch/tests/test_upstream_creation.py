@@ -220,16 +220,27 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(rows[0]["name"], "token-prd")
         self.assertEqual(rows[0]["api_key"], "sk-test")
 
-    def test_create_api_key_defaults_to_all_permission(self):
+    def test_create_api_key_ip_whitelist_requires_custom_permission(self):
         fake = FakeClient("ak", "sk")
         original = upstream_creation.VolcOpenAPIClient
         upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
         try:
+            with self.assertRaisesRegex(ValueError, "自定义"):
+                upstream_creation.create_api_key(
+                    "ak",
+                    "sk",
+                    project_name="AIOps",
+                    name="api-key-demo",
+                    ip_whitelist=["192.168.1.10/24"],
+                    ip_whitelist_enabled=True,
+                )
             row = upstream_creation.create_api_key(
                 "ak",
                 "sk",
                 project_name="AIOps",
                 name="api-key-demo",
+                permission="custom",
+                model_ids=["Doubao-Seedance-2.5"],
                 ip_whitelist=["192.168.1.10/24"],
                 ip_whitelist_enabled=True,
             )
@@ -238,12 +249,18 @@ class UpstreamCreationTests(unittest.TestCase):
         create_call = next(call for call in fake.calls if call[0] == "create_api_key")
         self.assertEqual(create_call[1]["project_name"], "AIOps")
         self.assertEqual(create_call[1]["name"], "api-key-demo")
-        self.assertEqual(create_call[1]["access_control_info"], {"AllowAll": True})
+        self.assertEqual(create_call[1]["access_control_info"], {
+            "AllowAll": False,
+            "AccessRules": {
+                "model": {"Effect": "allow", "EffectToAll": False, "Ids": ["Doubao-Seedance-2.5"]},
+                "endpoint": {"Effect": "allow", "EffectToAll": False, "Ids": []},
+            },
+        })
         self.assertEqual(create_call[1]["ip_whitelist_info"], {
             "Enabled": True,
             "Contents": [{"Subnet": "192.168.1.10/24"}],
         })
-        self.assertEqual(row["permission"], "all")
+        self.assertEqual(row["permission"], "custom")
 
     def test_update_api_key_custom_permission_and_ip_whitelist(self):
         fake = FakeClient("ak", "sk")

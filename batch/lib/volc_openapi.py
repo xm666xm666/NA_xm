@@ -66,6 +66,16 @@ class VolcOpenAPIClient:
         if not self.access_key_id or not self.secret_access_key:
             raise ValueError("请填写 Access Key ID 与 Secret Access Key")
 
+    @staticmethod
+    def _api_key_id_value(api_key_id: int | str) -> int | str:
+        value = str(api_key_id or "").strip()
+        if not value:
+            raise ValueError("API Key ID 不能为空")
+        try:
+            return int(value)
+        except ValueError:
+            return value
+
     def request(
         self,
         *,
@@ -341,7 +351,7 @@ class VolcOpenAPIClient:
         access_control_info: dict[str, Any] | None = None,
         ip_whitelist_info: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        body: dict[str, Any] = {"Id": api_key_id}
+        body: dict[str, Any] = {"Id": self._api_key_id_value(api_key_id)}
         if name:
             body["Name"] = name
         if access_control_info is not None:
@@ -397,7 +407,7 @@ class VolcOpenAPIClient:
             service="ark",
             action="GetRawApiKey",
             version="2024-01-01",
-            body={"Id": api_key_id},
+            body={"Id": self._api_key_id_value(api_key_id)},
         )
         return str(result.get("ApiKey") or result.get("Key") or "").strip()
 
