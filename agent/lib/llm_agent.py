@@ -41,6 +41,19 @@ SYSTEM_PROMPT = """你是 New API 渠道配置助手。用户会粘贴杂乱的�
 {{"name":"","group":"","type_label":"","model":"","upstream_model":"","api_key":"","base_url":"","api_version":"","reasoning":""}}"""
 
 
+EXTRACTION_RULES_PROMPT = """请按以下自然语言规则理解用户输入：
+1. 渠道名称通常是完整的多段项目/环境/模型标识，优先选择不是 URL、密钥或限额数据的行，并保留中文备注。
+2. 对外模型名优先取渠道名称的 ASCII 核心并去掉中文备注；没有更明确的上游模型时，让模型名与渠道名称保持一致。
+3. 分组从渠道名称推导：优先截取到 test、uat、prd、prod、stg、dev 环境段；没有环境段时先剥除常见模型后缀，再兜底去掉最后一段。
+4. API Key 可能是 ark- 或 sk- 前缀的字符串、UUID，或 Azure 使用的 40 位以上连续字母数字串。
+5. 上游真实模型优先识别 `ep-...`、`models/...`、`源模型->上游模型` 和 Azure 部署名；不要把中文备注当作上游模型。
+6. 上游模型以 ep- 开头时，类型使用「字节火山方舟、豆包通用」，Base URL 使用 https://ark.cn-beijing.volces.com。
+7. 出现 openai.azure.com、Azure 或 Azure OpenAI 语境时选择「Azure OpenAI」，并解析 endpoint 与 api-version；只有明确写出 OpenAI 时才选择「OpenAI」。
+8. sk- 加非 Azure/火山 URL 且没有 ep- 时，选择「自定义渠道」，Base URL 使用用户提供的 URL。
+9. RPM、TPM、版本标注、地区等是噪声，不要提取为渠道字段；但不要把嵌在这些噪声附近的 URL 或密钥一起丢弃。
+10. 用户输入与规则引擎结果冲突时，以用户输入为准；规则结果可能不完整或有误，可按规则修正。"""
+
+
 @dataclass
 class LlmEnrichResult:
     fields: ExtractedFields
@@ -64,6 +77,43 @@ def _parse_json_response(text: str) -> dict[str, Any]:
         if not match:
             raise
         return json.loads(match.group(0))
+
+
+def build_llm_messages(
+    raw_text: str,
+    fields: ExtractedFields,
+    *,
+    override: bool = False,
+) -> list[dict[str, str]]:
+    """构造发送给上游 LLM 的完整提示词消息。"""
+    known_fields = (
+        "name",
+        "group",
+        "type_label",
+        "model",
+        "upstream_model",
+        "api_key",
+        "base_url",
+    )
+    user_prompt = (
+        "请从以下杂乱信息中提取渠道配置字段。"
+        + ("优先以你的判断为准，可覆盖规则引擎已有结果。" if override else "仅补充规则引擎未识别的字段。")
+        + "\n\n"
+        f"--- 用户输入 ---\n{raw_text.strip()}\n\n"
+        "--- 规则引擎已识别（可能不完整或有误）---\n"
+        f"{json.dumps({key: getattr(fields, key) for key in known_fields}, ensure_ascii=False)}"
+    )
+    return [
+        {
+            "role": "system",
+            "content": (
+                SYSTEM_PROMPT.format(type_labels="、".join(all_type_labels()))
+                + "\n\n"
+                + EXTRACTION_RULES_PROMPT
+            ),
+        },
+        {"role": "user", "content": user_prompt},
+    ]
 
 
 def _merge_llm_into_fields(
@@ -198,15 +248,6 @@ def enrich_with_llm(
             merged.warnings.append(message)
         return LlmEnrichResult(fields=merged, error=message)
 
-    user_prompt = (
-        "请从以下杂乱信息中提取渠道配置字段。"
-        + ("优先以你的判断为准，可覆盖规则引擎已有结果。" if override else "仅补充规则引擎未识别的字段。")
-        + "\n\n"
-        f"--- 用户输入 ---\n{raw_text.strip()}\n\n"
-        f"--- 规则引擎已识别（可能不完整或有误）---\n"
-        f"{json.dumps({k: getattr(fields, k) for k in ('name','group','type_label','model','upstream_model','api_key','base_url')}, ensure_ascii=False)}"
-    )
-
     try:
         content = chat_completion(
             api_base=api_base,
@@ -214,13 +255,7 @@ def enrich_with_llm(
             model=model,
             provider=provider,
             timeout=timeout,
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT.format(type_labels="、".join(all_type_labels())),
-                },
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=build_llm_messages(raw_text, fields, override=override),
         )
         data = _parse_json_response(content)
         filled = _merge_llm_into_fields(fields, data, override=override)

@@ -10,8 +10,14 @@ AGENT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(AGENT_DIR))
 
 from lib.channel_extractor import extract_channels, validate_llm_config  # noqa: E402
-from lib.llm_agent import _merge_llm_into_fields  # noqa: E402
+from lib.llm_agent import (  # noqa: E402
+    EXTRACTION_RULES_PROMPT,
+    SYSTEM_PROMPT,
+    _merge_llm_into_fields,
+    build_llm_messages,
+)
 from lib.rule_extractor import ExtractedFields  # noqa: E402
+from lib.type_registry import all_type_labels  # noqa: E402
 
 
 def test_validate_llm_config_requires_base():
@@ -47,6 +53,22 @@ def test_merge_override_replaces_rule_field():
     assert fields.sources["name"] == "llm:override"
 
 
+def test_build_llm_messages_packages_prompt_and_input():
+    fields = ExtractedFields(name="rule-name", type_label="OpenAI")
+    messages = build_llm_messages("项目信息：demo-alpha-test\nsk-demo-key", fields, override=True)
+
+    assert [item["role"] for item in messages] == ["system", "user"]
+    assert "已知渠道类型" in messages[0]["content"]
+    expected_system = SYSTEM_PROMPT.format(type_labels="、".join(all_type_labels()))
+    assert messages[0]["content"] == f"{expected_system}\n\n{EXTRACTION_RULES_PROMPT}"
+    assert "分组从渠道名称推导" in messages[0]["content"]
+    assert "https://ark.cn-beijing.volces.com" in messages[0]["content"]
+    assert "--- 用户输入 ---" in messages[1]["content"]
+    assert "项目信息：demo-alpha-test" in messages[1]["content"]
+    assert "sk-demo-key" in messages[1]["content"]
+    assert '"name": "rule-name"' in messages[1]["content"]
+
+
 @patch("lib.llm_agent.chat_completion")
 def test_use_llm_invokes_real_api(mock_chat):
     mock_chat.return_value = (
@@ -55,7 +77,7 @@ def test_use_llm_invokes_real_api(mock_chat):
         '"api_key":"ark-demo","base_url":"https://ark.cn-beijing.volces.com","api_version":""}'
     )
     result = extract_channels(
-        "ep-20260709112335-demo1\nark-demo-key",
+        "项目信息：ep-20260709112335-demo1\nark-demo-key",
         use_llm=True,
         llm_config={
             "api_base": "https://api.xiaomimimo.com/v1",
@@ -65,6 +87,10 @@ def test_use_llm_invokes_real_api(mock_chat):
         },
     )
     assert mock_chat.called
+    messages = mock_chat.call_args.kwargs["messages"]
+    assert "项目信息：ep-20260709112335-demo1" in messages[1]["content"]
+    assert "已知渠道类型" in messages[0]["content"]
+    assert "分组从渠道名称推导" in messages[0]["content"]
     assert result.llm.invoked
     assert result.llm.items_invoked == 1
     assert result.llm.items_succeeded == 1

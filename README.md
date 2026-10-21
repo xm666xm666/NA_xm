@@ -1164,6 +1164,8 @@ CLI 等价：`python app.py extract` 默认为创建；程序内 `extract_channe
 ### 行为说明
 
 - 勾选后**真实调用**所选 AI API；AI 结果优先于规则引擎
+- 请求统一为 `system` 预设提取提示词 + `user` 用户项目信息；规则引擎已有结果会一并作为上下文发送
+- 预设提示词包含自然语言版提取规则：命名、分组、模型、密钥、OpenAI/Azure/火山/自定义识别、上游模型映射与噪声过滤
 - 未勾选时始终为纯规则模式（`mode: rules`），不会静默调用 LLM
 - 勾选但未配置 API 时返回 `400`，`mode: llm_failed`
 - `llm.invoked = true` 表示 AI 已真实参与
