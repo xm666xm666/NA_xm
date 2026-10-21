@@ -1005,7 +1005,7 @@
             </div>
           </div>
           <div class="api-key-secret">
-            <span class="api-key-value ${key.api_key ? "" : "empty"}" title="${esc(key.api_key || "点击复制后自动获取明文")}">${esc(key.api_key || "••••••••••••")}</span>
+            <span class="api-key-value empty" title="点击复制后自动获取明文">••••••••••••</span>
           </div>
             <div class="api-key-actions">
               <button type="button" data-copy-key="${esc(key.id)}">复制明文</button>
@@ -1127,7 +1127,6 @@
     async function copyApiKey(id, button) {
       const row = apiKeys.find((item) => item.id === id);
       if (!row) { NAUi.toast("未找到 API Key", "err"); return; }
-      if (row.api_key) { await copyToClipboard(row.api_key, button); return; }
       const originalText = button.textContent;
       button.disabled = true;
       button.textContent = "获取中";
@@ -1139,8 +1138,6 @@
         const value = String(data.data?.api_key || "").trim();
         if (!value) throw new Error("上游未返回 API Key 明文");
         await navigator.clipboard.writeText(value);
-        row.api_key = value;
-        renderApiKeys();
         NAUi.toast("已复制明文 API Key", "ok");
       } catch (e) {
         button.textContent = originalText;

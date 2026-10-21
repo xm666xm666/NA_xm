@@ -354,7 +354,6 @@ def list_api_keys(
     secret_access_key: str,
     *,
     project_name: str,
-    include_raw: bool = True,
     region: str = "cn-beijing",
 ) -> list[dict[str, Any]]:
     name = str(project_name or "").strip()
@@ -366,11 +365,7 @@ def list_api_keys(
         if not isinstance(item, dict):
             continue
         row = normalize_api_key(item)
-        if include_raw and row["id"]:
-            try:
-                row["api_key"] = client.get_raw_api_key(row["id"])
-            except Exception:
-                row["api_key"] = row["api_key"]
+        row.pop("api_key", None)
         rows.append(row)
     return rows
 
@@ -426,6 +421,7 @@ def create_api_key(
         ip_whitelist_info=ip_info,
     )
     row = normalize_api_key(result if isinstance(result, dict) else {})
+    row.pop("api_key", None)
     row.update({
         "project_name": project,
         "name": key_name,
@@ -433,11 +429,6 @@ def create_api_key(
         "ip_whitelist_enabled": bool(ip_whitelist_enabled),
         "ip_whitelist": [str(item).strip() for item in whitelist if str(item).strip()],
     })
-    if row["id"] and not row["api_key"]:
-        try:
-            row["api_key"] = client.get_raw_api_key(row["id"])
-        except Exception:
-            pass
     return row
 
 

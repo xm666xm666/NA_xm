@@ -214,7 +214,7 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(rows[0]["model_service"], "GLM-5.3-Flash｜260828")
         self.assertEqual(created["endpoint_id"], "ep-new")
 
-    def test_list_api_keys_reads_plain_key(self):
+    def test_list_api_keys_does_not_expose_plain_key(self):
         fake = FakeClient("ak", "sk")
         original = upstream_creation.VolcOpenAPIClient
         upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
@@ -224,7 +224,8 @@ class UpstreamCreationTests(unittest.TestCase):
             upstream_creation.VolcOpenAPIClient = original
         self.assertEqual(rows[0]["id"], "12")
         self.assertEqual(rows[0]["name"], "token-prd")
-        self.assertEqual(rows[0]["api_key"], "sk-test")
+        self.assertNotIn("api_key", rows[0])
+        self.assertFalse(any(call[0] == "get_raw_api_key" for call in fake.calls))
 
     def test_create_api_key_ip_whitelist_requires_custom_permission(self):
         fake = FakeClient("ak", "sk")
@@ -267,6 +268,7 @@ class UpstreamCreationTests(unittest.TestCase):
             "Contents": [{"Subnet": "192.168.1.10/24"}],
         })
         self.assertEqual(row["permission"], "custom")
+        self.assertNotIn("api_key", row)
 
     def test_update_api_key_custom_permission_and_ip_whitelist(self):
         fake = FakeClient("ak", "sk")
