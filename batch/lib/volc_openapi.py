@@ -209,21 +209,22 @@ class VolcOpenAPIClient:
         description: str = "",
         parent_project_name: str = "",
     ) -> dict[str, Any]:
-        body: dict[str, Any] = {"ProjectName": project_name}
+        query: dict[str, Any] = {"ProjectName": project_name}
         if display_name:
-            body["DisplayName"] = display_name
+            query["DisplayName"] = display_name
         if description:
-            body["Description"] = description
+            query["Description"] = description
         if parent_project_name:
-            body["ParentProjectName"] = parent_project_name
+            query["ParentProjectName"] = parent_project_name
         return self.request(
             method="GET",
             host=IAM_HOST,
             service="iam",
             action="CreateProject",
             version="2021-08-01",
-            body=body,
-            content_type="text/plain; charset=UTF-8",
+            query=query,
+            body="",
+            content_type="application/x-www-form-urlencoded",
         )
 
     def update_project(
@@ -233,7 +234,7 @@ class VolcOpenAPIClient:
         display_name: str = "",
         description: str = "",
     ) -> dict[str, Any]:
-        body: dict[str, Any] = {
+        query: dict[str, Any] = {
             "ProjectName": project_name,
             "DisplayName": display_name,
             "Description": description,
@@ -244,8 +245,9 @@ class VolcOpenAPIClient:
             service="iam",
             action="UpdateProject",
             version="2021-08-01",
-            body=body,
-            content_type="text/plain; charset=UTF-8",
+            query=query,
+            body="",
+            content_type="application/x-www-form-urlencoded",
         )
 
     def delete_project(self, project_name: str) -> dict[str, Any]:
@@ -255,8 +257,9 @@ class VolcOpenAPIClient:
             service="iam",
             action="DeleteProject",
             version="2021-08-01",
-            body={"ProjectName": project_name},
-            content_type="text/plain; charset=UTF-8",
+            query={"ProjectName": project_name},
+            body="",
+            content_type="application/x-www-form-urlencoded",
         )
 
     def list_endpoints(
