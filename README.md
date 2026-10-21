@@ -2653,7 +2653,7 @@ python agent/tests/test_pipeline_runner.py
 | `POST` | `/api/upstream-create/volc/projects/update` | 修改显示名称和备注 |
 | `POST` | `/api/upstream-create/volc/projects/delete` | 删除空项目 |
 | `GET/POST` | `/api/upstream-create/volc/models` | 拉取模型目录 |
-| `GET/POST` | `/api/upstream-create/volc/models/enabled` | 拉取当前账号已开通的模型 |
+| `GET/POST` | `/api/upstream-create/volc/models/enabled` | 拉取当前账号已开通的模型，并保留完整版本列表 |
 | `GET/POST` | `/api/upstream-create/volc/model-versions` | 按模型拉取版本 |
 | `GET/POST` | `/api/upstream-create/volc/endpoints` | 拉取项目下推理接入点 |
 | `POST` | `/api/upstream-create/volc/endpoints/create` | 创建推理接入点；遇到 `ServiceNotOpen` 自动开通基础模型服务并重试 |

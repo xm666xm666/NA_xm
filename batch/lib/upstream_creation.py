@@ -344,10 +344,11 @@ def list_enabled_models(
     region: str = "cn-beijing",
 ) -> dict[str, Any]:
     client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
-    items: list[dict[str, Any]] = []
+    available_names: set[str] = set()
+    sub_services_by_name: dict[str, list[str]] = {}
     for item in client.list_model_charge_items():
         name = str(item.get("FoundationModelName") or item.get("Name") or "").strip()
-        if not name or str(item.get("State") or "").strip() != "Available":
+        if not name:
             continue
         raw_sub_services = item.get("SubServices") or []
         sub_services: list[str] = []
@@ -358,15 +359,27 @@ def list_enabled_models(
                 sub_services.append(f"{sub_service}:{status}" if sub_service and status else sub_service)
             elif str(value).strip():
                 sub_services.append(str(value).strip())
-        items.append({
-            "name": name,
-            "display_name": str(item.get("DisplayName") or item.get("DisplayModelName") or name).strip(),
-            "vendor": str(item.get("VendorName") or item.get("Vendor") or "").strip(),
-            "primary_version": str(item.get("PrimaryVersion") or "").strip(),
-            "state": "Available",
-            "sub_services": [value for value in sub_services if value],
-            "raw": item,
-        })
+        sub_services_by_name[name] = [value for value in sub_services if value]
+        if str(item.get("State") or "").strip() == "Available":
+            available_names.add(name)
+
+    items: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        catalog_items, total = client.list_foundation_models(page_number=page, page_size=100)
+        for catalog_item in catalog_items:
+            model = normalize_model(catalog_item)
+            name = model["name"]
+            if name not in available_names:
+                continue
+            model["state"] = "Available"
+            model["sub_services"] = sub_services_by_name.get(name, [])
+            items.append(model)
+        if not catalog_items or page * 100 >= total:
+            break
+        page += 1
+        if page > 50:
+            break
     return {"items": items, "total": len(items)}
 
 

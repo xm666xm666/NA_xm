@@ -59,8 +59,19 @@ class FakeClient:
                         {"ModelVersion": "260628", "State": "Available"}
                     ],
                 }
+            ,
+            {
+                "Name": "DeepSeek-V4.1-Flash",
+                "DisplayName": "DeepSeek-V4.1-Flash",
+                "VendorName": "DeepSeek",
+                "PrimaryVersion": "260910",
+                "FoundationModelVersions": [
+                    {"ModelVersion": "260910", "DisplayName": "260910", "State": "Available"},
+                    {"ModelVersion": "261017", "DisplayName": "261017", "State": "Available"},
+                ],
+            },
             ],
-            1,
+            2,
         )
 
     def list_foundation_model_versions(self, model_name: str, **kwargs):
@@ -227,7 +238,9 @@ class UpstreamCreationTests(unittest.TestCase):
             upstream_creation.VolcOpenAPIClient = original
         self.assertEqual(len(models["items"]), 1)
         self.assertEqual(models["items"][0]["name"], "DeepSeek-V4.1-Flash")
-        self.assertEqual(models["items"][0]["display_name"], "DeepSeek V4.1 Flash")
+        self.assertEqual(models["items"][0]["display_name"], "DeepSeek-V4.1-Flash")
+        self.assertEqual(models["items"][0]["primary_version"], "260910")
+        self.assertEqual([item["model_version"] for item in models["items"][0]["versions"]], ["260910", "261017"])
         self.assertEqual(models["items"][0]["sub_services"], ["base:Available"])
         self.assertFalse(any(call[0] == "list_model_charge_items" and "unavailable" in str(call).lower() for call in fake.calls))
 

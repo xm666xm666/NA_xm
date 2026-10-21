@@ -942,11 +942,6 @@
     }
 
     async function selectModel(modelName) {
-      const model = models.find((item) => item.name === modelName);
-      if (model?.primary_version) {
-        useModel(modelName, model.primary_version);
-        return;
-      }
       await loadVersions(modelName);
     }
 
