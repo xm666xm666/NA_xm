@@ -113,6 +113,7 @@ def normalize_api_key(item: dict[str, Any]) -> dict[str, Any]:
         "project_name": str(item.get("ProjectName") or "").strip(),
         "description": str(item.get("Description") or "").strip(),
         "status": str(item.get("Status") or item.get("State") or "").strip(),
+        "last_access_time": str(item.get("LastAccessTime") or item.get("LastUsedTime") or "").strip(),
         "disabled": str(item.get("Status") or item.get("State") or "").strip().lower() in {"disabled", "inactive", "restricted", "banned"},
         "expired_time": str(item.get("ExpiredTime") or item.get("ExpireTime") or "").strip(),
         "create_time": str(item.get("CreateTime") or item.get("CreatedAt") or "").strip(),

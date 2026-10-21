@@ -991,6 +991,23 @@
       return items.length ? `${items.length} 条` : "已启用";
     }
 
+    function apiKeyStatusText(value) {
+      const status = String(value || "Active").trim();
+      const map = { Active: "生效中", Restricted: "已禁用", Disabled: "已禁用", Inactive: "未生效", Banned: "已封禁" };
+      return map[status] || status || "未知";
+    }
+
+    function formatDateTime(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "--";
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return raw;
+      return date.toLocaleString("zh-CN", {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+      });
+    }
+
     function renderApiKeys() {
       const target = $("apiKeyRows");
       if (!apiKeys.length) { target.innerHTML = '<div class="hint">该项目没有 API Key。</div>'; return; }
@@ -1004,7 +1021,8 @@
               <span class="meta-pill" title="资源权限">权限：${permissionText(key.permission)}</span>
               <span class="meta-pill ${key.ip_whitelist_enabled ? "warn" : ""}" title="IP 调用白名单">白名单：${whitelistText(key)}</span>
               <span class="meta-pill" title="所属项目">${esc(key.project_name || selectedProject || "未指定项目")}</span>
-              <span class="meta-pill ${key.disabled ? "warn" : ""}" title="上游状态">${esc(key.status || "Active")}</span>
+              <span class="meta-pill ${key.disabled ? "warn" : ""}" title="上游状态">状态：${esc(apiKeyStatusText(key.status))}</span>
+              <span class="meta-pill" title="该 API Key 最近一次用于接口鉴权的时间；上游数据可能有约 5 分钟延迟">最后使用：${esc(formatDateTime(key.last_access_time))}</span>
             </div>
           </div>
           <div class="api-key-secret">
@@ -1162,7 +1180,7 @@
           body: { ...credPayload(), project_name: selectedProject, api_key_id: id, disabled },
         });
         const row = apiKeys.find((item) => item.id === id);
-        if (row) { row.disabled = disabled; row.status = disabled ? "Disabled" : "Active"; }
+        if (row) { row.disabled = disabled; row.status = disabled ? "Restricted" : "Active"; }
         renderApiKeys();
         NAUi.showBanner("userBanner", disabled ? "API Key 已禁用" : "API Key 已启用", "ok");
       } catch (e) {

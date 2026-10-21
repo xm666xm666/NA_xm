@@ -83,7 +83,7 @@ class FakeClient:
 
     def list_api_keys(self, project_name: str, **kwargs):
         self.calls.append(("list_api_keys", {"project_name": project_name, **kwargs}))
-        return [{"Id": 12, "Name": "token-prd", "Status": "Enabled"}]
+        return [{"Id": 12, "Name": "token-prd", "Status": "Active", "LastAccessTime": "2026-10-21T09:30:00+08:00"}]
 
     def create_api_key(self, **kwargs):
         self.calls.append(("create_api_key", kwargs))
@@ -228,6 +228,8 @@ class UpstreamCreationTests(unittest.TestCase):
             upstream_creation.VolcOpenAPIClient = original
         self.assertEqual(rows[0]["id"], "12")
         self.assertEqual(rows[0]["name"], "token-prd")
+        self.assertEqual(rows[0]["status"], "Active")
+        self.assertEqual(rows[0]["last_access_time"], "2026-10-21T09:30:00+08:00")
         self.assertNotIn("api_key", rows[0])
         self.assertFalse(any(call[0] == "get_raw_api_key" for call in fake.calls))
 
