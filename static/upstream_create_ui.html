@@ -1002,6 +1002,7 @@
               <span class="meta-pill" title="资源权限">权限：${permissionText(key.permission)}</span>
               <span class="meta-pill ${key.ip_whitelist_enabled ? "warn" : ""}" title="IP 调用白名单">白名单：${whitelistText(key)}</span>
               <span class="meta-pill" title="所属项目">${esc(key.project_name || selectedProject || "未指定项目")}</span>
+              <span class="meta-pill ${key.disabled ? "warn" : ""}" title="上游状态">${esc(key.status || "Active")}</span>
             </div>
           </div>
           <div class="api-key-secret">
@@ -1009,7 +1010,8 @@
           </div>
             <div class="api-key-actions">
               <button type="button" data-copy-key="${esc(key.id)}">复制明文</button>
-              <button type="button" data-select-key="${esc(key.id)}">选择</button>
+              <button type="button" data-disable-key="${esc(key.id)}" data-disabled="${key.disabled ? "true" : "false"}">${key.disabled ? "启用" : "禁用"}</button>
+              <button type="button" disabled title="火山方舟未开放 API Key 删除接口">删除</button>
               <button type="button" data-edit-key="${esc(key.id)}">编辑权限</button>
             </div>
           </div>`;
@@ -1148,6 +1150,27 @@
       }
     }
 
+    async function setApiKeyDisabled(id, disabled, button) {
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = disabled ? "禁用中" : "启用中";
+      try {
+        await requestJson("/api/upstream-create/volc/api-keys/status", {
+          method: "POST",
+          body: { ...credPayload(), project_name: selectedProject, api_key_id: id, disabled },
+        });
+        const row = apiKeys.find((item) => item.id === id);
+        if (row) { row.disabled = disabled; row.status = disabled ? "Disabled" : "Active"; }
+        renderApiKeys();
+        NAUi.showBanner("userBanner", disabled ? "API Key 已禁用" : "API Key 已启用", "ok");
+      } catch (e) {
+        button.textContent = originalText;
+        NAUi.showBanner("userBanner", e.message, "err");
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     async function loadEndpoints() {
       if (!selectedProject) return;
       try {
@@ -1247,6 +1270,8 @@
       if (copyButton) { copyToClipboard(copyButton.dataset.copy, copyButton); return; }
       const copyKeyButton = event.target.closest("button[data-copy-key]");
       if (copyKeyButton) { await copyApiKey(copyKeyButton.dataset.copyKey, copyKeyButton); return; }
+      const disableButton = event.target.closest("button[data-disable-key]");
+      if (disableButton) { await setApiKeyDisabled(disableButton.dataset.disableKey, disableButton.dataset.disabled === "true", disableButton); return; }
       const selectButton = event.target.closest("button[data-select-key]");
       if (selectButton) selectApiKey(selectButton.dataset.selectKey);
       const editButton = event.target.closest("button[data-edit-key]");

@@ -351,12 +351,15 @@ class VolcOpenAPIClient:
         *,
         api_key_id: str,
         name: str = "",
+        disable: bool | None = None,
         access_control_info: dict[str, Any] | None = None,
         ip_whitelist_info: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {"Id": self._api_key_id_value(api_key_id)}
         if name:
             body["Name"] = name
+        if disable is not None:
+            body["Disable"] = bool(disable)
         if access_control_info is not None:
             body["AccessControlInfo"] = access_control_info
         if ip_whitelist_info is not None:

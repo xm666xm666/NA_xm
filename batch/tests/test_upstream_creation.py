@@ -305,6 +305,23 @@ class UpstreamCreationTests(unittest.TestCase):
             ],
         })
 
+    def test_set_api_key_disabled(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            result = upstream_creation.set_api_key_disabled(
+                "ak",
+                "sk",
+                api_key_id="12",
+                disabled=True,
+            )
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        update_call = next(call for call in fake.calls if call[0] == "update_api_key")
+        self.assertEqual(update_call[1]["disable"], True)
+        self.assertEqual(result, {"id": "12", "disabled": True})
+
 
 if __name__ == "__main__":
     unittest.main()

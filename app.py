@@ -212,6 +212,7 @@ def _load_batch_modules():
             "upstream_get_raw_api_key": upstream_creation.get_raw_api_key,
             "upstream_create_api_key": upstream_creation.create_api_key,
             "upstream_update_api_key": upstream_creation.update_api_key,
+            "upstream_set_api_key_disabled": upstream_creation.set_api_key_disabled,
             "upstream_create_endpoint": upstream_creation.create_endpoint,
             "build_upstream_path": upstream_exporter.build_upstream_path,
             "latest_upstream_excel_path": upstream_exporter.latest_upstream_excel_path,
@@ -1808,6 +1809,26 @@ def api_upstream_create_api_key_raw():
             region=region,
         )
         return jsonify({"success": True, "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/api-keys/status")
+def api_upstream_create_api_key_status():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_set_api_key_disabled"](
+            ak,
+            sk,
+            api_key_id=str(body.get("api_key_id") or "").strip(),
+            disabled=bool(body.get("disabled")),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "API Key 状态已更新", "data": row})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

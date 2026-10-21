@@ -113,6 +113,7 @@ def normalize_api_key(item: dict[str, Any]) -> dict[str, Any]:
         "project_name": str(item.get("ProjectName") or "").strip(),
         "description": str(item.get("Description") or "").strip(),
         "status": str(item.get("Status") or item.get("State") or "").strip(),
+        "disabled": str(item.get("Status") or item.get("State") or "").strip().lower() in {"disabled", "inactive", "restricted", "banned"},
         "expired_time": str(item.get("ExpiredTime") or item.get("ExpireTime") or "").strip(),
         "create_time": str(item.get("CreateTime") or item.get("CreatedAt") or "").strip(),
         "api_key": str(item.get("ApiKey") or item.get("APIKey") or "").strip(),
@@ -466,6 +467,25 @@ def update_api_key(
         ip_whitelist_info=ip_info,
     )
     return {"id": key_id, "name": str(name or "").strip()}
+
+
+def set_api_key_disabled(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    api_key_id: str,
+    disabled: bool,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    key_id = str(api_key_id or "").strip()
+    if not key_id:
+        raise ValueError("API Key ID 不能为空")
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    client.update_api_key(
+        api_key_id=key_id,
+        disable=bool(disabled),
+    )
+    return {"id": key_id, "disabled": bool(disabled)}
 
 
 def create_endpoint(
