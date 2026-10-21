@@ -547,6 +547,7 @@
           <div class="search-row">
             <input id="modelSearch" placeholder="搜索模型" aria-label="搜索模型" />
             <button id="btnLoadModels" class="na-btn na-btn-secondary" type="button">拉取模型</button>
+            <button id="btnLoadEnabledModels" class="na-btn na-btn-secondary" type="button">已开通模型</button>
           </div>
           <div id="modelGroups" class="group-row" aria-label="模型供应商分组"></div>
           <div class="table-wrap">
@@ -922,18 +923,20 @@
         <td><div class="row-actions"><button type="button" data-select="${esc(model.name)}">选择</button></div></td></tr>`).join("");
     }
 
-    async function loadModels() {
+    async function loadModels({ enabled = false } = {}) {
       if (!selectedProject) { NAUi.showBanner("userBanner", "请先选择项目", "warn"); return; }
-      const btn = $("btnLoadModels"); btn.disabled = true;
+      const btn = enabled ? $("btnLoadEnabledModels") : $("btnLoadModels"); btn.disabled = true;
       try {
-        const data = await requestJson("/api/upstream-create/volc/models", {
-          method: "POST",
-          body: { ...credPayload(), search: $("modelSearch").value.trim(), page_size: 100 },
-        });
+        const data = enabled
+          ? await requestJson("/api/upstream-create/volc/models/enabled", { method: "POST", body: credPayload() })
+          : await requestJson("/api/upstream-create/volc/models", {
+              method: "POST",
+              body: { ...credPayload(), search: $("modelSearch").value.trim(), page_size: 100 },
+            });
         models = data.data?.items || [];
         renderModelGroups();
         renderModels();
-        NAUi.showBanner("userBanner", `已返回 ${models.length} 个模型`, "ok");
+        NAUi.showBanner("userBanner", enabled ? `已返回 ${models.length} 个已开通模型` : `已返回 ${models.length} 个模型`, "ok");
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
       finally { btn.disabled = false; }
     }
@@ -1268,6 +1271,7 @@
     $("formSubProject").addEventListener("change", validateProjectForm);
     $("formParent").addEventListener("change", validateProjectForm);
     $("btnLoadModels").addEventListener("click", loadModels);
+    $("btnLoadEnabledModels").addEventListener("click", () => loadModels({ enabled: true }));
     $("btnLoadEndpoints").addEventListener("click", loadEndpoints);
     $("btnLoadApiKeys").addEventListener("click", loadApiKeys);
     $("btnShowApiKeyForm").addEventListener("click", openApiKeyForm);

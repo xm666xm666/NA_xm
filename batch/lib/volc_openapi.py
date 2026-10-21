@@ -480,6 +480,33 @@ class VolcOpenAPIClient:
         items = result.get("Items") or []
         return [item for item in items if isinstance(item, dict)]
 
+    def list_model_charge_items(self, *, page_size: int = 100) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        page = 1
+        size = max(1, min(int(page_size), 100))
+        while True:
+            result = self.request(
+                method="POST",
+                host=ARK_HOST,
+                service="ark",
+                action="ListModelChargeItems",
+                version="2024-01-01",
+                body={
+                    "PageNumber": page,
+                    "PageSize": size,
+                    "Fields": ["Base", "SubServices"],
+                },
+            )
+            batch = result.get("Items") or []
+            if not isinstance(batch, list):
+                batch = []
+            items.extend([item for item in batch if isinstance(item, dict)])
+            total = int(result.get("TotalCount") or 0)
+            if not batch or page * size >= total:
+                break
+            page += 1
+        return items
+
     def create_endpoint(
         self,
         *,

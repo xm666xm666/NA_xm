@@ -67,6 +67,24 @@ class FakeClient:
         self.calls.append(("list_foundation_model_versions", {"model_name": model_name, **kwargs}))
         return [{"ModelVersion": "260628", "State": "Available"}]
 
+    def list_model_charge_items(self, **kwargs):
+        self.calls.append(("list_model_charge_items", kwargs))
+        return [
+            {
+                "FoundationModelName": "DeepSeek-V4.1-Flash",
+                "DisplayName": "DeepSeek V4.1 Flash",
+                "VendorName": "DeepSeek",
+                "State": "Available",
+                "SubServices": [{"SubService": "base", "Status": "Available"}],
+            },
+            {
+                "FoundationModelName": "Unavailable-Model",
+                "DisplayName": "Unavailable Model",
+                "VendorName": "Demo",
+                "State": "Unavailable",
+            },
+        ]
+
     def list_endpoints(self, project_name: str, **kwargs):
         self.calls.append(("list_endpoints", {"project_name": project_name, **kwargs}))
         return [
@@ -198,6 +216,20 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(models["items"][0]["primary_version"], "260628")
         self.assertEqual(models["items"][0]["versions"][0]["model_version"], "260628")
         self.assertEqual(versions[0]["model_version"], "260628")
+
+    def test_list_enabled_models_filters_available_state(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            models = upstream_creation.list_enabled_models("ak", "sk")
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertEqual(len(models["items"]), 1)
+        self.assertEqual(models["items"][0]["name"], "DeepSeek-V4.1-Flash")
+        self.assertEqual(models["items"][0]["display_name"], "DeepSeek V4.1 Flash")
+        self.assertEqual(models["items"][0]["sub_services"], ["base:Available"])
+        self.assertFalse(any(call[0] == "list_model_charge_items" and "unavailable" in str(call).lower() for call in fake.calls))
 
     def test_list_endpoints_and_create_endpoint(self):
         fake = FakeClient("ak", "sk")

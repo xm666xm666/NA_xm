@@ -337,6 +337,39 @@ def list_foundation_model_versions(
     ]
 
 
+def list_enabled_models(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    items: list[dict[str, Any]] = []
+    for item in client.list_model_charge_items():
+        name = str(item.get("FoundationModelName") or item.get("Name") or "").strip()
+        if not name or str(item.get("State") or "").strip() != "Available":
+            continue
+        raw_sub_services = item.get("SubServices") or []
+        sub_services: list[str] = []
+        for value in raw_sub_services if isinstance(raw_sub_services, list) else []:
+            if isinstance(value, dict):
+                sub_service = str(value.get("SubService") or value.get("Name") or "").strip()
+                status = str(value.get("Status") or value.get("State") or "").strip()
+                sub_services.append(f"{sub_service}:{status}" if sub_service and status else sub_service)
+            elif str(value).strip():
+                sub_services.append(str(value).strip())
+        items.append({
+            "name": name,
+            "display_name": str(item.get("DisplayName") or item.get("DisplayModelName") or name).strip(),
+            "vendor": str(item.get("VendorName") or item.get("Vendor") or "").strip(),
+            "primary_version": str(item.get("PrimaryVersion") or "").strip(),
+            "state": "Available",
+            "sub_services": [value for value in sub_services if value],
+            "raw": item,
+        })
+    return {"items": items, "total": len(items)}
+
+
 def list_endpoints(
     access_key_id: str,
     secret_access_key: str,

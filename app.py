@@ -206,6 +206,7 @@ def _load_batch_modules():
             "upstream_update_project": upstream_creation.update_project,
             "upstream_delete_project": upstream_creation.delete_project,
             "upstream_list_models": upstream_creation.list_foundation_models,
+            "upstream_list_enabled_models": upstream_creation.list_enabled_models,
             "upstream_list_model_versions": upstream_creation.list_foundation_model_versions,
             "upstream_list_endpoints": upstream_creation.list_endpoints,
             "upstream_list_api_keys": upstream_creation.list_api_keys,
@@ -1729,6 +1730,23 @@ def api_upstream_create_model_versions():
             region=region,
         )
         return jsonify({"success": True, "data": {"items": rows}})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.route("/api/upstream-create/volc/models/enabled", methods=["GET", "POST"])
+def api_upstream_create_enabled_models():
+    _ensure_batch()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        data = BATCH["upstream_list_enabled_models"](
+            ak,
+            sk,
+            region=region,
+        )
+        return jsonify({"success": True, "data": data})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
