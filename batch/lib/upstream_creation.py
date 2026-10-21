@@ -392,10 +392,13 @@ def create_api_key(
 ) -> dict[str, Any]:
     project = str(project_name or "").strip()
     key_name = str(name or "").strip()
+    permission_value = "custom" if str(permission or "all").strip().lower() == "custom" else "all"
     if not project:
         raise ValueError("项目名称不能为空")
     if not key_name:
         raise ValueError("API Key 名称不能为空")
+    if ip_whitelist_enabled and permission_value != "custom":
+        raise ValueError("火山云 IP 白名单需要将权限切换为自定义")
     whitelist = [ip_whitelist] if isinstance(ip_whitelist, str) else list(ip_whitelist or [])
     if ip_whitelist_enabled and not whitelist:
         raise ValueError("启用 IP 白名单时至少填写一个 IP")
@@ -414,7 +417,7 @@ def create_api_key(
     row.update({
         "project_name": project,
         "name": key_name,
-        "permission": "all" if str(permission or "all").lower() != "custom" else "custom",
+        "permission": permission_value,
         "ip_whitelist_enabled": bool(ip_whitelist_enabled),
         "ip_whitelist": [str(item).strip() for item in whitelist if str(item).strip()],
     })
@@ -442,6 +445,9 @@ def update_api_key(
     key_id = str(api_key_id or "").strip()
     if not key_id:
         raise ValueError("API Key ID 不能为空")
+    permission_value = "custom" if str(permission or "all").strip().lower() == "custom" else "all"
+    if ip_whitelist_enabled and permission_value != "custom":
+        raise ValueError("火山云 IP 白名单需要将权限切换为自定义")
     whitelist = [ip_whitelist] if isinstance(ip_whitelist, str) else list(ip_whitelist or [])
     if ip_whitelist_enabled and not whitelist:
         raise ValueError("启用 IP 白名单时至少填写一个 IP")

@@ -318,6 +318,7 @@
       background: color-mix(in srgb, var(--na-panel-solid) 35%, transparent);
     }
     .permission-section .hint { margin-top: .3rem; }
+    .permission-section.locked { opacity: .55; pointer-events: none; }
     .permission-head {
       display: flex; justify-content: space-between; align-items: center; gap: .7rem;
       margin-bottom: .75rem;
@@ -521,14 +522,14 @@
             </div>
             <p class="hint">自定义权限用于限制 Key 可访问的资源；留空创建会被拒绝。</p>
           </div>
-          <div class="permission-section">
-            <div class="permission-head"><div class="ip-control"><input id="apiKeyIpEnabled" type="checkbox" /><label for="apiKeyIpEnabled"><strong>IP 调用白名单</strong></label></div><span>限制调用方 IP</span></div>
+          <div class="permission-section locked" id="apiKeyIpCard">
+            <div class="permission-head"><div class="ip-control"><input id="apiKeyIpEnabled" type="checkbox" disabled /><label for="apiKeyIpEnabled"><strong>IP 调用白名单</strong></label></div><span>需切换至自定义权限</span></div>
             <div id="apiKeyIpSection" hidden>
               <div class="permission-grid"><label>IP 白名单<textarea id="apiKeyIpWhitelist" placeholder="192.168.1.1&#10;192.168.1.10-192.168.1.100&#10;192.168.1.10/24"></textarea></label></div>
               <p class="hint">支持 IPv4、IPv6、IP 区间和网段，最多 100 条。</p>
             </div>
           </div>
-          <div class="form-footer"><p class="hint">默认权限为「全部（包括后续新增模型）」。</p><button id="btnSubmitApiKey" class="na-btn na-btn-primary" type="button">创建 API Key</button></div>
+          <div class="form-footer"><p class="hint">默认权限为「全部（包括后续新增模型）」；火山云的 IP 白名单仅在自定义权限下可用。</p><button id="btnSubmitApiKey" class="na-btn na-btn-primary" type="button">创建 API Key</button></div>
         </form>
         <div id="apiKeyRows" class="api-key-list"></div>
       </div>
@@ -877,11 +878,17 @@
     }
 
     function toggleApiKeyCustom() {
-      $("apiKeyCustomPermissions").hidden = $("apiKeyPermission").value !== "custom";
+      const customPermission = $("apiKeyPermission").value === "custom";
+      $("apiKeyCustomPermissions").hidden = !customPermission;
+      $("apiKeyIpEnabled").disabled = !customPermission;
+      if (!customPermission) $("apiKeyIpEnabled").checked = false;
+      toggleApiKeyIp();
     }
 
     function toggleApiKeyIp() {
-      $("apiKeyIpSection").hidden = !$("apiKeyIpEnabled").checked;
+      const customPermission = $("apiKeyPermission").value === "custom";
+      $("apiKeyIpCard").classList.toggle("locked", !customPermission);
+      $("apiKeyIpSection").hidden = !customPermission || !$("apiKeyIpEnabled").checked;
     }
 
     function resetApiKeyForm() {
