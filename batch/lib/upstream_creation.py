@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from typing import Any
 
 from .volc_openapi import VolcOpenAPIClient
@@ -80,6 +81,100 @@ def normalize_endpoint(item: dict[str, Any]) -> dict[str, Any]:
         "description": str(item.get("Description") or "").strip(),
         "create_time": str(item.get("CreateTime") or "").strip(),
         "update_time": str(item.get("UpdateTime") or "").strip(),
+    }
+
+
+def normalize_api_key(item: dict[str, Any]) -> dict[str, Any]:
+    access_control = item.get("AccessControlInfo") if isinstance(item.get("AccessControlInfo"), dict) else {}
+    access_rules = access_control.get("AccessRules") if isinstance(access_control.get("AccessRules"), dict) else {}
+    model_rule = access_rules.get("model") if isinstance(access_rules.get("model"), dict) else {}
+    endpoint_rule = access_rules.get("endpoint") if isinstance(access_rules.get("endpoint"), dict) else {}
+    ip_raw = item.get("IPWhiteListInfo") if isinstance(item.get("IPWhiteListInfo"), dict) else {}
+    ip_contents = ip_raw.get("Contents") if isinstance(ip_raw.get("Contents"), list) else []
+    normalized_ips: list[str] = []
+    for content in ip_contents:
+        if isinstance(content, str):
+            normalized_ips.append(content.strip())
+        elif isinstance(content, dict):
+            if content.get("IP"):
+                normalized_ips.append(str(content["IP"]).strip())
+            elif content.get("Subnet"):
+                normalized_ips.append(str(content["Subnet"]).strip())
+            elif isinstance(content.get("IPRange"), dict):
+                ip_range = content["IPRange"]
+                normalized_ips.append(f"{ip_range.get('StartIP', '')}-{ip_range.get('EndIP', '')}")
+    return {
+        "id": str(item.get("Id") or item.get("ID") or "").strip(),
+        "name": str(item.get("Name") or item.get("DisplayName") or "").strip(),
+        "project_name": str(item.get("ProjectName") or "").strip(),
+        "description": str(item.get("Description") or "").strip(),
+        "status": str(item.get("Status") or item.get("State") or "").strip(),
+        "expired_time": str(item.get("ExpiredTime") or item.get("ExpireTime") or "").strip(),
+        "create_time": str(item.get("CreateTime") or item.get("CreatedAt") or "").strip(),
+        "api_key": str(item.get("ApiKey") or item.get("APIKey") or "").strip(),
+        "permission": "all" if access_control.get("AllowAll") is not False else "custom",
+        "model_ids": [str(value) for value in (model_rule.get("Ids") or []) if str(value).strip()],
+        "endpoint_ids": [str(value) for value in (endpoint_rule.get("Ids") or []) if str(value).strip()],
+        "ip_whitelist_enabled": bool(ip_raw.get("Enabled")),
+        "ip_whitelist": [value for value in normalized_ips if value],
+    }
+
+
+def _parse_ip_whitelist(values: list[str] | str | None) -> list[dict[str, Any]]:
+    parsed: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    values = [values] if isinstance(values, str) else (values or [])
+    for raw_value in values:
+        for candidate in str(raw_value).replace(",", " ").split():
+            value = candidate.strip()
+            if not value or value in seen:
+                continue
+            try:
+                if value.count("-") == 1 and "-" in value:
+                    start, end = [part.strip() for part in value.split("-", 1)]
+                    (ipaddress.IPv6Address(start) if ":" in start else ipaddress.IPv4Address(start))
+                    (ipaddress.IPv6Address(end) if ":" in end else ipaddress.IPv4Address(end))
+                    item: dict[str, Any] = {"IPRange": {"StartIP": start, "EndIP": end}}
+                elif "/" in value:
+                    ipaddress.ip_network(value, strict=False)
+                    item = {"Subnet": value}
+                else:
+                    (ipaddress.IPv6Address(value) if ":" in value else ipaddress.IPv4Address(value))
+                    item = {"IP": value}
+            except ValueError as exc:
+                raise ValueError(f"IP 白名单格式错误：{value}") from exc
+            seen.add(value)
+            parsed.append(item)
+    return parsed
+
+
+def _build_access_control(
+    permission: str,
+    model_ids: list[str] | str | None,
+    endpoint_ids: list[str] | str | None,
+) -> dict[str, Any]:
+    if str(permission or "all").strip().lower() != "custom":
+        return {"AllowAll": True}
+
+    def parse_ids(value: list[str] | str | None) -> list[str]:
+        if isinstance(value, str):
+            raw = value.replace(",", " ").split()
+        elif isinstance(value, list):
+            raw = value
+        else:
+            raw = []
+        return list(dict.fromkeys(str(item).strip() for item in raw if str(item).strip()))
+
+    model_values = parse_ids(model_ids)
+    endpoint_values = parse_ids(endpoint_ids)
+    if not model_values and not endpoint_values:
+        raise ValueError("自定义权限至少选择一个 Model ID 或推理接入点")
+    return {
+        "AllowAll": False,
+        "AccessRules": {
+            "model": {"Effect": "allow", "EffectToAll": False, "Ids": model_values},
+            "endpoint": {"Effect": "allow", "EffectToAll": False, "Ids": endpoint_values},
+        },
     }
 
 
@@ -240,6 +335,114 @@ def list_endpoints(
         raise ValueError("项目名称不能为空")
     client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
     return [normalize_endpoint(item) for item in client.list_endpoints(name) if isinstance(item, dict)]
+
+
+def list_api_keys(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    project_name: str,
+    include_raw: bool = True,
+    region: str = "cn-beijing",
+) -> list[dict[str, Any]]:
+    name = str(project_name or "").strip()
+    if not name:
+        raise ValueError("项目名称不能为空")
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    rows: list[dict[str, Any]] = []
+    for item in client.list_api_keys(name):
+        if not isinstance(item, dict):
+            continue
+        row = normalize_api_key(item)
+        if include_raw and row["id"]:
+            try:
+                row["api_key"] = client.get_raw_api_key(row["id"])
+            except Exception:
+                row["api_key"] = row["api_key"]
+        rows.append(row)
+    return rows
+
+
+def create_api_key(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    project_name: str,
+    name: str,
+    permission: str = "all",
+    model_ids: list[str] | str | None = None,
+    endpoint_ids: list[str] | str | None = None,
+    ip_whitelist_enabled: bool = False,
+    ip_whitelist: list[str] | str | None = None,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    project = str(project_name or "").strip()
+    key_name = str(name or "").strip()
+    if not project:
+        raise ValueError("项目名称不能为空")
+    if not key_name:
+        raise ValueError("API Key 名称不能为空")
+    whitelist = [ip_whitelist] if isinstance(ip_whitelist, str) else list(ip_whitelist or [])
+    if ip_whitelist_enabled and not whitelist:
+        raise ValueError("启用 IP 白名单时至少填写一个 IP")
+    ip_info = {
+        "Enabled": bool(ip_whitelist_enabled),
+        "Contents": _parse_ip_whitelist(whitelist) if ip_whitelist_enabled else [],
+    }
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    result = client.create_api_key(
+        project_name=project,
+        name=key_name,
+        access_control_info=_build_access_control(permission, model_ids, endpoint_ids),
+        ip_whitelist_info=ip_info,
+    )
+    row = normalize_api_key(result if isinstance(result, dict) else {})
+    row.update({
+        "project_name": project,
+        "name": key_name,
+        "permission": "all" if str(permission or "all").lower() != "custom" else "custom",
+        "ip_whitelist_enabled": bool(ip_whitelist_enabled),
+        "ip_whitelist": [str(item).strip() for item in whitelist if str(item).strip()],
+    })
+    if row["id"] and not row["api_key"]:
+        try:
+            row["api_key"] = client.get_raw_api_key(row["id"])
+        except Exception:
+            pass
+    return row
+
+
+def update_api_key(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    api_key_id: str,
+    name: str = "",
+    permission: str = "all",
+    model_ids: list[str] | str | None = None,
+    endpoint_ids: list[str] | str | None = None,
+    ip_whitelist_enabled: bool = False,
+    ip_whitelist: list[str] | str | None = None,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    key_id = str(api_key_id or "").strip()
+    if not key_id:
+        raise ValueError("API Key ID 不能为空")
+    whitelist = [ip_whitelist] if isinstance(ip_whitelist, str) else list(ip_whitelist or [])
+    if ip_whitelist_enabled and not whitelist:
+        raise ValueError("启用 IP 白名单时至少填写一个 IP")
+    ip_info = {
+        "Enabled": bool(ip_whitelist_enabled),
+        "Contents": _parse_ip_whitelist(whitelist) if ip_whitelist_enabled else [],
+    }
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    client.update_api_key(
+        api_key_id=key_id,
+        name=str(name or "").strip(),
+        access_control_info=_build_access_control(permission, model_ids, endpoint_ids),
+        ip_whitelist_info=ip_info,
+    )
+    return {"id": key_id, "name": str(name or "").strip()}
 
 
 def create_endpoint(

@@ -1515,6 +1515,7 @@ Azure 采集逻辑与权限见 [Azure OpenAI 配置与权限](#azure-openai-配�
 - **编辑项目**：可修改显示名称与备注；火山不允许修改项目名称
 - **删除项目**：调用火山 `DeleteProject`；项目下仍有资源时火山会拒绝
 - **模型目录**：选择项目后调用 `ListFoundationModels` 返回模型、显示名、厂商、默认版本和状态；支持按字节跳动、深度求索、通义千问和其他分组筛选
+- **API Key**：选择项目后自动读取该项目 API Key；支持创建/编辑权限，默认「全部（包括后续新增模型）」，可切换自定义 Model ID / 推理接入点，并可配置 IPv4、IPv6、IP 区间与网段白名单；页面内可选择当前 Key、查看明文并复制
 - **创建接入点**：点击模型优先使用默认版本，并自动填入接入点名称、模型、版本和显示名称；无默认版本时再拉取版本选择。可选 RPM / TPM；结果返回端点 ID 并刷新列表
 
 #### 火山云导出列
@@ -2653,7 +2654,10 @@ python agent/tests/test_pipeline_runner.py
 | `GET/POST` | `/api/upstream-create/volc/models` | 拉取模型目录 |
 | `GET/POST` | `/api/upstream-create/volc/model-versions` | 按模型拉取版本 |
 | `GET/POST` | `/api/upstream-create/volc/endpoints` | 拉取项目下推理接入点 |
-| `POST` | `/api/upstream-create/volc/endpoints` | 创建推理接入点 |
+| `POST` | `/api/upstream-create/volc/endpoints/create` | 创建推理接入点 |
+| `POST` | `/api/upstream-create/volc/api-keys` | 拉取项目下 API Key、权限、白名单与明文 |
+| `POST` | `/api/upstream-create/volc/api-keys/create` | 创建 API Key，权限默认全部 |
+| `POST` | `/api/upstream-create/volc/api-keys/update` | 更新 API Key 名称、权限与 IP 白名单 |
 
 该组接口需要独立功能权限 `upstream_create`。凭证读取方式与上游信息相同；POST 可携带 `access_key_id` / `secret_access_key`，GET 可带非敏感查询参数，文件已配置 Secret 时页面可留空。
 

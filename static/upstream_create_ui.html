@@ -234,6 +234,70 @@
     }
     .detail-block h3 { margin: 0 0 .75rem; font: 650 .86rem var(--na-font-display); color: var(--na-text); }
     .table-wrap + .table-wrap, .detail-block + .detail-block { margin-top: 1rem; }
+    .api-key-block { margin-top: 1rem; }
+    .api-key-head { display: flex; justify-content: space-between; align-items: center; gap: .7rem; margin-bottom: .7rem; }
+    .api-key-head h3 { margin: 0; }
+    .api-key-value {
+      display: inline-flex;
+      min-width: 8rem;
+      max-width: 24rem;
+      align-items: center;
+      gap: .5rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font: 600 .74rem var(--na-font-mono);
+      color: var(--na-text);
+      background: color-mix(in srgb, var(--na-panel-solid) 72%, transparent);
+      border: 1px solid var(--na-border);
+      border-radius: .45rem;
+      padding: .3rem .5rem;
+    }
+    .api-key-value.empty { color: var(--na-text-muted); font-family: var(--na-font-body); }
+    .api-key-list { display: grid; gap: .55rem; }
+    .api-key-row {
+      display: grid;
+      grid-template-columns: minmax(140px, .8fr) minmax(220px, 1.6fr) auto;
+      gap: .7rem;
+      align-items: center;
+      border: 1px solid var(--na-border);
+      border-radius: .65rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 38%, transparent);
+      padding: .65rem .75rem;
+    }
+    .api-key-row.selected { border-color: color-mix(in srgb, var(--na-accent) 45%, transparent); background: var(--na-accent-soft); }
+    .api-key-row .hint { margin: .2rem 0 0; font-size: .66rem; }
+    .api-key-row .api-key-value { min-width: 0; }
+    .api-key-actions { display: inline-flex; gap: .35rem; }
+    .api-key-actions button {
+      border: 1px solid var(--na-border);
+      border-radius: .45rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 74%, transparent);
+      color: var(--na-text-muted);
+      padding: .28rem .5rem;
+      font-size: .68rem;
+      font-weight: 650;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .api-key-actions button:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
+    .api-key-form {
+      margin: .8rem 0 1rem;
+      border: 1px solid color-mix(in srgb, var(--na-border) 85%, transparent);
+      border-radius: .75rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 42%, transparent);
+      padding: .9rem;
+    }
+    .api-key-form .form-grid { margin-top: .7rem; }
+    .permission-section {
+      border: 1px solid color-mix(in srgb, var(--na-border) 75%, transparent);
+      border-radius: .6rem;
+      padding: .7rem;
+      margin-top: .3rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 35%, transparent);
+    }
+    .permission-section .hint { margin-top: .3rem; }
+    .api-key-heading { margin: 1rem 0 .4rem; font: 650 .76rem var(--na-font-display); color: var(--na-text); }
     @media (max-width: 1160px) {
       .detail-grid { grid-template-columns: 1fr; }
     }
@@ -241,6 +305,7 @@
       .na-card { padding: 1rem; }
       .na-card-head { display: block; }
       .creation-table.project-table, .creation-table.model-table { min-width: 36rem; }
+      .api-key-row { grid-template-columns: 1fr; align-items: start; }
       .creation-table.endpoint-table { min-width: 44rem; }
       .row-actions button { padding: .3rem .45rem; }
     }
@@ -368,6 +433,43 @@
         </div>
       </div>
 
+      <div class="detail-block api-key-block">
+        <div class="api-key-head">
+          <h3>API Key</h3>
+          <div class="actions">
+            <button id="btnShowApiKeyForm" class="na-btn na-btn-primary" type="button">新建 API Key</button>
+            <button id="btnLoadApiKeys" class="na-btn na-btn-ghost" type="button">刷新 API Key</button>
+          </div>
+        </div>
+        <form id="apiKeyForm" class="api-key-form" hidden>
+          <div class="api-key-head"><h3 id="apiKeyFormTitle">创建 API Key</h3><button id="btnCancelApiKey" class="na-btn na-btn-ghost" type="button">取消</button></div>
+          <div class="form-grid">
+            <label>所属项目<input id="apiKeyProject" readonly /></label>
+            <label>名称<input id="apiKeyName" maxlength="128" placeholder="api-key-20261021123456" /></label>
+            <label>权限<select id="apiKeyPermission">
+              <option value="all" selected>全部（包括后续新增模型）</option>
+              <option value="custom">自定义（限制可访问资源范围）</option>
+            </select></label>
+          </div>
+          <div id="apiKeyCustomPermissions" class="permission-section" hidden>
+            <div class="api-key-heading">Model ID</div>
+            <label class="full">模型 ID 列表<textarea id="apiKeyModelIds" placeholder="每行或空格分隔 Model ID"></textarea></label>
+            <div class="api-key-heading">自定义推理接入点</div>
+            <label class="full">接入点 ID 列表<textarea id="apiKeyEndpointIds" placeholder="每行或空格分隔 ep-..."></textarea></label>
+            <p class="hint">自定义权限用于限制 Key 可访问的资源；留空创建会被拒绝。</p>
+          </div>
+          <div class="permission-section">
+            <div class="switch-row"><input id="apiKeyIpEnabled" type="checkbox" /><label for="apiKeyIpEnabled">IP 调用白名单</label></div>
+            <div id="apiKeyIpSection" hidden>
+              <label class="full">IP 白名单<textarea id="apiKeyIpWhitelist" placeholder="192.168.1.1&#10;192.168.1.10-192.168.1.100&#10;192.168.1.10/24"></textarea></label>
+              <p class="hint">支持 IPv4、IPv6、IP 区间和网段，最多 100 条。</p>
+            </div>
+          </div>
+          <div class="actions"><button id="btnSubmitApiKey" class="na-btn na-btn-primary" type="button">创建 API Key</button></div>
+        </form>
+        <div id="apiKeyRows" class="api-key-list"></div>
+      </div>
+
       <div class="table-wrap">
         <table class="creation-table endpoint-table">
           <thead><tr><th>接入点</th><th>部署 ID</th><th>模型服务</th><th>状态</th><th class="wrap">描述</th><th>创建时间</th></tr></thead>
@@ -381,6 +483,9 @@
     const $ = (id) => document.getElementById(id);
     let projects = [];
     let models = [];
+    let apiKeys = [];
+    let selectedApiKey = "";
+    let editingApiKey = "";
     let selectedModelGroup = "";
     let selectedProject = "";
     let editingProject = "";
@@ -395,6 +500,14 @@
     }
 
     function esc(value) { return NAUi.escapeHtml?.(value) ?? String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch])); }
+
+    async function copyToClipboard(value, button) {
+      try {
+        await navigator.clipboard.writeText(value || "");
+        NAUi.toast("已复制", "ok");
+        if (button) { button.textContent = "已复制"; setTimeout(() => button.textContent = "复制", 1200); }
+      } catch (_) { NAUi.toast("复制失败", "err"); }
+    }
 
     function credPayload(includeSecret = true) {
       const payload = { access_key_id: $("akId").value.trim(), region: $("region").value.trim() || "cn-beijing" };
@@ -559,7 +672,9 @@
       $("endpointName").value = "";
       renderProjects();
       $("projectDetail").scrollIntoView({ behavior: "smooth", block: "start" });
+      openApiKeyForm();
       await loadModels();
+      await loadApiKeys();
       await loadEndpoints();
     }
 
@@ -637,6 +752,134 @@
         : '<tr><td colspan="6">该项目还没有接入点。</td></tr>';
     }
 
+    function permissionText(value) { return value === "custom" ? "自定义" : "全部"; }
+
+    function whitelistText(key) {
+      if (!key.ip_whitelist_enabled) return "关闭";
+      const items = key.ip_whitelist || [];
+      return items.length ? `${items.length} 条` : "已启用";
+    }
+
+    function renderApiKeys() {
+      const target = $("apiKeyRows");
+      if (!apiKeys.length) { target.innerHTML = '<div class="hint">该项目没有 API Key。</div>'; return; }
+      target.innerHTML = apiKeys.map((key) => {
+        const selected = key.id === selectedApiKey ? "selected" : "";
+        return `
+          <div class="api-key-row ${selected}" data-key-id="${esc(key.id)}">
+            <div><span class="cell-strong">${esc(key.name || "未命名 Key")}</span><div class="hint">权限：${permissionText(key.permission)}｜白名单：${whitelistText(key)}</div></div>
+            <span class="api-key-value ${key.api_key ? "" : "empty"}" title="${esc(key.api_key || "未获取到明文")}">${esc(key.api_key || "未获取到明文")}</span>
+            <div class="api-key-actions">
+              <button type="button" data-copy="${esc(key.api_key)}">复制</button>
+              <button type="button" data-select-key="${esc(key.id)}">选择</button>
+              <button type="button" data-edit-key="${esc(key.id)}">编辑权限</button>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    function selectApiKey(id) {
+      const row = apiKeys.find((item) => item.id === id);
+      if (!row) return;
+      selectedApiKey = row.id;
+      renderApiKeys();
+      NAUi.toast(`已选择 ${row.name || "API Key"}`, "ok");
+    }
+
+    function parseList(value) {
+      return String(value || "").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+    }
+
+    function toggleApiKeyCustom() {
+      $("apiKeyCustomPermissions").hidden = $("apiKeyPermission").value !== "custom";
+    }
+
+    function toggleApiKeyIp() {
+      $("apiKeyIpSection").hidden = !$("apiKeyIpEnabled").checked;
+    }
+
+    function resetApiKeyForm() {
+      editingApiKey = "";
+      $("apiKeyFormTitle").textContent = "创建 API Key";
+      $("btnSubmitApiKey").textContent = "创建 API Key";
+      $("apiKeyProject").value = selectedProject;
+      $("apiKeyName").value = `api-key-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "")}`;
+      $("apiKeyPermission").value = "all";
+      $("apiKeyModelIds").value = "";
+      $("apiKeyEndpointIds").value = "";
+      $("apiKeyIpEnabled").checked = false;
+      $("apiKeyIpWhitelist").value = "";
+      toggleApiKeyCustom();
+      toggleApiKeyIp();
+    }
+
+    function openApiKeyForm() {
+      resetApiKeyForm();
+      $("apiKeyForm").hidden = false;
+      $("apiKeyName").focus();
+    }
+
+    function openApiKeyEdit(id) {
+      const row = apiKeys.find((item) => item.id === id);
+      if (!row) return;
+      editingApiKey = row.id;
+      $("apiKeyFormTitle").textContent = "编辑 API Key";
+      $("btnSubmitApiKey").textContent = "保存权限";
+      $("apiKeyProject").value = row.project_name || selectedProject;
+      $("apiKeyName").value = row.name || "";
+      $("apiKeyPermission").value = row.permission === "custom" ? "custom" : "all";
+      $("apiKeyModelIds").value = (row.model_ids || []).join("\n");
+      $("apiKeyEndpointIds").value = (row.endpoint_ids || []).join("\n");
+      $("apiKeyIpEnabled").checked = !!row.ip_whitelist_enabled;
+      $("apiKeyIpWhitelist").value = (row.ip_whitelist || []).join("\n");
+      toggleApiKeyCustom();
+      toggleApiKeyIp();
+      $("apiKeyForm").hidden = false;
+      $("apiKeyForm").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    async function submitApiKey() {
+      const payload = {
+        ...credPayload(), project_name: $("apiKeyProject").value.trim() || selectedProject,
+        name: $("apiKeyName").value.trim(), permission: $("apiKeyPermission").value,
+        model_ids: parseList($("apiKeyModelIds").value), endpoint_ids: parseList($("apiKeyEndpointIds").value),
+        ip_whitelist_enabled: $("apiKeyIpEnabled").checked, ip_whitelist: parseList($("apiKeyIpWhitelist").value),
+      };
+      const button = $("btnSubmitApiKey"); button.disabled = true;
+      try {
+        const isEdit = !!editingApiKey;
+        const path = isEdit ? "/api/upstream-create/volc/api-keys/update" : "/api/upstream-create/volc/api-keys/create";
+        if (isEdit) payload.api_key_id = editingApiKey;
+        const data = await requestJson(path, { method: "POST", body: payload });
+        NAUi.showBanner("userBanner", data.message || (isEdit ? "API Key 权限已更新" : "API Key 创建成功"), "ok");
+        $("apiKeyForm").hidden = true;
+        await loadApiKeys();
+        if (data.data?.id) selectApiKey(data.data.id);
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+      finally { button.disabled = false; }
+    }
+
+    async function loadApiKeys() {
+      if (!selectedProject) return;
+      try {
+        const data = await requestJson("/api/upstream-create/volc/api-keys", {
+          method: "POST",
+          body: { ...credPayload(), project_name: selectedProject },
+        });
+        apiKeys = data.data?.items || [];
+        selectedApiKey = selectedApiKey && apiKeys.some((key) => key.id === selectedApiKey)
+          ? selectedApiKey
+          : apiKeys[0]?.id || "";
+        renderApiKeys();
+        if (apiKeys.length) NAUi.toast(`已加载 ${apiKeys.length} 个 API Key`, "ok");
+      } catch (e) {
+        apiKeys = [];
+        selectedApiKey = "";
+        renderApiKeys();
+        NAUi.showBanner("userBanner", e.message, "err");
+      }
+    }
+
     async function loadEndpoints() {
       if (!selectedProject) return;
       try {
@@ -656,7 +899,7 @@
       };
       const btn = $("btnCreateEndpoint"); btn.disabled = true;
       try {
-        const data = await requestJson("/api/upstream-create/volc/endpoints", { method: "POST", body });
+        const data = await requestJson("/api/upstream-create/volc/endpoints/create", { method: "POST", body });
         NAUi.showBanner("userBanner", data.message || "接入点创建成功", "ok");
         NAUi.toast("接入点创建成功", "ok");
         await loadEndpoints();
@@ -683,6 +926,12 @@
     $("btnCancelProject").addEventListener("click", () => $("projectForm").hidden = true);
     $("btnLoadModels").addEventListener("click", loadModels);
     $("btnLoadEndpoints").addEventListener("click", loadEndpoints);
+    $("btnLoadApiKeys").addEventListener("click", loadApiKeys);
+    $("btnShowApiKeyForm").addEventListener("click", openApiKeyForm);
+    $("btnCancelApiKey").addEventListener("click", () => $("apiKeyForm").hidden = true);
+    $("btnSubmitApiKey").addEventListener("click", submitApiKey);
+    $("apiKeyPermission").addEventListener("change", toggleApiKeyCustom);
+    $("apiKeyIpEnabled").addEventListener("change", toggleApiKeyIp);
     $("btnChangeProject").addEventListener("click", () => {
       $("projectDetail").hidden = true;
       $("credentialSection").hidden = false;
@@ -711,6 +960,14 @@
     $("versionRows").addEventListener("click", (event) => {
       const target = event.target.closest("button[data-use], tr[data-use]");
       if (target?.dataset.use) useModel(target.dataset.use, target.dataset.version);
+    });
+    $("apiKeyRows").addEventListener("click", (event) => {
+      const copyButton = event.target.closest("button[data-copy]");
+      if (copyButton) { copyToClipboard(copyButton.dataset.copy, copyButton); return; }
+      const selectButton = event.target.closest("button[data-select-key]");
+      if (selectButton) selectApiKey(selectButton.dataset.selectKey);
+      const editButton = event.target.closest("button[data-edit-key]");
+      if (editButton) openApiKeyEdit(editButton.dataset.editKey);
     });
     window.addEventListener("message", (event) => { const data = event.data || {}; if (data.type === "na-theme-change") NATheme.apply(data.theme); });
     loadConfig();

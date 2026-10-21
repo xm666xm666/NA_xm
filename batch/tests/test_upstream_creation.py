@@ -81,6 +81,22 @@ class FakeClient:
             }
         ]
 
+    def list_api_keys(self, project_name: str, **kwargs):
+        self.calls.append(("list_api_keys", {"project_name": project_name, **kwargs}))
+        return [{"Id": 12, "Name": "token-prd", "Status": "Enabled"}]
+
+    def create_api_key(self, **kwargs):
+        self.calls.append(("create_api_key", kwargs))
+        return {"Id": "apikey-new", "Name": kwargs["name"], "ApiKey": "sk-new"}
+
+    def update_api_key(self, **kwargs):
+        self.calls.append(("update_api_key", kwargs))
+        return {}
+
+    def get_raw_api_key(self, api_key_id: int | str):
+        self.calls.append(("get_raw_api_key", {"id": api_key_id}))
+        return "sk-test"
+
     def create_endpoint(self, **kwargs):
         self.calls.append(("create_endpoint", kwargs))
         return {"Id": "ep-new"}
@@ -191,6 +207,78 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(rows[0]["id"], "ep-20261014144019-smrv7")
         self.assertEqual(rows[0]["model_service"], "GLM-5.3-Flash｜260828")
         self.assertEqual(created["endpoint_id"], "ep-new")
+
+    def test_list_api_keys_reads_plain_key(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            rows = upstream_creation.list_api_keys("ak", "sk", project_name="AIOps")
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertEqual(rows[0]["id"], "12")
+        self.assertEqual(rows[0]["name"], "token-prd")
+        self.assertEqual(rows[0]["api_key"], "sk-test")
+
+    def test_create_api_key_defaults_to_all_permission(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            row = upstream_creation.create_api_key(
+                "ak",
+                "sk",
+                project_name="AIOps",
+                name="api-key-demo",
+                ip_whitelist=["192.168.1.10/24"],
+                ip_whitelist_enabled=True,
+            )
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        create_call = next(call for call in fake.calls if call[0] == "create_api_key")
+        self.assertEqual(create_call[1]["project_name"], "AIOps")
+        self.assertEqual(create_call[1]["name"], "api-key-demo")
+        self.assertEqual(create_call[1]["access_control_info"], {"AllowAll": True})
+        self.assertEqual(create_call[1]["ip_whitelist_info"], {
+            "Enabled": True,
+            "Contents": [{"Subnet": "192.168.1.10/24"}],
+        })
+        self.assertEqual(row["permission"], "all")
+
+    def test_update_api_key_custom_permission_and_ip_whitelist(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            upstream_creation.update_api_key(
+                "ak",
+                "sk",
+                api_key_id="apikey-new",
+                name="restricted",
+                permission="custom",
+                model_ids="Doubao-Seedance-2.5,GLM-5.3-Flash",
+                endpoint_ids=["ep-new"],
+                ip_whitelist_enabled=True,
+                ip_whitelist="192.168.1.1 192.168.1.10-192.168.1.100",
+            )
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        update_call = next(call for call in fake.calls if call[0] == "update_api_key")
+        self.assertEqual(update_call[1]["api_key_id"], "apikey-new")
+        self.assertEqual(update_call[1]["access_control_info"], {
+            "AllowAll": False,
+            "AccessRules": {
+                "model": {"Effect": "allow", "EffectToAll": False, "Ids": ["Doubao-Seedance-2.5", "GLM-5.3-Flash"]},
+                "endpoint": {"Effect": "allow", "EffectToAll": False, "Ids": ["ep-new"]},
+            },
+        })
+        self.assertEqual(update_call[1]["ip_whitelist_info"], {
+            "Enabled": True,
+            "Contents": [
+                {"IP": "192.168.1.1"},
+                {"IPRange": {"StartIP": "192.168.1.10", "EndIP": "192.168.1.100"}},
+            ],
+        })
 
 
 if __name__ == "__main__":

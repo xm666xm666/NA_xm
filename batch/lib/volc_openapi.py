@@ -308,6 +308,55 @@ class VolcOpenAPIClient:
             page += 1
         return items
 
+    def create_api_key(
+        self,
+        *,
+        project_name: str,
+        name: str,
+        access_control_info: dict[str, Any] | None = None,
+        ip_whitelist_info: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "Name": name,
+            "ProjectName": project_name,
+            "ResourceInstances": [{"ResourceId": "*", "ResourceType": "all"}],
+            "AccessControlInfo": access_control_info or {"AllowAll": True},
+        }
+        if ip_whitelist_info is not None:
+            body["IPWhiteListInfo"] = ip_whitelist_info
+        return self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="CreateApiKey",
+            version="2024-01-01",
+            body=body,
+        )
+
+    def update_api_key(
+        self,
+        *,
+        api_key_id: str,
+        name: str = "",
+        access_control_info: dict[str, Any] | None = None,
+        ip_whitelist_info: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"Id": api_key_id}
+        if name:
+            body["Name"] = name
+        if access_control_info is not None:
+            body["AccessControlInfo"] = access_control_info
+        if ip_whitelist_info is not None:
+            body["IPWhiteListInfo"] = ip_whitelist_info
+        return self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="UpdateApiKey",
+            version="2024-01-01",
+            body=body,
+        )
+
     def list_model_rate_limits(self, *, page_size: int = 100) -> list[dict[str, Any]]:
         """账号级模型限流（RPM/TPM）。控制台多数数字来自此处，而非接入点 RateLimit。"""
         by_name: dict[str, dict[str, Any]] = {}

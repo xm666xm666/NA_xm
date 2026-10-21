@@ -208,6 +208,9 @@ def _load_batch_modules():
             "upstream_list_models": upstream_creation.list_foundation_models,
             "upstream_list_model_versions": upstream_creation.list_foundation_model_versions,
             "upstream_list_endpoints": upstream_creation.list_endpoints,
+            "upstream_list_api_keys": upstream_creation.list_api_keys,
+            "upstream_create_api_key": upstream_creation.create_api_key,
+            "upstream_update_api_key": upstream_creation.update_api_key,
             "upstream_create_endpoint": upstream_creation.create_endpoint,
             "build_upstream_path": upstream_exporter.build_upstream_path,
             "latest_upstream_excel_path": upstream_exporter.latest_upstream_excel_path,
@@ -1744,7 +1747,76 @@ def api_upstream_create_endpoints():
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
-@app.post("/api/upstream-create/volc/endpoints")
+@app.post("/api/upstream-create/volc/api-keys")
+def api_upstream_create_api_keys():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        rows = BATCH["upstream_list_api_keys"](
+            ak,
+            sk,
+            project_name=str(body.get("project_name") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "data": {"items": rows, "total": len(rows)}})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/api-keys/create")
+def api_upstream_create_api_key():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_create_api_key"](
+            ak,
+            sk,
+            project_name=str(body.get("project_name") or "").strip(),
+            name=str(body.get("name") or "").strip(),
+            permission=str(body.get("permission") or "all").strip(),
+            model_ids=body.get("model_ids") or [],
+            endpoint_ids=body.get("endpoint_ids") or [],
+            ip_whitelist_enabled=bool(body.get("ip_whitelist_enabled")),
+            ip_whitelist=body.get("ip_whitelist") or [],
+            region=region,
+        )
+        return jsonify({"success": True, "message": "API Key 创建成功", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/api-keys/update")
+def api_upstream_update_api_key():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        BATCH["upstream_update_api_key"](
+            ak,
+            sk,
+            api_key_id=str(body.get("api_key_id") or "").strip(),
+            name=str(body.get("name") or "").strip(),
+            permission=str(body.get("permission") or "all").strip(),
+            model_ids=body.get("model_ids") or [],
+            endpoint_ids=body.get("endpoint_ids") or [],
+            ip_whitelist_enabled=bool(body.get("ip_whitelist_enabled")),
+            ip_whitelist=body.get("ip_whitelist") or [],
+            region=region,
+        )
+        return jsonify({"success": True, "message": "API Key 权限已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/endpoints/create")
 def api_upstream_create_endpoint():
     _ensure_batch()
     body = _creation_volc_payload()
