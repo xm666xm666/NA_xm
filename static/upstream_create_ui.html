@@ -824,7 +824,7 @@
     async function loadProjects() {
       const btn = $("btnLoadProjects"); btn.disabled = true;
       try {
-        const data = await requestJson("/api/upstream-create/volc/projects", {
+        const data = await requestJson("/api/upstream-create/volc/projects/list", {
           method: "POST",
           body: { ...credPayload(), search: $("projectSearch").value.trim() },
         });
@@ -850,7 +850,7 @@
       if (isEdit && body.owner && !body.display_name) body.display_name = `${body.project_name}-${body.owner}`;
       const btn = $("btnSubmitProject"); btn.disabled = true;
       try {
-        const result = await requestJson(isEdit ? "/api/upstream-create/volc/projects/update" : "/api/upstream-create/volc/projects", { method: "POST", body });
+        const result = await requestJson(isEdit ? "/api/upstream-create/volc/projects/update" : "/api/upstream-create/volc/projects/create", { method: "POST", body });
         NAUi.showBanner("userBanner", result.message || (isEdit ? "项目已更新" : "项目创建成功"), "ok");
         NAUi.toast(result.message || "已完成", "ok");
         $("projectForm").hidden = true;

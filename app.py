@@ -1609,7 +1609,8 @@ def _creation_volc_creds() -> tuple[str, str, str] | tuple[None, None, str]:
     return ak, sk, region
 
 
-@app.route("/api/upstream-create/volc/projects", methods=["GET", "POST"])
+@app.route("/api/upstream-create/volc/projects", methods=["GET"])
+@app.route("/api/upstream-create/volc/projects/list", methods=["POST"])
 def api_upstream_create_projects():
     _ensure_batch()
     ak, sk, region = _creation_volc_creds()
@@ -1627,7 +1628,7 @@ def api_upstream_create_projects():
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
-@app.post("/api/upstream-create/volc/projects")
+@app.post("/api/upstream-create/volc/projects/create")
 def api_upstream_create_project():
     _ensure_batch()
     body = _creation_volc_payload()

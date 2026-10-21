@@ -2647,8 +2647,9 @@ python agent/tests/test_pipeline_runner.py
 
 | 方法 | 路径 | 说明 |
 | ---- | ---- | ---- |
-| `GET/POST` | `/api/upstream-create/volc/projects` | 列出 / 搜索 IAM 项目 |
-| `POST` | `/api/upstream-create/volc/projects` | 创建项目；默认 `parent_project_name=default` |
+| `GET` | `/api/upstream-create/volc/projects` | 列出 IAM 项目 |
+| `POST` | `/api/upstream-create/volc/projects/list` | 搜索 IAM 项目 |
+| `POST` | `/api/upstream-create/volc/projects/create` | 创建项目；默认 `parent_project_name=default` |
 | `POST` | `/api/upstream-create/volc/projects/update` | 修改显示名称和备注 |
 | `POST` | `/api/upstream-create/volc/projects/delete` | 删除空项目 |
 | `GET/POST` | `/api/upstream-create/volc/models` | 拉取模型目录 |
