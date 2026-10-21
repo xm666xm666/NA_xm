@@ -1072,7 +1072,7 @@
         $("versionModelName").textContent = model?.display_name || modelName;
         $("versionRows").innerHTML = versions.map((version) => `
           <tr class="clickable" data-use="${esc(modelName)}" data-version="${esc(version.model_version)}" title="点击填入接入点"><td>${esc(version.model_version)}</td><td>${esc(version.display_name || "-")}</td><td>${statusPill(version.state)}</td>
-          <td><button type="button" data-use="${esc(modelName)}" data-version="${esc(version.model_version)}">用于创建</button></td></tr>`).join("");
+          <td><div class="row-actions"><button type="button" class="primary" data-use="${esc(modelName)}" data-version="${esc(version.model_version)}">用于创建</button></div></td></tr>`).join("");
       }
     }
 
