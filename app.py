@@ -1612,10 +1612,16 @@ def _creation_volc_creds() -> tuple[str, str, str] | tuple[None, None, str]:
     return ak, sk, region
 
 
+def _creation_request_value(body: dict[str, Any], key: str, default: Any = "") -> Any:
+    value = body.get(key, request.args.get(key, default))
+    return default if value is None else value
+
+
 @app.route("/api/upstream-create/volc/projects", methods=["GET"])
 @app.route("/api/upstream-create/volc/projects/list", methods=["POST"])
 def api_upstream_create_projects():
     _ensure_batch()
+    body = _creation_volc_payload()
     ak, sk, region = _creation_volc_creds()
     if not ak or not sk:
         return jsonify({"success": False, "message": region}), 400
@@ -1624,7 +1630,7 @@ def api_upstream_create_projects():
             ak,
             sk,
             region=region,
-            search=str(request.args.get("search") or "").strip(),
+            search=str(_creation_request_value(body, "search")).strip(),
         )
         return jsonify({"success": True, "data": {"items": rows, "total": len(rows)}})
     except Exception as exc:  # noqa: BLE001
@@ -1697,6 +1703,7 @@ def api_upstream_create_delete_project():
 @app.route("/api/upstream-create/volc/models", methods=["GET", "POST"])
 def api_upstream_create_models():
     _ensure_batch()
+    body = _creation_volc_payload()
     ak, sk, region = _creation_volc_creds()
     if not ak or not sk:
         return jsonify({"success": False, "message": region}), 400
@@ -1704,9 +1711,9 @@ def api_upstream_create_models():
         data = BATCH["upstream_list_models"](
             ak,
             sk,
-            search=str(request.args.get("search") or "").strip(),
-            page_number=max(1, int(request.args.get("page_number") or 1)),
-            page_size=max(1, min(int(request.args.get("page_size") or 100), 100)),
+            search=str(_creation_request_value(body, "search")).strip(),
+            page_number=max(1, int(_creation_request_value(body, "page_number", 1))),
+            page_size=max(1, min(int(_creation_request_value(body, "page_size", 100)), 100)),
             region=region,
         )
         return jsonify({"success": True, "data": data})
@@ -1717,6 +1724,7 @@ def api_upstream_create_models():
 @app.route("/api/upstream-create/volc/model-versions", methods=["GET", "POST"])
 def api_upstream_create_model_versions():
     _ensure_batch()
+    body = _creation_volc_payload()
     ak, sk, region = _creation_volc_creds()
     if not ak or not sk:
         return jsonify({"success": False, "message": region}), 400
@@ -1724,9 +1732,9 @@ def api_upstream_create_model_versions():
         rows = BATCH["upstream_list_model_versions"](
             ak,
             sk,
-            model_name=str(request.args.get("model_name") or "").strip(),
-            page_number=max(1, int(request.args.get("page_number") or 1)),
-            page_size=max(1, min(int(request.args.get("page_size") or 100), 100)),
+            model_name=str(_creation_request_value(body, "model_name")).strip(),
+            page_number=max(1, int(_creation_request_value(body, "page_number", 1))),
+            page_size=max(1, min(int(_creation_request_value(body, "page_size", 100)), 100)),
             region=region,
         )
         return jsonify({"success": True, "data": {"items": rows}})
@@ -1754,6 +1762,7 @@ def api_upstream_create_enabled_models():
 @app.route("/api/upstream-create/volc/endpoints", methods=["GET", "POST"])
 def api_upstream_create_endpoints():
     _ensure_batch()
+    body = _creation_volc_payload()
     ak, sk, region = _creation_volc_creds()
     if not ak or not sk:
         return jsonify({"success": False, "message": region}), 400
@@ -1761,7 +1770,7 @@ def api_upstream_create_endpoints():
         rows = BATCH["upstream_list_endpoints"](
             ak,
             sk,
-            project_name=str(request.args.get("project_name") or "").strip(),
+            project_name=str(_creation_request_value(body, "project_name")).strip(),
             region=region,
         )
         return jsonify({"success": True, "data": {"items": rows, "total": len(rows)}})
