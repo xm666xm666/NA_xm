@@ -349,7 +349,8 @@
       .form-footer { align-items: flex-start; flex-direction: column; }
       .form-footer button { width: 100%; }
     }
-    .api-key-only .detail-grid,
+    #projectDetail.api-key-only .detail-grid,
+    #projectDetail.api-key-only > .table-wrap,
     .api-key-only #endpointTableWrap { display: none; }
     @media (max-width: 1160px) {
       .detail-grid { grid-template-columns: 1fr; }
@@ -493,6 +494,7 @@
             <p class="hint">为当前项目创建调用凭证，资源权限默认全部，可随时编辑范围和 IP 白名单。</p>
           </div>
           <div class="actions">
+            <button id="btnApiKeyChangeProject" class="na-btn na-btn-secondary" type="button">切换项目</button>
             <button id="btnShowApiKeyForm" class="na-btn na-btn-primary" type="button">新建 API Key</button>
             <button id="btnLoadApiKeys" class="na-btn na-btn-ghost" type="button">刷新 API Key</button>
           </div>
@@ -850,10 +852,10 @@
             </div>
           </div>
           <div class="api-key-secret">
-            <span class="api-key-value ${key.api_key ? "" : "empty"}" title="${esc(key.api_key || "未获取到明文")}">${esc(key.api_key || "未获取到明文")}</span>
+            <span class="api-key-value ${key.api_key ? "" : "empty"}" title="${esc(key.api_key || "点击复制后自动获取明文")}">${esc(key.api_key || "••••••••••••")}</span>
           </div>
             <div class="api-key-actions">
-              <button type="button" data-copy="${esc(key.api_key)}">复制</button>
+              <button type="button" data-copy-key="${esc(key.id)}">复制明文</button>
               <button type="button" data-select-key="${esc(key.id)}">选择</button>
               <button type="button" data-edit-key="${esc(key.id)}">编辑权限</button>
             </div>
@@ -963,6 +965,33 @@
       }
     }
 
+    async function copyApiKey(id, button) {
+      const row = apiKeys.find((item) => item.id === id);
+      if (!row) { NAUi.toast("未找到 API Key", "err"); return; }
+      if (row.api_key) { await copyToClipboard(row.api_key, button); return; }
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "获取中";
+      try {
+        const data = await requestJson("/api/upstream-create/volc/api-keys/raw", {
+          method: "POST",
+          body: { ...credPayload(), project_name: selectedProject, api_key_id: id },
+        });
+        const value = String(data.data?.api_key || "").trim();
+        if (!value) throw new Error("上游未返回 API Key 明文");
+        await navigator.clipboard.writeText(value);
+        row.api_key = value;
+        renderApiKeys();
+        NAUi.toast("已复制明文 API Key", "ok");
+      } catch (e) {
+        button.textContent = originalText;
+        NAUi.showBanner("userBanner", e.message, "err");
+        NAUi.toast("复制失败", "err");
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     async function loadEndpoints() {
       if (!selectedProject) return;
       try {
@@ -1011,6 +1040,7 @@
     $("btnLoadEndpoints").addEventListener("click", loadEndpoints);
     $("btnLoadApiKeys").addEventListener("click", loadApiKeys);
     $("btnShowApiKeyForm").addEventListener("click", openApiKeyForm);
+    $("btnApiKeyChangeProject").addEventListener("click", () => $("btnChangeProject").click());
     $("btnCancelApiKey").addEventListener("click", () => $("apiKeyForm").hidden = true);
     $("btnSubmitApiKey").addEventListener("click", submitApiKey);
     $("apiKeyPermission").addEventListener("change", toggleApiKeyCustom);
@@ -1050,9 +1080,11 @@
       const target = event.target.closest("button[data-use], tr[data-use]");
       if (target?.dataset.use) useModel(target.dataset.use, target.dataset.version);
     });
-    $("apiKeyRows").addEventListener("click", (event) => {
+    $("apiKeyRows").addEventListener("click", async (event) => {
       const copyButton = event.target.closest("button[data-copy]");
       if (copyButton) { copyToClipboard(copyButton.dataset.copy, copyButton); return; }
+      const copyKeyButton = event.target.closest("button[data-copy-key]");
+      if (copyKeyButton) { await copyApiKey(copyKeyButton.dataset.copyKey, copyKeyButton); return; }
       const selectButton = event.target.closest("button[data-select-key]");
       if (selectButton) selectApiKey(selectButton.dataset.selectKey);
       const editButton = event.target.closest("button[data-edit-key]");

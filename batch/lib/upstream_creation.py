@@ -363,6 +363,20 @@ def list_api_keys(
     return rows
 
 
+def get_raw_api_key(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    api_key_id: str,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    key_id = str(api_key_id or "").strip()
+    if not key_id:
+        raise ValueError("API Key ID 不能为空")
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    return {"api_key": client.get_raw_api_key(key_id)}
+
+
 def create_api_key(
     access_key_id: str,
     secret_access_key: str,

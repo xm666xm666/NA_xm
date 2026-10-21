@@ -209,6 +209,7 @@ def _load_batch_modules():
             "upstream_list_model_versions": upstream_creation.list_foundation_model_versions,
             "upstream_list_endpoints": upstream_creation.list_endpoints,
             "upstream_list_api_keys": upstream_creation.list_api_keys,
+            "upstream_get_raw_api_key": upstream_creation.get_raw_api_key,
             "upstream_create_api_key": upstream_creation.create_api_key,
             "upstream_update_api_key": upstream_creation.update_api_key,
             "upstream_create_endpoint": upstream_creation.create_endpoint,
@@ -1787,6 +1788,25 @@ def api_upstream_create_api_key():
             region=region,
         )
         return jsonify({"success": True, "message": "API Key 创建成功", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/api-keys/raw")
+def api_upstream_create_api_key_raw():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_get_raw_api_key"](
+            ak,
+            sk,
+            api_key_id=str(body.get("api_key_id") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "data": row})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
