@@ -1046,6 +1046,10 @@
 
     async function loadVersions(modelName) {
       const model = models.find((item) => item.name === modelName);
+      if (model?.versions?.length) {
+        renderVersions(modelName, model.versions);
+        return;
+      }
       try {
         const data = await requestJson("/api/upstream-create/volc/model-versions", {
           method: "POST",
@@ -1053,13 +1057,23 @@
         });
         const versions = data.data?.items || [];
         if (!versions.length && model?.primary_version) versions.push({ model_version: model.primary_version, display_name: "默认版本", state: "Available" });
+        renderVersions(modelName, versions);
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+    }
+
+    function renderVersions(modelName, versions) {
+      const model = models.find((item) => item.name === modelName);
+      if (!versions.length && model?.primary_version) {
+        versions = [{ model_version: model.primary_version, display_name: "默认版本", state: "Available" }];
+      }
+      if (versions.length === 1) useModel(modelName, versions[0].model_version);
+      else {
         $("versionPanel").hidden = false;
         $("versionModelName").textContent = model?.display_name || modelName;
         $("versionRows").innerHTML = versions.map((version) => `
           <tr class="clickable" data-use="${esc(modelName)}" data-version="${esc(version.model_version)}" title="点击填入接入点"><td>${esc(version.model_version)}</td><td>${esc(version.display_name || "-")}</td><td>${statusPill(version.state)}</td>
           <td><button type="button" data-use="${esc(modelName)}" data-version="${esc(version.model_version)}">用于创建</button></td></tr>`).join("");
-        if (versions.length === 1) useModel(modelName, versions[0].model_version);
-      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+      }
     }
 
     function useModel(modelName, version) {
@@ -1068,7 +1082,6 @@
       $("endpointVersion").value = version;
       $("endpointName").value = `${modelName}-${version}`.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
       if (!$("endpointDescription").value.trim()) $("endpointDescription").value = model?.display_name || "";
-      $("versionPanel").hidden = true;
       NAUi.toast(`已选择 ${modelName}｜${version}`, "ok");
     }
 

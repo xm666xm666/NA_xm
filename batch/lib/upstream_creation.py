@@ -70,6 +70,26 @@ def normalize_model(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _model_is_hidden(item: dict[str, Any]) -> bool:
+    tag = item.get("FoundationModelTag") if isinstance(item.get("FoundationModelTag"), dict) else {}
+    values = [
+        *(tag.get("CustomizedTags") or []),
+        *(item.get("CustomizedTags") or []),
+    ]
+
+    def collect(value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [text for child in value for text in collect(child)]
+        if isinstance(value, dict):
+            return [text for child in value.values() for text in collect(child)]
+        return []
+
+    labels = {text.strip() for text in collect(values) if text.strip()}
+    return bool(labels & {"体验隐藏", "推理隐藏", "广场隐藏"})
+
+
 def normalize_endpoint(item: dict[str, Any]) -> dict[str, Any]:
     reference = item.get("ModelReference") or {}
     model = reference.get("FoundationModel") or {} if isinstance(reference, dict) else {}
@@ -360,7 +380,11 @@ def list_enabled_models(
             elif str(value).strip():
                 sub_services.append(str(value).strip())
         sub_services_by_name[name] = [value for value in sub_services if value]
-        if str(item.get("State") or "").strip() == "Available":
+        base_available = not sub_services or any(
+            value.lower().startswith("base:") and value.lower().endswith("available")
+            for value in sub_services
+        )
+        if str(item.get("State") or "").strip() == "Available" and base_available:
             available_names.add(name)
 
     items: list[dict[str, Any]] = []
@@ -368,10 +392,19 @@ def list_enabled_models(
     while True:
         catalog_items, total = client.list_foundation_models(page_number=page, page_size=100)
         for catalog_item in catalog_items:
+            if _model_is_hidden(catalog_item):
+                continue
             model = normalize_model(catalog_item)
             name = model["name"]
             if name not in available_names:
                 continue
+            available_versions = [
+                version for version in model["versions"]
+                if not version["state"] or version["state"].lower() == "available"
+            ]
+            if model["versions"] and not available_versions:
+                continue
+            model["versions"] = available_versions or model["versions"]
             model["state"] = "Available"
             model["sub_services"] = sub_services_by_name.get(name, [])
             items.append(model)
