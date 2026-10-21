@@ -354,6 +354,8 @@
       transition: all .18s;
     }
     .api-key-actions button:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
+    .api-key-actions button.danger { color: var(--na-danger, #dc2626); border-color: color-mix(in srgb, var(--na-danger, #dc2626) 35%, transparent); }
+    .api-key-actions button.danger:hover { color: #fff; border-color: var(--na-danger, #dc2626); background: var(--na-danger, #dc2626); }
     .api-key-form {
       margin: .8rem 0 1rem;
       border: 1px solid color-mix(in srgb, var(--na-border) 85%, transparent);
@@ -1011,7 +1013,7 @@
             <div class="api-key-actions">
               <button type="button" data-copy-key="${esc(key.id)}">复制明文</button>
               <button type="button" data-disable-key="${esc(key.id)}" data-disabled="${key.disabled ? "true" : "false"}">${key.disabled ? "启用" : "禁用"}</button>
-              <button type="button" disabled title="火山方舟未开放 API Key 删除接口">删除</button>
+              <button type="button" class="danger" data-delete-key="${esc(key.id)}">删除</button>
               <button type="button" data-edit-key="${esc(key.id)}">编辑权限</button>
             </div>
           </div>`;
@@ -1171,6 +1173,31 @@
       }
     }
 
+    async function deleteApiKey(id, button) {
+      const row = apiKeys.find((item) => item.id === id);
+      const name = row?.name || `ID ${id}`;
+      if (!confirm(`确认删除 API Key「${name}」？删除后使用该 Key 的请求将无法通过方舟鉴权。`)) return;
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "删除中";
+      try {
+        await requestJson("/api/upstream-create/volc/api-keys/delete", {
+          method: "POST",
+          body: { ...credPayload(), project_name: selectedProject, api_key_id: id },
+        });
+        apiKeys = apiKeys.filter((item) => item.id !== id);
+        if (selectedApiKey === id) selectedApiKey = apiKeys[0]?.id || "";
+        renderApiKeys();
+        NAUi.showBanner("userBanner", "API Key 删除成功", "ok");
+        NAUi.toast("API Key 删除成功", "ok");
+      } catch (e) {
+        button.textContent = originalText;
+        NAUi.showBanner("userBanner", e.message, "err");
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     async function loadEndpoints() {
       if (!selectedProject) return;
       try {
@@ -1272,6 +1299,8 @@
       if (copyKeyButton) { await copyApiKey(copyKeyButton.dataset.copyKey, copyKeyButton); return; }
       const disableButton = event.target.closest("button[data-disable-key]");
       if (disableButton) { await setApiKeyDisabled(disableButton.dataset.disableKey, disableButton.dataset.disabled === "true", disableButton); return; }
+      const deleteKeyButton = event.target.closest("button[data-delete-key]");
+      if (deleteKeyButton) { await deleteApiKey(deleteKeyButton.dataset.deleteKey, deleteKeyButton); return; }
       const selectButton = event.target.closest("button[data-select-key]");
       if (selectButton) selectApiKey(selectButton.dataset.selectKey);
       const editButton = event.target.closest("button[data-edit-key]");

@@ -93,6 +93,10 @@ class FakeClient:
         self.calls.append(("update_api_key", kwargs))
         return {}
 
+    def delete_api_key(self, *, api_key_id: int | str):
+        self.calls.append(("delete_api_key", {"api_key_id": api_key_id}))
+        return {}
+
     def get_raw_api_key(self, api_key_id: int | str):
         self.calls.append(("get_raw_api_key", {"id": api_key_id}))
         return "sk-test"
@@ -321,6 +325,17 @@ class UpstreamCreationTests(unittest.TestCase):
         update_call = next(call for call in fake.calls if call[0] == "update_api_key")
         self.assertEqual(update_call[1]["disable"], True)
         self.assertEqual(result, {"id": "12", "disabled": True})
+
+    def test_delete_api_key_uses_console_action_id(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            result = upstream_creation.delete_api_key("ak", "sk", api_key_id="12")
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertEqual(fake.calls, [("delete_api_key", {"api_key_id": "12"})])
+        self.assertEqual(result, {"id": "12", "deleted": True})
 
 
 if __name__ == "__main__":

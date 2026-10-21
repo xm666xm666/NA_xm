@@ -2661,6 +2661,7 @@ python agent/tests/test_pipeline_runner.py
 | `POST` | `/api/upstream-create/volc/api-keys/raw` | 按需拉取 API Key 明文，用于复制 |
 | `POST` | `/api/upstream-create/volc/api-keys/status` | 启用 / 禁用 API Key |
 | `POST` | `/api/upstream-create/volc/api-keys/update` | 更新 API Key 名称、权限与 IP 白名单 |
+| `POST` | `/api/upstream-create/volc/api-keys/delete` | 删除 API Key（控制台同步调用 `DeleteApiKey`） |
 
 该组接口需要独立功能权限 `upstream_create`。凭证读取方式与上游信息相同；POST 可携带 `access_key_id` / `secret_access_key`，GET 可带非敏感查询参数，文件已配置 Secret 时页面可留空。
 

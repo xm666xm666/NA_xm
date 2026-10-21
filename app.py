@@ -213,6 +213,7 @@ def _load_batch_modules():
             "upstream_create_api_key": upstream_creation.create_api_key,
             "upstream_update_api_key": upstream_creation.update_api_key,
             "upstream_set_api_key_disabled": upstream_creation.set_api_key_disabled,
+            "upstream_delete_api_key": upstream_creation.delete_api_key,
             "upstream_create_endpoint": upstream_creation.create_endpoint,
             "build_upstream_path": upstream_exporter.build_upstream_path,
             "latest_upstream_excel_path": upstream_exporter.latest_upstream_excel_path,
@@ -1854,6 +1855,25 @@ def api_upstream_update_api_key():
             region=region,
         )
         return jsonify({"success": True, "message": "API Key 权限已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/api-keys/delete")
+def api_upstream_delete_api_key():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        BATCH["upstream_delete_api_key"](
+            ak,
+            sk,
+            api_key_id=str(body.get("api_key_id") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "API Key 删除成功"})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
