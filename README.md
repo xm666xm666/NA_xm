@@ -27,13 +27,13 @@
 
 # NA 自动配置工具
 
-面向 [New API](https://github.com/Calcium-Ion/new-api)（NA）的一体化配置工具。**单页 Web 应用**，顶栏九个入口（**无序号**）：工作台、智能提取、批量配置、NA信息、数据汇总、上游信息、上游账单、一表总览、智能体。打开即落地 **工作台**（`#workspace`），默认端口 `8765`。
+面向 [New API](https://github.com/Calcium-Ion/new-api)（NA）的一体化配置工具。**单页 Web 应用**，顶栏十个入口（**无序号**）：工作台、智能提取、批量配置、NA信息、数据汇总、上游创建、上游信息、上游账单、一表总览、智能体。打开即落地 **工作台**（`#workspace`），默认端口 `8765`。
 
 源码仓库：[github.com/xm666xm666/NA_xm](https://github.com/xm666xm666/NA_xm)（公开，默认分支：`master`）。
 
 > **公开仓库安全**：`env/sites.json`、`env/upstream.json`、本地 `.env`、日志、缓存、Python 虚拟运行环境与导出文件均由 `.gitignore` 排除；示例和测试中的凭据均为不可用占位符。请勿提交任何真实密钥、验证码或站点账号。
 
-> **项目维护约定**：每次代码或配置更新都要同步检查并完善本 README，确保功能说明、配置方式和部署步骤与当前实现一致；更新完成后上传到 GitHub 的 `container` 分支。
+> **项目维护约定**：每次代码或配置更新都要同步检查并完善本 README，确保功能说明、配置方式和部署步骤与当前实现一致；更新完成后同步到 GitHub 的 `master`、`stand-alone` 和 `container` 分支。
 
 > **许可证**：本项目采用 [NA_xm 个人使用与商业合作许可证（v1.0）](LICENSE)。自然人可免费用于个人、学习、研究和其他非商业用途；企业或其他商业使用者必须先通知作者，并取得书面合作或商业授权。未获得授权时，不得商业使用。
 
@@ -52,6 +52,7 @@
 NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，呈现 New API NA渠道 / NA令牌列表，均按 ID 降序排列。渠道列含 ID、名称、分组、类型（完整 56 种映射）、状态、响应时间、近一月活跃统计（按模型级别展示 RPM/TPM）、已用/剩余、优先级、权重、批量配置；令牌列含名称、状态（已启用/已禁用/已过期/已耗尽）、剩余额度/总额度、分组、密钥（掩码显示 `sk-` 前缀与尾号，点击复制完整值）、可用模型、模型限流条数、IP限制、创建时间、过期时间、批量配置。两列表格按屏幕宽度自适应，支持名称、分组下拉和模型筛选；长名称、分组、活跃统计、模型白名单、IP限制等字段在悬浮时展示完整内容并提供复制，批量配置列可把当前记录转换为一键填入的批量行。编辑弹窗复用上游源码组件，同环境会话复用可降低重复登录 429；保存请求自动携带本站 CSRF Token。测试渠道后响应时间同步更新到列表
 
 智能体：异步任务（LLM 规划 → 门禁确认 → 智能提取、批量配置、数据汇总，可选上游信息 / 一表总览 / 智能分析；Web / Jobs API / 兼容 /api/agent/run）
+上游创建：火山云项目与推理接入点管控；新建项目默认挂到 `default`，显示名称遵循 `项目名-负责人`，备注可编辑；默认返回已开通模型并支持上游版本选择；接入点支持创建、编辑、停止、启动与删除
 上游信息：采集云厂商资源（火山云 IAM + Azure OpenAI 服务主体；可一键写入同一工作簿；表末列为部署时间；表头可筛选）
 上游账单：按账期起止采集火山云 / Azure 费用（可跨月，每月一份 Excel；也可一键写入同一工作簿四张费用表；表头可筛选）
 一表总览：页内选择产物（禁止静默 latest）；按已配置站点拉渠道密钥；智能分析对照火山/Azure；建议表可筛选、全选/反选后预禁用；卫生策略可配置；可按所选总览导出渠道/令牌批量 TXT；渠道/令牌表在最后一列写入批量配置；写入 excel/智能分析表格_时间戳.xlsx
@@ -129,6 +130,7 @@ NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，
     - [分组切换](#分组切换)
   - [渠道启停](#渠道启停)
   - [使用日志](#使用日志)
+  - [上游创建](#上游创建)
   - [上游信息](#上游信息)
     - [火山云导出列](#火山云导出列)
     - [token 匹配（方舟 API Key）](#token-匹配方舟-api-key)
@@ -169,6 +171,7 @@ NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，
   - [NA信息 API](#na信息-api)
   - [数据汇总 API](#数据汇总-api)
   - [上游信息 API](#上游信息-api)
+  - [上游创建 API](#上游创建-api)
   - [上游账单 API](#上游账单-api)
   - [一表总览 API](#一表总览-api)
   - [工作台 / 产物 / 卫生策略 API](#工作台--产物--卫生策略-api)
@@ -229,8 +232,8 @@ NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，
 - 智能提取结果一键填入批量配置（渠道 → 渠道管理；令牌 → 令牌管理），并同步连接配置
 - **更新提取**（先点「更新」再点「智能提取」）结果一键「填入更新原配置」，不走批量创建
 - 删除 / 更新 / 启停须先预检或确认，示例数据防误点创建
-- **明暗双主题**（右上角切换，iframe 子页同步），默认暗色
-- 九个顶栏入口单页切换，**名称保留原模块名、仅去掉序号**（工作台仍叫工作台；智能体在最右）。打开应用默认 `#workspace`。数据汇总 / 上游信息 / 上游账单 / 一表总览 / 批量·使用日志提供产物下拉，旁有「刷新」；下载与分析须指定文件，禁止静默 latest
+- **明暗双主题**（右上角切换，iframe 子页同步），默认明亮
+- 十个顶栏入口单页切换，**名称保留原模块名、仅去掉序号**（工作台仍叫工作台；智能体在最右）。打开应用默认 `#workspace`。数据汇总 / 上游信息 / 上游账单 / 一表总览 / 批量·使用日志提供产物下拉，旁有「刷新」；下载与分析须指定文件，禁止静默 latest
 - 统一 UI 组件（`na-theme.css`、`na-components.css`、`na-ui.js`）
 - 操作可追溯：见 [启动日志（审查）](#启动日志审查)
 
@@ -344,7 +347,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 | 功能模块 | 全部功能固定可用 | 智能提取 + 超管批准的额外功能 | 默认仅智能提取 |
 | 用户管理（创建账户、重置密码、功能权限、启停、删除） | 可管理 | 不可管理 | 不可管理 |
 
-新注册账户默认角色为「用户」，只拥有「智能提取」。超管在「管理用户」中逐账户开通或取消工作台、批量配置、NA信息、数据汇总、上游信息、上游账单、一表总览和智能体等额外功能；只要拥有任一额外功能，角色就自动变为「管理员」，取消全部额外功能后回到「用户」。超管自身固定拥有全部功能。
+新注册账户默认角色为「用户」，只拥有「智能提取」。超管在「管理用户」中逐账户开通或取消工作台、批量配置、NA信息、数据汇总、上游信息、上游创建、上游账单、一表总览和智能体等额外功能；只要拥有任一额外功能，角色就自动变为「管理员」，取消全部额外功能后回到「用户」。超管自身固定拥有全部功能。
 
 普通用户或管理员可从右上角账户菜单进入「申请功能权限」，选择模块并查看简要说明后通知超管 admin。超管菜单会显示待处理申请数，并可在用户管理页逐项批准或拒绝；批准时可只开通申请中的部分功能。权限同时保护导航、iframe、工作台动态内容、页面路由和 API，不能通过直接访问 URL 绕过。
 
@@ -390,13 +393,14 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 | **批量配置**   | 连接配置、渠道/令牌/分组/启停/使用日志 | `batch/static/index.html`（iframe 经 `/static/batch_ui.html?embed=1` 代理）；hash `#write` |
 | **NA信息**   | test / uat / prod 的 New API NA渠道、NA令牌列表；分页、悬浮复制、完整记录编辑、测试/启停/删除、批量配置转换 | `static/platform_ui.html`（iframe 经 `/static/platform_ui.html?embed=1` 代理）；hash `#platform` |
 | **数据汇总**   | 多站点采集、渠道余额查询、Excel 导入/导出、历史产物下拉 | `static/summary_ui.html`（iframe `?embed=1`）；hash `#inventory` |
+| **上游创建**   | 火山云 IAM 项目 CRUD、API Key 管理、已开通模型/模型广场与版本选择、推理接入点创建/编辑/启停/删除 | `static/upstream_create_ui.html`（iframe `?embed=1`）；hash `#upstream_create` |
 | **上游信息**   | 云厂商上游采集（一键汇总 / 火山云 / Azure OpenAI）、历史产物下拉；导出表头可筛选 | `static/upstream_ui.html`（iframe `?embed=1`）；hash `#upstream` |
 | **上游账单**   | 账期起止采集火山云 / Azure 费用（跨月则每月一份；一键汇总或分厂商）；导出表头可筛选 | `static/bill_ui.html`（iframe `?embed=1`）；hash `#bill` |
 | **一表总览**   | 网关 + 两侧上游合成总览；智能分析；页内建议表（筛选、全选/反选、预禁用）；卫生策略；渠道/令牌批量 TXT 导出；Excel 最后一列批量配置 | `static/overview_ui.html`（iframe `?embed=1`）；hash `#hygiene` |
 | **智能体** | 异步任务、计划画布、提取门禁、取消/重试、连接与站点对齐 | `static/agent_ui.html`（iframe `?embed=1`）；hash `#pipeline` |
 
 
-九个顶栏入口共用同一后端 `app.py`（端口 `8765`），无需启动多个服务。顶栏文案为模块显示名、**不带序号**。顺序：工作台 → 智能提取 → 批量配置 → **NA信息** → 数据汇总 → 上游信息 → **上游账单** → 一表总览 → 智能体。Tab 与主题按钮之间有一句 5–10 字短句，**每次刷新随机更换**（窗口较窄时隐藏）。内部 hash 兼容旧名（`#extract` / `#write` / `#inventory` / `#hygiene` 等）。
+十个顶栏入口共用同一后端 `app.py`（端口 `8765`），无需启动多个服务。顶栏文案为模块显示名、**不带序号**。顺序：工作台 → 智能提取 → 批量配置 → **NA信息** → 数据汇总 → **上游创建** → 上游信息 → **上游账单** → 一表总览 → 智能体。Tab 与主题按钮之间有一句 5–10 字短句，**每次刷新随机更换**（窗口较窄时隐藏）。内部 hash 兼容旧名（`#extract` / `#write` / `#inventory` / `#hygiene` 等）。
 
 > **静态资源代理**：`app.py` 将 `/static/batch_ui.html` 映射到 `batch/static/index.html`；`?embed=1` 会隐藏批量页顶部 Hero 区。
 
@@ -640,7 +644,7 @@ NA_xm_auto_configuration_new/
 | 路径                          | Web 运行 | 说明                     |
 | --------------------------- | ------ | ---------------------- |
 | `app.py`                    | **必须** | 唯一服务入口                 |
-| `static/`、`agent/`、`batch/` | **必须** | 九个顶栏入口全部依赖             |
+| `static/`、`agent/`、`batch/` | **必须** | 十个顶栏入口全部依赖             |
 | `examples/`                 | 可选     | CLI / 联调样例，Web 不依赖     |
 | `excel/`                    | 自动生成   | **全站导出存放目录**：数据汇总网关汇总（`ai网关令牌及渠道列表_时间戳.xlsx`）、一表总览（`ai网关令牌及渠道列表_一表总览_时间戳.xlsx`，与数据汇总互不覆盖）、智能分析（`智能分析表格_时间戳.xlsx`，不覆盖总览）、渠道余额、使用日志、上游信息、**上游账单**（`上游账单_汇总_9月_时间戳.xlsx` / `_火山云_9月_` / `_Azure_9月_`，月份为账期）。每次新建时间戳文件；数据汇总「继续补全密钥」只更新最新一份**网关汇总**；一表总览「继续补全密钥」只更新最新一份**总览**（不改分析表）。页面「下载 Excel / 下载分析表」由浏览器下载，不改磁盘文件 |
 | `log/`                      | 自动生成   | **每次启动**一个详细审查用 `.txt` |
@@ -1164,6 +1168,8 @@ CLI 等价：`python app.py extract` 默认为创建；程序内 `extract_channe
 ### 行为说明
 
 - 勾选后**真实调用**所选 AI API；AI 结果优先于规则引擎
+- 请求统一为 `system` 预设提取提示词 + `user` 用户项目信息；规则引擎已有结果会一并作为上下文发送
+- 预设提示词包含自然语言版提取规则：命名、分组、模型、密钥、OpenAI/Azure/火山/自定义识别、上游模型映射与噪声过滤
 - 未勾选时始终为纯规则模式（`mode: rules`），不会静默调用 LLM
 - 勾选但未配置 API 时返回 `400`，`mode: llm_failed`
 - `llm.invoked = true` 表示 AI 已真实参与
@@ -1497,6 +1503,22 @@ legacy-token-c  team-c  model-c、model-d  2000000
 Azure 采集逻辑与权限见 [Azure OpenAI 配置与权限](#azure-openai-配置与权限)。
 
 接口：`GET /api/upstream/config`；汇总 `POST /api/upstream/collect`、`GET /api/upstream/info|download`；火山 `POST /api/upstream/volc/test|collect`、`GET /api/upstream/volc/info|download`；Azure `POST /api/upstream/azure/test|collect`、`GET /api/upstream/azure/info|download`。
+
+### 上游创建
+
+顶栏 **上游创建**（`static/upstream_create_ui.html`）是火山云管控面写入入口。与上游信息一样使用 **IAM Access Key**；调用由后端签名，Secret 不展示。需要火山 IAM 允许 IAM 项目管理和方舟接入点管理。
+
+- **项目列表**：搜索项目名、显示名称或备注；查看父项目、负责人、备注和创建时间
+- **选择焦点**：选中项目后默认仅显示模型工作台；项目行里的「接入点信息」打开独立接入点视图，「密钥」打开 API Key 管理视图；顶部可用「切换项目」返回列表
+- **新建项目**：默认勾选「作为子项目」，父项目为 `default`；负责人为空时显示名称自动为 `项目名-N/A`
+- **项目方规则**：沿用一表总览约定，`项目名-负责人`；负责人解析自显示名称中 `项目名-` 之后的内容
+- **编辑项目**：可修改显示名称与备注；火山不允许修改项目名称
+- **删除项目**：调用火山 `DeleteProject`；项目下仍有资源时火山会拒绝
+- **模型目录**：选择项目后默认调用已开通模型权益，只返回基础推理服务可用且未隐藏的模型；也可切到「模型广场」查看 `ListFoundationModels` 完整目录。支持按字节跳动、深度求索、通义千问和其他分组筛选
+- **版本选择**：点击模型后优先展示上游返回的完整版本；单版本自动填入，多版本在版本面板中选择。选定后仍可切换版本，避免误用默认版本
+- **API Key**：选择项目后自动读取该项目 API Key；支持创建/编辑权限，默认「全部（包括后续新增模型）」，可切换自定义 Model ID / 推理接入点，并可配置 IPv4、IPv6、IP 区间与网段白名单；页面内可选择当前 Key、查看明文并复制
+- **创建接入点**：点击模型优先使用默认版本，并自动填入接入点名称、模型、版本和显示名称；无默认版本时再拉取版本选择。可选 RPM / TPM；结果返回端点 ID 并刷新列表
+- **接入点生命周期**：接入点信息页支持编辑名称与描述（描述上限 300 字符）；停止成功后按钮进入“停止中”，并在上游确认 `Stopped` 后切换为「启动」；已停止接入点可启动或删除。所有操作会即时更新按钮状态并轮询上游确认
 
 #### 火山云导出列
 
@@ -2623,6 +2645,33 @@ python agent/tests/test_pipeline_runner.py
 | `POST` | `/api/upstream/azure/collect` | 采集部署 / listKeys 并写入 `excel/` |
 | `GET`  | `/api/upstream/azure/download` | 下载最新 Azure 上游 Excel |
 
+### 上游创建 API
+
+| 方法 | 路径 | 说明 |
+| ---- | ---- | ---- |
+| `GET` | `/api/upstream-create/volc/projects` | 列出 IAM 项目 |
+| `POST` | `/api/upstream-create/volc/projects/list` | 搜索 IAM 项目 |
+| `POST` | `/api/upstream-create/volc/projects/create` | 创建项目；默认 `parent_project_name=default` |
+| `POST` | `/api/upstream-create/volc/projects/update` | 修改显示名称和备注 |
+| `POST` | `/api/upstream-create/volc/projects/delete` | 删除空项目 |
+| `GET/POST` | `/api/upstream-create/volc/models` | 拉取模型目录 |
+| `GET/POST` | `/api/upstream-create/volc/models/enabled` | 拉取当前账号已开通的模型，并保留完整版本列表 |
+| `GET/POST` | `/api/upstream-create/volc/model-versions` | 按模型拉取版本 |
+| `GET/POST` | `/api/upstream-create/volc/endpoints` | 拉取项目下推理接入点 |
+| `POST` | `/api/upstream-create/volc/endpoints/create` | 创建推理接入点；遇到 `ServiceNotOpen` 自动开通基础模型服务并重试 |
+| `POST` | `/api/upstream-create/volc/endpoints/update` | 编辑推理接入点名称与描述 |
+| `POST` | `/api/upstream-create/volc/endpoints/stop` | 停止推理接入点 |
+| `POST` | `/api/upstream-create/volc/endpoints/start` | 启动已停止的推理接入点 |
+| `POST` | `/api/upstream-create/volc/endpoints/delete` | 删除推理接入点；上游要求先停止 |
+| `POST` | `/api/upstream-create/volc/api-keys` | 拉取项目下 API Key、权限与白名单（不含明文） |
+| `POST` | `/api/upstream-create/volc/api-keys/create` | 创建 API Key，权限默认全部 |
+| `POST` | `/api/upstream-create/volc/api-keys/raw` | 按需拉取 API Key 明文，用于复制 |
+| `POST` | `/api/upstream-create/volc/api-keys/status` | 启用 / 禁用 API Key |
+| `POST` | `/api/upstream-create/volc/api-keys/update` | 更新 API Key 名称、权限与 IP 白名单 |
+| `POST` | `/api/upstream-create/volc/api-keys/delete` | 删除 API Key（控制台同步调用 `DeleteApiKey`） |
+
+该组接口需要独立功能权限 `upstream_create`。凭证读取方式与上游信息相同；POST 可携带 `access_key_id` / `secret_access_key`，GET 可带非敏感查询参数，文件已配置 Secret 时页面可留空。
+
 
 凭证优先 `env/upstream.json`，否则 `env/sites.json` 的 `upstream.volc` / `upstream.azure`。
 
@@ -3020,7 +3069,7 @@ python app.py token-batch -c batch/config.json -f tokens.tsv
 ## 注意事项
 
 1. **秘钥安全**：勿提交 `config.json`、密码、`batch/data/`
-2. **单端口**：九个顶栏入口共用 `8765`，同进程
+2. **单端口**：十个顶栏入口共用 `8765`，同进程
 3. **LLM**：**渠道**模式仅勾选时调用；**令牌**模式从不调用；**智能体 Tab 始终需要 LLM**（规划 + 提取）
 4. **填入批量配置**：渠道提取结果会**替换**渠道文本框；令牌提取结果会**替换**令牌文本框（均非追加）。「填入更新原配置」同样替换渠道框，但走更新区，不要点「开始批量创建」
 5. **数据汇总 / Excel**：所有导出都写入 `excel/`。采集 / 导出过程**不会**自动下载，须点「下载 Excel」获取完整文件。每次「一键采集」（含/不含密钥）**新建** `ai网关令牌及渠道列表_时间戳.xlsx`，不覆盖历史；同一次多站写入同一新文件。**只有「继续补全密钥」**更新最新一份网关汇总（不含总览文件）。写入 `ai网关令牌及渠道列表_一表总览_时间戳.xlsx`；智能分析另写 `智能分析表格_时间戳.xlsx`，不覆盖总览。全部失败不落盘。打开汇总页**不会**自动创建空模板
@@ -3273,7 +3322,7 @@ batch 与 agent 共用包名 `lib`。首页加载 LLM 预设会切到 agent。�
 - [x] **渠道启停**（按上游模型 / 类型全部 / 勾选 ID；可视化清单；单条操作）
 - [x] **按名称+分组批量禁用/启用**（渠道管理、令牌管理；预览后确认；与删除共用文本框）
 - [x] **渠道查询**（迁入 **数据汇总**；多站点 test/uat/prod；导出分表 `环境-渠道余额`；近一月活跃按模型逐项填写）
-- [x] 单页九个顶栏入口（工作台、智能提取、批量配置、NA信息、数据汇总、上游信息、上游账单、一表总览、智能体；**显示名、无序号**）+ 一键填入批量配置
+- [x] 单页十个顶栏入口（工作台、智能提取、批量配置、NA信息、数据汇总、上游创建、上游信息、上游账单、一表总览、智能体；**显示名、无序号**）+ 一键填入批量配置
 - [x] **工作台**默认落地（`#workspace`；待办不显示假 0；六任务卡；**全局站点认证**写会话缓存）
 - [x] **产物选择器 + 刷新**（数据汇总 / 上游信息 / 上游账单 / 一表总览 / 使用日志；下载与分析须带文件 id，禁止静默 latest；iframe 间 `na-artifacts-changed` 同步）
 - [x] **一表总览页内建议表 + 预禁用**（筛选；全选 / 反选；宽限期默认跳过；`force_hold` 才纳入）
