@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="na-brand-bridge">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>上游创建 · NA 自动配置</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=creation-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=art-2" />
+  <script src="/static/na-theme.js"></script>
+  <script src="/static/na-ui.js?v=art-1"></script>
+  <script src="/static/auth-shell.js?v=web-6"></script>
+  <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+  <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
+  <style>
+    .na-wrap {
+      max-width: none;
+      width: 100%;
+      margin: 0;
+      padding: 1.25rem clamp(1rem, 1.5vw, 2rem) 3.5rem;
+    }
+    .na-card {
+      position: relative;
+      margin-bottom: 1.15rem;
+      padding: 1.25rem 1.35rem;
+      border: 1px solid var(--na-border);
+      border-radius: var(--na-radius);
+      background: var(--na-panel);
+      box-shadow: var(--na-shadow);
+      overflow: hidden;
+    }
+    .na-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 3px;
+      background: linear-gradient(90deg, var(--na-accent), var(--na-accent-2), transparent 72%);
+      opacity: .78;
+    }
+    .na-card-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.1rem;
+    }
+    .na-card-title {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      margin: 0;
+      font: 700 1rem/1.2 var(--na-font-display);
+      color: var(--na-text);
+    }
+    .na-card-title::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--na-accent);
+      box-shadow: 0 0 14px var(--na-accent-glow);
+    }
+    .na-card-desc {
+      margin: .55rem 0 0 1rem;
+      max-width: 62ch;
+      font-size: .78rem;
+      line-height: 1.65;
+      color: var(--na-text-muted);
+    }
+    .creation-stack {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.15rem;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .8rem;
+    }
+    .form-grid label {
+      display: grid;
+      gap: .4rem;
+      font-size: .74rem;
+      font-weight: 600;
+      color: var(--na-text-muted);
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-grid input, .form-grid select, .form-grid textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--na-border);
+      border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 78%, transparent);
+      padding: .62rem .75rem;
+      color: var(--na-text);
+      font: 500 .82rem/1.45 var(--na-font-body);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .form-grid textarea { min-height: 4.8rem; resize: vertical; }
+    .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus {
+      outline: none;
+      border-color: var(--na-border-bright);
+      box-shadow: 0 0 0 3px var(--na-accent-soft);
+    }
+    .search-row { display: flex; gap: .6rem; align-items: center; }
+    .search-row input, .search-row button { min-height: 2.7rem; }
+    .search-row input {
+      flex: 1 1 220px;
+      border: 1px solid var(--na-border);
+      border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 78%, transparent);
+      color: var(--na-text);
+      padding: .58rem .8rem;
+      font-size: .8rem;
+    }
+    .search-row input:focus { outline: none; border-color: var(--na-border-bright); box-shadow: 0 0 0 3px var(--na-accent-soft); }
+    .search-row .na-btn-primary { margin-left: auto; }
+    .group-row { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .75rem; }
+    .group-row button {
+      border: 1px solid var(--na-border);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--na-panel-solid) 64%, transparent);
+      color: var(--na-text-muted);
+      padding: .35rem .72rem;
+      font-size: .74rem;
+      font-weight: 650;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .group-row button:hover { color: var(--na-text); border-color: var(--na-border-bright); }
+    .group-row button.active {
+      color: var(--na-text);
+      border-color: var(--na-border-bright);
+      background: var(--na-accent-soft);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--na-accent) 18%, transparent);
+    }
+    .group-row button .count {
+      display: inline-grid;
+      min-width: 1.25rem;
+      padding: 0 .25rem;
+      margin-left: .3rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--na-accent) 14%, transparent);
+      color: var(--na-accent);
+      font-size: .64rem;
+      line-height: 1.25rem;
+    }
+    .table-wrap {
+      margin-top: 1rem;
+      overflow: auto;
+      border: 1px solid var(--na-border);
+      border-radius: .8rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 62%, transparent);
+    }
+    .creation-table { width: 100%; border-collapse: collapse; font-size: .76rem; }
+    .creation-table.project-table { min-width: 44rem; }
+    .creation-table.model-table { min-width: 40rem; }
+    .creation-table.endpoint-table { min-width: 50rem; }
+    .creation-table th, .creation-table td {
+      padding: .68rem .72rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--na-border) 78%, transparent);
+      text-align: left;
+      vertical-align: middle;
+    }
+    .creation-table tbody tr:last-child td { border-bottom: 0; }
+    .creation-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: color-mix(in srgb, var(--na-panel-solid) 94%, var(--na-accent));
+      color: var(--na-text-muted);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+    .creation-table tbody tr { transition: background .2s; }
+    .creation-table tbody tr:hover { background: color-mix(in srgb, var(--na-accent) 7%, transparent); }
+    .creation-table tbody tr.clickable { cursor: pointer; }
+    .creation-table tbody tr.clickable:hover { background: color-mix(in srgb, var(--na-accent) 9%, transparent); }
+    .creation-table td.wrap { min-width: 9rem; max-width: 24rem; overflow-wrap: anywhere; }
+    .creation-table .cell-strong { font-weight: 700; color: var(--na-text); }
+    .row-actions { display: inline-flex; gap: .35rem; }
+    .row-actions button {
+      border: 1px solid var(--na-border);
+      border-radius: .45rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 74%, transparent);
+      color: var(--na-text-muted);
+      padding: .28rem .5rem;
+      font-size: .68rem;
+      font-weight: 650;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .row-actions button:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: .18rem .5rem;
+      border-radius: 999px;
+      border: 1px solid var(--na-border);
+      background: color-mix(in srgb, var(--na-panel-solid) 70%, transparent);
+      font-size: .66rem;
+      font-weight: 650;
+      color: var(--na-text-muted);
+      white-space: nowrap;
+    }
+    .pill.ok { color: var(--na-success); border-color: color-mix(in srgb, var(--na-success) 35%, transparent); background: var(--na-success-soft); }
+    .pill.warn { color: var(--na-warn); border-color: color-mix(in srgb, var(--na-warn) 35%, transparent); background: var(--na-warn-soft); }
+    .status-pill {
+      padding: .28rem .6rem;
+      border-radius: 999px;
+      font-size: .68rem;
+      font-weight: 650;
+      color: var(--na-accent);
+      background: var(--na-accent-soft);
+      border: 1px solid color-mix(in srgb, var(--na-accent) 24%, transparent);
+      white-space: nowrap;
+    }
+    .selected-row { background: color-mix(in srgb, var(--na-accent) 12%, transparent) !important; }
+    .switch-row { display: flex; align-items: center; gap: .55rem; padding-top: .25rem; }
+    .switch-row label, .switch-row select { flex: 0 1 auto; }
+    .switch-row select { min-width: 180px; }
+    .hint { font-size: .72rem; color: var(--na-text-muted); margin: .45rem 0 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; }
+    .na-log:empty { display: none; }
+    .detail-grid { display: grid; grid-template-columns: minmax(360px, 1.1fr) minmax(330px, .9fr); gap: 1.1rem; align-items: start; }
+    .detail-block {
+      border: 1px solid color-mix(in srgb, var(--na-border) 80%, transparent);
+      border-radius: .75rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 38%, transparent);
+      padding: .95rem;
+    }
+    .detail-block h3 { margin: 0 0 .75rem; font: 650 .86rem var(--na-font-display); color: var(--na-text); }
+    .table-wrap + .table-wrap, .detail-block + .detail-block { margin-top: 1rem; }
+    @media (max-width: 1160px) {
+      .detail-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .na-card { padding: 1rem; }
+      .na-card-head { display: block; }
+      .creation-table.project-table, .creation-table.model-table { min-width: 36rem; }
+      .creation-table.endpoint-table { min-width: 44rem; }
+      .row-actions button { padding: .3rem .45rem; }
+    }
+  </style>
+</head>
+<body class="na-app">
+  <div class="na-bg" aria-hidden="true">
+    <div class="na-bg-grid"></div>
+    <div class="na-bg-orb na-bg-orb-1"></div>
+    <div class="na-bg-orb na-bg-orb-2"></div>
+    <div class="na-bg-noise"></div>
+  </div>
+
+  <div class="na-wrap">
+    <div id="userBanner" class="na-banner" role="status"></div>
+    <header class="na-hero na-animate-in">
+      <h1>上游<em>创建</em></h1>
+      <p class="na-subtitle">使用火山云 IAM Access Key 创建资源项目，并在所选项目下创建推理接入点。所有管控请求由服务端签名发送。</p>
+    </header>
+
+    <div class="creation-stack">
+      <section class="na-card na-animate-in">
+        <div class="na-card-head">
+          <div><h2 class="na-card-title">访问凭证</h2><p class="na-card-desc">连接火山云 IAM。Secret 由服务端配置时无需重复填写。</p></div>
+        </div>
+        <div class="form-grid">
+          <label>Access Key ID<input id="akId" autocomplete="off" placeholder="AKLT..." /></label>
+          <label>Secret Access Key<input id="sk" type="password" autocomplete="new-password" placeholder="已配置时可留空" /></label>
+          <label>区域<input id="region" value="cn-beijing" /></label>
+        </div>
+        <div class="na-toolbar">
+          <button id="btnTest" class="na-btn na-btn-primary" type="button">测试连接</button>
+          <button id="btnLoadProjects" class="na-btn na-btn-secondary" type="button">加载项目</button>
+          <span id="credHint" class="hint" style="margin:0"></span>
+        </div>
+      </section>
+
+      <section class="na-card na-animate-in">
+        <div class="na-card-head">
+          <div><h2 class="na-card-title">项目管理</h2><p class="na-card-desc">选择项目后可拉取模型版本并创建推理接入点。</p></div>
+          <span class="status-pill">IAM 签名代理</span>
+        </div>
+        <div class="search-row">
+          <input id="projectSearch" placeholder="搜索项目 / 显示名称 / 备注" aria-label="搜索项目" />
+          <button id="btnSearchProjects" class="na-btn na-btn-secondary" type="button">搜索</button>
+          <button id="btnShowCreate" class="na-btn na-btn-primary" type="button">新建项目</button>
+        </div>
+      <div id="projectForm" hidden>
+        <hr class="na-divider" />
+        <div class="form-grid">
+          <label>项目名称<input id="formProjectName" maxlength="64" placeholder="AI_Ops" /></label>
+          <label>负责人<input id="formOwner" placeholder="张三" /></label>
+          <label>显示名称<input id="formDisplayName" maxlength="64" placeholder="留空自动生成：项目名-负责人" /></label>
+          <label class="full">项目备注<textarea id="formDescription" maxlength="128" placeholder="项目用途说明"></textarea></label>
+          <div class="switch-row full">
+            <input id="formSubProject" type="checkbox" checked />
+            <label for="formSubProject">作为子项目</label>
+            <select id="formParent"><option value="default">default（默认项目）</option></select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="btnSubmitProject" class="na-btn na-btn-primary" type="button">创建项目</button>
+          <button id="btnCancelProject" class="na-btn na-btn-ghost" type="button">取消</button>
+        </div>
+        <p class="hint">显示名称沿用一表总览规则：<strong>项目名-负责人</strong>；负责人为空时记为 N/A。备注可随时编辑。</p>
+      </div>
+
+        <div class="table-wrap">
+        <table class="creation-table project-table">
+          <thead><tr><th>项目名称</th><th>显示名称 / 项目方</th><th>负责人</th><th>父项目</th><th class="wrap">备注</th><th>创建时间</th><th>操作</th></tr></thead>
+          <tbody id="projectRows"><tr><td colspan="7">先加载项目，再新建或选择项目。</td></tr></tbody>
+        </table>
+        </div>
+        <div id="projectLog" class="na-log" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <section class="na-card na-animate-in" id="projectDetail" hidden>
+      <div class="na-card-head">
+        <div><h2 class="na-card-title">推理接入点 · <span id="selectedProject"></span></h2><p class="na-card-desc">先选择模型版本，再在项目下创建接入点并查看部署状态。</p></div>
+        <button id="btnLoadEndpoints" class="na-btn na-btn-ghost" type="button">刷新接入点</button>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-block">
+          <div class="search-row">
+            <input id="modelSearch" placeholder="搜索模型" aria-label="搜索模型" />
+            <button id="btnLoadModels" class="na-btn na-btn-secondary" type="button">拉取模型</button>
+          </div>
+          <div id="modelGroups" class="group-row" aria-label="模型供应商分组"></div>
+          <div class="table-wrap">
+            <table class="creation-table model-table">
+              <thead><tr><th>模型</th><th>显示名称</th><th>厂商</th><th>默认版本</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody id="modelRows"><tr><td colspan="6">尚未拉取模型目录。</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="detail-block">
+          <div id="versionPanel" hidden>
+            <h3 id="versionModelName"></h3>
+            <div class="table-wrap" style="margin-top:.75rem">
+              <table class="creation-table model-table">
+                <thead><tr><th>版本</th><th>显示名称</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody id="versionRows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <h3>创建接入点</h3>
+          <div class="form-grid" style="grid-template-columns:1fr">
+            <label>接入点名称<input id="endpointName" placeholder="glm5.3-flash" /></label>
+            <label>模型<input id="endpointModel" readonly /></label>
+            <label>版本<input id="endpointVersion" readonly /></label>
+            <label>描述<input id="endpointDescription" maxlength="255" /></label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+              <label>RPM（可选）<input id="endpointRpm" inputmode="numeric" placeholder="按 Token 付费可留空" /></label>
+              <label>TPM（可选）<input id="endpointTpm" inputmode="numeric" placeholder="按 Token 付费可留空" /></label>
+            </div>
+          </div>
+          <div class="na-toolbar"><button id="btnCreateEndpoint" class="na-btn na-btn-primary" type="button">创建接入点</button></div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="creation-table endpoint-table">
+          <thead><tr><th>接入点</th><th>部署 ID</th><th>模型服务</th><th>状态</th><th class="wrap">描述</th><th>创建时间</th></tr></thead>
+          <tbody id="endpointRows"><tr><td colspan="6">尚未加载。</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let projects = [];
+    let models = [];
+    let selectedModelGroup = "";
+    let selectedProject = "";
+    let editingProject = "";
+
+    function addLog(msg, cls = "") {
+      const box = $("projectLog");
+      const el = document.createElement("div");
+      if (cls) el.className = cls;
+      el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      box.prepend(el);
+      while (box.children.length > 50) box.lastChild?.remove();
+    }
+
+    function esc(value) { return NAUi.escapeHtml?.(value) ?? String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch])); }
+
+    function credPayload(includeSecret = true) {
+      const payload = { access_key_id: $("akId").value.trim(), region: $("region").value.trim() || "cn-beijing" };
+      if (includeSecret && $("sk").value.trim()) payload.secret_access_key = $("sk").value.trim();
+      return payload;
+    }
+
+    async function requestJson(url, init = {}) {
+      const resp = await fetch(url, {
+        ...init,
+        headers: { "Content-Type": "application/json", ...(init.headers || {}) },
+        body: init.body ? JSON.stringify(init.body) : undefined,
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.success === false) throw new Error(data.message || `HTTP ${resp.status}`);
+      return data;
+    }
+
+    async function testConnection() {
+      const btn = $("btnTest"); btn.disabled = true;
+      try {
+        const data = await requestJson("/api/upstream/volc/test", { method: "POST", body: credPayload() });
+        $("credHint").textContent = `连接成功：${data.data?.project_count || 0} 个项目`;
+        NAUi.toast("火山云连接成功", "ok");
+        return true;
+      } catch (e) {
+        $("credHint").textContent = "";
+        NAUi.showBanner("userBanner", e.message, "err");
+        return false;
+      } finally { btn.disabled = false; }
+    }
+
+    function statusPill(value) {
+      const text = String(value || "-");
+      const ok = /running|available|healthy|enabled/i.test(text);
+      return `<span class="pill ${ok ? "ok" : text && text !== "-" ? "warn" : ""}">${esc(text)}</span>`;
+    }
+
+    function modelGroup(model) {
+      const text = `${model?.vendor || ""} ${model?.name || ""} ${model?.display_name || ""}`.toLowerCase();
+      if (/字节跳动|bytedance|doubao|豆包/.test(text)) return "字节跳动";
+      if (/deepseek|深度求索/.test(text)) return "深度求索";
+      if (/qwen|通义千问|tongyi/.test(text)) return "通义千问";
+      return "其他";
+    }
+
+    function renderModelGroups() {
+      const groups = [
+        { key: "", label: "全部模型", count: models.length },
+        { key: "字节跳动", label: "字节跳动", count: models.filter((model) => modelGroup(model) === "字节跳动").length },
+        { key: "深度求索", label: "深度求索", count: models.filter((model) => modelGroup(model) === "深度求索").length },
+        { key: "通义千问", label: "通义千问", count: models.filter((model) => modelGroup(model) === "通义千问").length },
+        { key: "其他", label: "其他", count: models.filter((model) => modelGroup(model) === "其他").length },
+      ];
+      $("modelGroups").innerHTML = groups.map(({ key, label, count }) => `
+        <button type="button" class="${selectedModelGroup === key ? "active" : ""}" data-group="${esc(key)}">${esc(label)}<span class="count">${count}</span></button>
+      `).join("");
+    }
+
+    function renderProjects() {
+      const rows = $("projectRows");
+      if (!projects.length) { rows.innerHTML = '<tr><td colspan="7">没有匹配项目。</td></tr>'; return; }
+      rows.innerHTML = projects.map((p) => `
+        <tr class="${p.project_name === selectedProject ? "selected-row" : ""}">
+          <td class="wrap">${esc(p.project_name)}</td>
+          <td class="wrap">${esc(p.display_name || "-")}</td>
+          <td>${esc(p.owner || "N/A")}</td>
+          <td>${esc(p.parent_project_name || "-")}</td>
+          <td class="wrap" title="${esc(p.description)}">${esc(p.description || "-")}</td>
+          <td>${esc(p.create_date || "-")}</td>
+          <td><div class="row-actions">
+            <button type="button" data-select="${esc(p.project_name)}">选择</button>
+            <button type="button" data-edit="${esc(p.project_name)}">编辑</button>
+            <button type="button" data-delete="${esc(p.project_name)}">删除</button>
+          </div></td>
+        </tr>`).join("");
+    }
+
+    function openCreateForm() {
+      editingProject = "";
+      $("projectForm").hidden = false;
+      $("btnSubmitProject").textContent = "创建项目";
+      $("formProjectName").value = ""; $("formOwner").value = ""; $("formDisplayName").value = "";
+      $("formDescription").value = ""; $("formSubProject").checked = true; $("formParent").value = "default";
+      $("formProjectName").focus();
+    }
+
+    function openEditForm(project) {
+      editingProject = project.project_name;
+      $("projectForm").hidden = false;
+      $("btnSubmitProject").textContent = "保存项目";
+      $("formProjectName").value = project.project_name;
+      $("formOwner").value = project.owner === "N/A" ? "" : project.owner;
+      $("formDisplayName").value = project.display_name;
+      $("formDescription").value = project.description;
+      $("formSubProject").checked = !!project.parent_project_name;
+      $("formParent").value = project.parent_project_name || "default";
+    }
+
+    async function loadProjects() {
+      const btn = $("btnLoadProjects"); btn.disabled = true;
+      try {
+        const data = await requestJson("/api/upstream-create/volc/projects", {
+          method: "POST",
+          body: { ...credPayload(), search: $("projectSearch").value.trim() },
+        });
+        projects = data.data?.items || [];
+        renderProjects();
+        NAUi.showBanner("userBanner", `已加载 ${projects.length} 个项目`, "ok");
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); addLog(e.message, "warn"); }
+      finally { btn.disabled = false; }
+    }
+
+    async function submitProject() {
+      const isEdit = !!editingProject;
+      const body = {
+        ...credPayload(),
+        project_name: $("formProjectName").value.trim(),
+        owner: $("formOwner").value.trim(),
+        display_name: $("formDisplayName").value.trim(),
+        description: $("formDescription").value.trim(),
+        parent_project_name: $("formSubProject").checked ? $("formParent").value.trim() : "",
+      };
+      if (isEdit && body.owner && !body.display_name) body.display_name = `${body.project_name}-${body.owner}`;
+      const btn = $("btnSubmitProject"); btn.disabled = true;
+      try {
+        const result = await requestJson(isEdit ? "/api/upstream-create/volc/projects/update" : "/api/upstream-create/volc/projects", { method: "POST", body });
+        NAUi.showBanner("userBanner", result.message || (isEdit ? "项目已更新" : "项目创建成功"), "ok");
+        NAUi.toast(result.message || "已完成", "ok");
+        $("projectForm").hidden = true;
+        await loadProjects();
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); addLog(e.message, "warn"); }
+      finally { btn.disabled = false; }
+    }
+
+    async function deleteProject(name) {
+      if (!confirm(`确认删除项目 ${name}？火山云要求项目下无资源才可删除。`)) return;
+      try {
+        await requestJson("/api/upstream-create/volc/projects/delete", { method: "POST", body: { ...credPayload(), project_name: name } });
+        if (selectedProject === name) { selectedProject = ""; $("projectDetail").hidden = true; }
+        NAUi.showBanner("userBanner", "项目删除成功", "ok");
+        await loadProjects();
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+    }
+
+    async function selectProject(name) {
+      selectedProject = name;
+      $("selectedProject").textContent = name;
+      $("projectDetail").hidden = false;
+      models = [];
+      renderModelGroups();
+      renderModels();
+      $("versionPanel").hidden = true;
+      $("endpointModel").value = ""; $("endpointVersion").value = "";
+      $("endpointName").value = "";
+      renderProjects();
+      await loadModels();
+      await loadEndpoints();
+    }
+
+    function renderModels() {
+      const rows = $("modelRows");
+      const visibleModels = selectedModelGroup
+        ? models.filter((model) => modelGroup(model) === selectedModelGroup)
+        : models;
+      if (!visibleModels.length) { rows.innerHTML = '<tr><td colspan="6">该分组暂无模型。</td></tr>'; return; }
+      rows.innerHTML = visibleModels.map((model) => `
+        <tr class="clickable" data-model="${esc(model.name)}" title="点击选择模型版本"><td class="wrap">${esc(model.name)}</td><td>${esc(model.display_name || "-")}</td>
+        <td>${esc(model.vendor || "-")}</td><td>${esc(model.primary_version || "-")}</td>
+        <td>${statusPill(model.state)}</td>
+        <td><div class="row-actions"><button type="button" data-versions="${esc(model.name)}">选择版本</button></div></td></tr>`).join("");
+    }
+
+    async function loadModels() {
+      if (!selectedProject) { NAUi.showBanner("userBanner", "请先选择项目", "warn"); return; }
+      const btn = $("btnLoadModels"); btn.disabled = true;
+      try {
+        const data = await requestJson("/api/upstream-create/volc/models", {
+          method: "POST",
+          body: { ...credPayload(), search: $("modelSearch").value.trim(), page_size: 100 },
+        });
+        models = data.data?.items || [];
+        renderModelGroups();
+        renderModels();
+        NAUi.showBanner("userBanner", `已返回 ${models.length} 个模型`, "ok");
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+      finally { btn.disabled = false; }
+    }
+
+    async function loadVersions(modelName) {
+      const model = models.find((item) => item.name === modelName);
+      try {
+        const data = await requestJson("/api/upstream-create/volc/model-versions", {
+          method: "POST",
+          body: { ...credPayload(), model_name: modelName, page_size: 100 },
+        });
+        const versions = data.data?.items || [];
+        if (!versions.length && model?.primary_version) versions.push({ model_version: model.primary_version, display_name: "默认版本", state: "Available" });
+        $("versionPanel").hidden = false;
+        $("versionModelName").textContent = model?.display_name || modelName;
+        $("versionRows").innerHTML = versions.map((version) => `
+          <tr class="clickable" data-use="${esc(modelName)}" data-version="${esc(version.model_version)}" title="点击填入接入点"><td>${esc(version.model_version)}</td><td>${esc(version.display_name || "-")}</td><td>${statusPill(version.state)}</td>
+          <td><button type="button" data-use="${esc(modelName)}" data-version="${esc(version.model_version)}">用于创建</button></td></tr>`).join("");
+        if (versions.length === 1) useModel(modelName, versions[0].model_version);
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+    }
+
+    function useModel(modelName, version) {
+      $("endpointModel").value = modelName;
+      $("endpointVersion").value = version;
+      const model = models.find((item) => item.name === modelName);
+      $("endpointName").value = `${modelName}.${version}`.replace(/[^a-z0-9_.-]+/gi, "-").toLowerCase();
+      $("versionPanel").hidden = true;
+      NAUi.toast(`已选择 ${modelName}｜${version}`, "ok");
+    }
+
+    function renderEndpoints(rows) {
+      $("endpointRows").innerHTML = rows.length ? rows.map((row) => `
+        <tr><td class="wrap">${esc(row.name)}</td><td class="wrap">${esc(row.id)}</td>
+        <td>${esc(row.model_service || "-")}</td><td>${statusPill(row.status)}</td>
+        <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(row.create_time || "-")}</td></tr>`).join("")
+        : '<tr><td colspan="6">该项目还没有接入点。</td></tr>';
+    }
+
+    async function loadEndpoints() {
+      if (!selectedProject) return;
+      try {
+        const data = await requestJson("/api/upstream-create/volc/endpoints", {
+          method: "POST",
+          body: { ...credPayload(), project_name: selectedProject },
+        });
+        renderEndpoints(data.data?.items || []);
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+    }
+
+    async function createEndpoint() {
+      const body = {
+        ...credPayload(), project_name: selectedProject,
+        name: $("endpointName").value.trim(), model_name: $("endpointModel").value.trim(), model_version: $("endpointVersion").value.trim(),
+        description: $("endpointDescription").value.trim(), rpm: $("endpointRpm").value.trim(), tpm: $("endpointTpm").value.trim(),
+      };
+      const btn = $("btnCreateEndpoint"); btn.disabled = true;
+      try {
+        const data = await requestJson("/api/upstream-create/volc/endpoints", { method: "POST", body });
+        NAUi.showBanner("userBanner", data.message || "接入点创建成功", "ok");
+        NAUi.toast("接入点创建成功", "ok");
+        await loadEndpoints();
+      } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+      finally { btn.disabled = false; }
+    }
+
+    async function loadConfig() {
+      try {
+        const resp = await fetch("/api/upstream/config");
+        const data = await resp.json();
+        const volc = data.volc || {};
+        if (volc.access_key_id && !$("akId").value) $("akId").value = volc.access_key_id;
+        if (volc.region) $("region").value = volc.region;
+        $("credHint").textContent = volc.has_secret ? "Secret 已在服务端配置，可留空" : "";
+      } catch (_) {}
+    }
+
+    $("btnTest").addEventListener("click", testConnection);
+    $("btnLoadProjects").addEventListener("click", loadProjects);
+    $("btnSearchProjects").addEventListener("click", loadProjects);
+    $("btnShowCreate").addEventListener("click", openCreateForm);
+    $("btnSubmitProject").addEventListener("click", submitProject);
+    $("btnCancelProject").addEventListener("click", () => $("projectForm").hidden = true);
+    $("btnLoadModels").addEventListener("click", loadModels);
+    $("btnLoadEndpoints").addEventListener("click", loadEndpoints);
+    $("btnCreateEndpoint").addEventListener("click", createEndpoint);
+    $("projectRows").addEventListener("click", async (event) => {
+      const btn = event.target.closest("button"); if (!btn) return;
+      if (btn.dataset.select) await selectProject(btn.dataset.select);
+      if (btn.dataset.edit) { const p = projects.find((x) => x.project_name === btn.dataset.edit); if (p) openEditForm(p); }
+      if (btn.dataset.delete) await deleteProject(btn.dataset.delete);
+    });
+    $("modelGroups").addEventListener("click", (event) => {
+      const btn = event.target.closest("button"); if (!btn?.dataset.group) return;
+      selectedModelGroup = btn.dataset.group;
+      renderModelGroups();
+      renderModels();
+    });
+    $("modelRows").addEventListener("click", (event) => {
+      const row = event.target.closest("tr[data-model]"); if (row?.dataset.model) loadVersions(row.dataset.model);
+    });
+    $("versionRows").addEventListener("click", (event) => {
+      const target = event.target.closest("button[data-use], tr[data-use]");
+      if (target?.dataset.use) useModel(target.dataset.use, target.dataset.version);
+    });
+    window.addEventListener("message", (event) => { const data = event.data || {}; if (data.type === "na-theme-change") NATheme.apply(data.theme); });
+    loadConfig();
+  </script>
+</body>
+</html>

@@ -191,6 +191,64 @@ class VolcOpenAPIClient:
                 break
         return projects
 
+    def create_project(
+        self,
+        *,
+        project_name: str,
+        display_name: str = "",
+        description: str = "",
+        parent_project_name: str = "",
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"ProjectName": project_name}
+        if display_name:
+            body["DisplayName"] = display_name
+        if description:
+            body["Description"] = description
+        if parent_project_name:
+            body["ParentProjectName"] = parent_project_name
+        return self.request(
+            method="GET",
+            host=IAM_HOST,
+            service="iam",
+            action="CreateProject",
+            version="2021-08-01",
+            body=body,
+            content_type="text/plain; charset=UTF-8",
+        )
+
+    def update_project(
+        self,
+        *,
+        project_name: str,
+        display_name: str = "",
+        description: str = "",
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "ProjectName": project_name,
+            "DisplayName": display_name,
+            "Description": description,
+        }
+        return self.request(
+            method="GET",
+            host=IAM_HOST,
+            service="iam",
+            action="UpdateProject",
+            version="2021-08-01",
+            body=body,
+            content_type="text/plain; charset=UTF-8",
+        )
+
+    def delete_project(self, project_name: str) -> dict[str, Any]:
+        return self.request(
+            method="GET",
+            host=IAM_HOST,
+            service="iam",
+            action="DeleteProject",
+            version="2021-08-01",
+            body={"ProjectName": project_name},
+            content_type="text/plain; charset=UTF-8",
+        )
+
     def list_endpoints(
         self,
         project_name: str,
@@ -293,3 +351,87 @@ class VolcOpenAPIClient:
             body={"Id": api_key_id},
         )
         return str(result.get("ApiKey") or result.get("Key") or "").strip()
+
+    def list_foundation_models(
+        self,
+        *,
+        page_number: int = 1,
+        page_size: int = 100,
+        search: str = "",
+        filter_names: list[str] | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        body: dict[str, Any] = {
+            "PageNumber": max(1, int(page_number)),
+            "PageSize": max(1, min(int(page_size), 100)),
+            "SortBy": "CreateTime",
+            "SortOrder": "Desc",
+        }
+        search = search.strip()
+        if search:
+            body["FuzzySearchKeyword"] = search
+        names = [str(name).strip() for name in (filter_names or []) if str(name).strip()]
+        if names:
+            body["Filter"] = {"Names": names}
+        result = self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="ListFoundationModels",
+            version="2024-01-01",
+            body=body,
+        )
+        items = result.get("Items") or []
+        return ([item for item in items if isinstance(item, dict)], int(result.get("TotalCount") or 0))
+
+    def list_foundation_model_versions(
+        self,
+        model_name: str,
+        *,
+        page_number: int = 1,
+        page_size: int = 100,
+    ) -> list[dict[str, Any]]:
+        result = self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="ListFoundationModelVersions",
+            version="2024-01-01",
+            body={
+                "FoundationModelName": model_name,
+                "PageNumber": max(1, int(page_number)),
+                "PageSize": max(1, min(int(page_size), 100)),
+            },
+        )
+        items = result.get("Items") or []
+        return [item for item in items if isinstance(item, dict)]
+
+    def create_endpoint(
+        self,
+        *,
+        name: str,
+        project_name: str,
+        model_name: str,
+        model_version: str,
+        description: str = "",
+        rpm: int | None = None,
+        tpm: int | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "Name": name,
+            "ProjectName": project_name,
+            "ModelReference": {
+                "FoundationModel": {"Name": model_name, "ModelVersion": model_version}
+            },
+        }
+        if description:
+            body["Description"] = description
+        if rpm or tpm:
+            body["RateLimit"] = {"Rpm": int(rpm or 0), "Tpm": int(tpm or 0)}
+        return self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="CreateEndpoint",
+            version="2024-01-01",
+            body=body,
+        )

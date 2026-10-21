@@ -80,6 +80,7 @@
       <button type="button" role="tab" id="tabBatch" aria-selected="false" aria-controls="viewBatch" data-view="batch" data-permission="batch">批量配置</button>
       <button type="button" role="tab" id="tabPlatform" aria-selected="false" aria-controls="viewPlatform" data-view="platform" data-permission="platform">NA信息</button>
       <button type="button" role="tab" id="tabSummary" aria-selected="false" aria-controls="viewSummary" data-view="summary" data-permission="data_summary">数据汇总</button>
+      <button type="button" role="tab" id="tabUpstreamCreate" aria-selected="false" aria-controls="viewUpstreamCreate" data-view="upstream_create" data-permission="upstream_create">上游创建</button>
       <button type="button" role="tab" id="tabUpstream" aria-selected="false" aria-controls="viewUpstream" data-view="upstream" data-permission="upstream">上游信息</button>
       <button type="button" role="tab" id="tabBill" aria-selected="false" aria-controls="viewBill" data-view="bill" data-permission="upstream_bill">上游账单</button>
       <button type="button" role="tab" id="tabOverview" aria-selected="false" aria-controls="viewOverview" data-view="overview" data-permission="overview">一表总览</button>
@@ -266,6 +267,10 @@
 
   <div id="viewUpstream" class="na-view" role="tabpanel" aria-labelledby="tabUpstream" hidden>
     <iframe id="upstreamFrame" class="na-iframe" title="上游信息" data-src="/static/upstream_ui.html?embed=1&v=art-2"></iframe>
+  </div>
+
+  <div id="viewUpstreamCreate" class="na-view" role="tabpanel" aria-labelledby="tabUpstreamCreate" hidden>
+    <iframe id="upstreamCreateFrame" class="na-iframe" title="上游创建" data-src="/static/upstream_create_ui.html?embed=1&v=creation-3"></iframe>
   </div>
 
   <div id="viewBill" class="na-view" role="tabpanel" aria-labelledby="tabBill" hidden>
@@ -469,6 +474,7 @@
       platform: "platform",
       summary: "inventory",
       upstream: "upstream",
+      upstream_create: "upstream-create",
       bill: "bill",
       overview: "hygiene",
       pipeline: "pipeline",
@@ -483,6 +489,7 @@
       inventory: "summary",
       summary: "summary",
       upstream: "upstream",
+      "upstream-create": "upstream_create",
       bill: "bill",
       hygiene: "overview",
       overview: "overview",
@@ -577,6 +584,7 @@
       platform: "platformFrame",
       summary: "summaryFrame",
       upstream: "upstreamFrame",
+      upstream_create: "upstreamCreateFrame",
       bill: "billFrame",
       overview: "overviewFrame",
       pipeline: "pipelineFrame",
@@ -621,6 +629,7 @@
         platform: $("viewPlatform"),
         summary: $("viewSummary"),
         upstream: $("viewUpstream"),
+        upstream_create: $("viewUpstreamCreate"),
         bill: $("viewBill"),
         overview: $("viewOverview"),
         pipeline: $("viewPipeline"),

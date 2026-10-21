@@ -58,6 +58,7 @@ FEATURE_BATCH = "batch"
 FEATURE_PLATFORM = "platform"
 FEATURE_DATA_SUMMARY = "data_summary"
 FEATURE_UPSTREAM = "upstream"
+FEATURE_UPSTREAM_CREATE = "upstream_create"
 FEATURE_UPSTREAM_BILL = "upstream_bill"
 FEATURE_OVERVIEW = "overview"
 FEATURE_AGENT = "agent"
@@ -73,6 +74,7 @@ FEATURE_OPTIONS = (
     (FEATURE_PLATFORM, "NA信息", "跨 test / uat / prod 查看和编辑 NA渠道与 NA令牌"),
     (FEATURE_DATA_SUMMARY, "数据汇总", "采集站点数据并导出汇总"),
     (FEATURE_UPSTREAM, "上游信息", "采集火山云与 Azure 上游资源"),
+    (FEATURE_UPSTREAM_CREATE, "上游创建", "通过火山 Access Key 创建项目与推理接入点"),
     (FEATURE_UPSTREAM_BILL, "上游账单", "采集和导出云厂商账单"),
     (FEATURE_OVERVIEW, "一表总览", "查看总览、卫生策略和智能分析"),
     (FEATURE_AGENT, "智能体", "创建并执行智能体任务"),
@@ -655,6 +657,8 @@ class IdentityManager:
             return FEATURE_OVERVIEW
         if path.startswith("/api/upstream/bill") or path.startswith("/api/upstream/azure/bill"):
             return FEATURE_UPSTREAM_BILL
+        if path.startswith("/api/upstream-create/"):
+            return FEATURE_UPSTREAM_CREATE
         if path.startswith("/api/overview/"):
             return FEATURE_OVERVIEW
         if path.startswith("/api/agent/") or path == "/api/agent/run":

@@ -128,6 +128,7 @@ def _load_batch_modules():
         data_summary_exporter = importlib.import_module("lib.data_summary_exporter")
         upstream_volc = importlib.import_module("lib.upstream_volc")
         upstream_azure = importlib.import_module("lib.upstream_azure")
+        upstream_creation = importlib.import_module("lib.upstream_creation")
         upstream_exporter = importlib.import_module("lib.upstream_exporter")
         overview_exporter = importlib.import_module("lib.overview_exporter")
         overview_analyzer = importlib.import_module("lib.overview_analyzer")
@@ -200,6 +201,14 @@ def _load_batch_modules():
             "AZURE_HEADERS": upstream_azure.AZURE_HEADERS,
             "test_azure_connection": upstream_azure.test_azure_connection,
             "collect_azure_upstream": upstream_azure.collect_azure_upstream,
+            "upstream_create_list_projects": upstream_creation.list_projects,
+            "upstream_create_project": upstream_creation.create_project,
+            "upstream_update_project": upstream_creation.update_project,
+            "upstream_delete_project": upstream_creation.delete_project,
+            "upstream_list_models": upstream_creation.list_foundation_models,
+            "upstream_list_model_versions": upstream_creation.list_foundation_model_versions,
+            "upstream_list_endpoints": upstream_creation.list_endpoints,
+            "upstream_create_endpoint": upstream_creation.create_endpoint,
             "build_upstream_path": upstream_exporter.build_upstream_path,
             "latest_upstream_excel_path": upstream_exporter.latest_upstream_excel_path,
             "save_upstream_workbook": upstream_exporter.save_upstream_workbook,
@@ -1578,6 +1587,190 @@ def api_upstream_volc_download():
     if not excel_path or not excel_path.exists():
         return jsonify({"success": False, "message": "尚未生成上游 Excel，请先采集火山云"}), 404
     return _send_excel_attachment(excel_path)
+
+
+def _creation_volc_payload() -> dict[str, Any]:
+    body = request.get_json(silent=True) or {}
+    if not body:
+        body = {key: value for key, value in request.args.items() if key in {
+            "access_key_id", "secret_access_key", "region", "ak", "sk"
+        }}
+    return body
+
+
+def _creation_volc_creds() -> tuple[str, str, str] | tuple[None, None, str]:
+    ak, sk, region = _resolve_volc_credentials(_creation_volc_payload())
+    if not ak or not sk:
+        return None, None, _missing_volc_cred_message()
+    return ak, sk, region
+
+
+@app.route("/api/upstream-create/volc/projects", methods=["GET", "POST"])
+def api_upstream_create_projects():
+    _ensure_batch()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        rows = BATCH["upstream_create_list_projects"](
+            ak,
+            sk,
+            region=region,
+            search=str(request.args.get("search") or "").strip(),
+        )
+        return jsonify({"success": True, "data": {"items": rows, "total": len(rows)}})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/projects")
+def api_upstream_create_project():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_create_project"](
+            ak,
+            sk,
+            project_name=str(body.get("project_name") or "").strip(),
+            owner=str(body.get("owner") or "").strip(),
+            display_name=str(body.get("display_name") or "").strip(),
+            description=str(body.get("description") or "").strip(),
+            parent_project_name=str(body.get("parent_project_name") or "default").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "项目创建成功", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/projects/update")
+def api_upstream_create_update_project():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_update_project"](
+            ak,
+            sk,
+            project_name=str(body.get("project_name") or "").strip(),
+            display_name=str(body.get("display_name") or "").strip(),
+            description=str(body.get("description") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "项目已更新", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/projects/delete")
+def api_upstream_create_delete_project():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        row = BATCH["upstream_delete_project"](
+            ak,
+            sk,
+            project_name=str(body.get("project_name") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "项目删除成功", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.route("/api/upstream-create/volc/models", methods=["GET", "POST"])
+def api_upstream_create_models():
+    _ensure_batch()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        data = BATCH["upstream_list_models"](
+            ak,
+            sk,
+            search=str(request.args.get("search") or "").strip(),
+            page_number=max(1, int(request.args.get("page_number") or 1)),
+            page_size=max(1, min(int(request.args.get("page_size") or 100), 100)),
+            region=region,
+        )
+        return jsonify({"success": True, "data": data})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.route("/api/upstream-create/volc/model-versions", methods=["GET", "POST"])
+def api_upstream_create_model_versions():
+    _ensure_batch()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        rows = BATCH["upstream_list_model_versions"](
+            ak,
+            sk,
+            model_name=str(request.args.get("model_name") or "").strip(),
+            page_number=max(1, int(request.args.get("page_number") or 1)),
+            page_size=max(1, min(int(request.args.get("page_size") or 100), 100)),
+            region=region,
+        )
+        return jsonify({"success": True, "data": {"items": rows}})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.route("/api/upstream-create/volc/endpoints", methods=["GET", "POST"])
+def api_upstream_create_endpoints():
+    _ensure_batch()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        rows = BATCH["upstream_list_endpoints"](
+            ak,
+            sk,
+            project_name=str(request.args.get("project_name") or "").strip(),
+            region=region,
+        )
+        return jsonify({"success": True, "data": {"items": rows, "total": len(rows)}})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/endpoints")
+def api_upstream_create_endpoint():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        def optional_int(key: str) -> int | None:
+            value = str(body.get(key) or "").strip()
+            return int(value) if value.isdigit() and int(value) > 0 else None
+
+        row = BATCH["upstream_create_endpoint"](
+            ak,
+            sk,
+            name=str(body.get("name") or "").strip(),
+            project_name=str(body.get("project_name") or "").strip(),
+            model_name=str(body.get("model_name") or "").strip(),
+            model_version=str(body.get("model_version") or "").strip(),
+            description=str(body.get("description") or "").strip(),
+            rpm=optional_int("rpm"),
+            tpm=optional_int("tpm"),
+            region=region,
+        )
+        return jsonify({"success": True, "message": "推理接入点创建成功", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
 @app.get("/api/upstream/bill/info")
