@@ -194,6 +194,10 @@
       transition: all .18s;
     }
     .row-actions button:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
+    .row-actions button.primary {
+      border-color: color-mix(in srgb, var(--na-accent) 42%, transparent);
+      background: var(--na-accent-soft); color: var(--na-text);
+    }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -254,21 +258,36 @@
       padding: .3rem .5rem;
     }
     .api-key-value.empty { color: var(--na-text-muted); font-family: var(--na-font-body); }
-    .api-key-list { display: grid; gap: .55rem; }
+    .api-key-list { display: grid; gap: .65rem; }
     .api-key-row {
       display: grid;
-      grid-template-columns: minmax(140px, .8fr) minmax(220px, 1.6fr) auto;
+      grid-template-columns: minmax(180px, .85fr) minmax(260px, 1.5fr) auto;
       gap: .7rem;
       align-items: center;
       border: 1px solid var(--na-border);
       border-radius: .65rem;
-      background: color-mix(in srgb, var(--na-panel-solid) 38%, transparent);
-      padding: .65rem .75rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 48%, transparent);
+      padding: .75rem .8rem;
     }
     .api-key-row.selected { border-color: color-mix(in srgb, var(--na-accent) 45%, transparent); background: var(--na-accent-soft); }
-    .api-key-row .hint { margin: .2rem 0 0; font-size: .66rem; }
+    .api-key-main { min-width: 0; }
+    .api-key-title {
+      display: flex; align-items: center; gap: .45rem; min-width: 0;
+      font: 650 .78rem var(--na-font-display); color: var(--na-text);
+    }
+    .api-key-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .api-key-meta { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem; }
+    .meta-pill {
+      display: inline-flex; align-items: center; max-width: 100%;
+      border: 1px solid color-mix(in srgb, var(--na-border) 90%, transparent);
+      border-radius: 999px; padding: .13rem .45rem;
+      font-size: .64rem; font-weight: 650; color: var(--na-text-muted);
+      background: color-mix(in srgb, var(--na-panel-solid) 72%, transparent);
+    }
+    .meta-pill.warn { color: var(--na-warn, #b45309); border-color: color-mix(in srgb, var(--na-warn, #b45309) 35%, transparent); background: color-mix(in srgb, var(--na-warn-soft, rgba(180, 83, 9, .12)) 55%, transparent); }
     .api-key-row .api-key-value { min-width: 0; }
-    .api-key-actions { display: inline-flex; gap: .35rem; }
+    .api-key-secret { min-width: 0; }
+    .api-key-actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
     .api-key-actions button {
       border: 1px solid var(--na-border);
       border-radius: .45rem;
@@ -288,16 +307,48 @@
       background: color-mix(in srgb, var(--na-panel-solid) 42%, transparent);
       padding: .9rem;
     }
-    .api-key-form .form-grid { margin-top: .7rem; }
+    .api-key-form .form-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-top: .7rem; }
+    .api-key-form-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+    .api-key-form-head p { margin: .25rem 0 0; font-size: .72rem; line-height: 1.5; color: var(--na-text-muted); }
     .permission-section {
       border: 1px solid color-mix(in srgb, var(--na-border) 75%, transparent);
       border-radius: .6rem;
-      padding: .7rem;
-      margin-top: .3rem;
+      padding: .85rem;
+      margin-top: .85rem;
       background: color-mix(in srgb, var(--na-panel-solid) 35%, transparent);
     }
     .permission-section .hint { margin-top: .3rem; }
-    .api-key-heading { margin: 1rem 0 .4rem; font: 650 .76rem var(--na-font-display); color: var(--na-text); }
+    .permission-head {
+      display: flex; justify-content: space-between; align-items: center; gap: .7rem;
+      margin-bottom: .75rem;
+    }
+    .permission-head strong { font: 650 .78rem var(--na-font-display); color: var(--na-text); }
+    .permission-head span { font-size: .68rem; color: var(--na-text-muted); }
+    .permission-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem; }
+    .permission-grid label { display: grid; gap: .4rem; font-size: .74rem; font-weight: 600; color: var(--na-text-muted); }
+    .permission-grid textarea {
+      width: 100%; box-sizing: border-box; min-height: 6.2rem; resize: vertical;
+      border: 1px solid var(--na-border); border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 78%, transparent);
+      color: var(--na-text); padding: .6rem .7rem; font: 500 .78rem/1.55 var(--na-font-mono);
+    }
+    .permission-grid textarea:focus {
+      outline: none; border-color: var(--na-border-bright);
+      box-shadow: 0 0 0 3px var(--na-accent-soft);
+    }
+    .ip-control { display: flex; align-items: center; gap: .55rem; }
+    .ip-control input[type="checkbox"] { width: 1rem; height: 1rem; accent-color: var(--na-accent); }
+    .form-footer {
+      display: flex; justify-content: space-between; align-items: center; gap: .8rem;
+      margin-top: 1rem; padding-top: .85rem; border-top: 1px solid color-mix(in srgb, var(--na-border) 72%, transparent);
+    }
+    .form-footer .hint { margin: 0; }
+    @media (max-width: 900px) {
+      .api-key-row { grid-template-columns: 1fr; align-items: stretch; }
+      .api-key-actions { justify-content: flex-start; }
+      .form-footer { align-items: flex-start; flex-direction: column; }
+      .form-footer button { width: 100%; }
+    }
     @media (max-width: 1160px) {
       .detail-grid { grid-template-columns: 1fr; }
     }
@@ -433,16 +484,22 @@
         </div>
       </div>
 
-      <div class="detail-block api-key-block">
+      <div class="detail-block api-key-block" id="apiKeyBlock">
         <div class="api-key-head">
-          <h3>API Key</h3>
+          <div>
+            <h3>API Key 管理</h3>
+            <p class="hint">为当前项目创建调用凭证，资源权限默认全部，可随时编辑范围和 IP 白名单。</p>
+          </div>
           <div class="actions">
             <button id="btnShowApiKeyForm" class="na-btn na-btn-primary" type="button">新建 API Key</button>
             <button id="btnLoadApiKeys" class="na-btn na-btn-ghost" type="button">刷新 API Key</button>
           </div>
         </div>
         <form id="apiKeyForm" class="api-key-form" hidden>
-          <div class="api-key-head"><h3 id="apiKeyFormTitle">创建 API Key</h3><button id="btnCancelApiKey" class="na-btn na-btn-ghost" type="button">取消</button></div>
+          <div class="api-key-form-head">
+            <div><h3 id="apiKeyFormTitle">创建 API Key</h3><p>创建后可立即复制明文，也可以在列表中继续编辑资源权限。</p></div>
+            <button id="btnCancelApiKey" class="na-btn na-btn-ghost" type="button">取消</button>
+          </div>
           <div class="form-grid">
             <label>所属项目<input id="apiKeyProject" readonly /></label>
             <label>名称<input id="apiKeyName" maxlength="128" placeholder="api-key-20261021123456" /></label>
@@ -452,20 +509,21 @@
             </select></label>
           </div>
           <div id="apiKeyCustomPermissions" class="permission-section" hidden>
-            <div class="api-key-heading">Model ID</div>
-            <label class="full">模型 ID 列表<textarea id="apiKeyModelIds" placeholder="每行或空格分隔 Model ID"></textarea></label>
-            <div class="api-key-heading">自定义推理接入点</div>
-            <label class="full">接入点 ID 列表<textarea id="apiKeyEndpointIds" placeholder="每行或空格分隔 ep-..."></textarea></label>
+            <div class="permission-head"><strong>自定义资源权限</strong><span>限制 Key 可访问的资源</span></div>
+            <div class="permission-grid">
+              <label>Model ID 列表<textarea id="apiKeyModelIds" placeholder="每行或空格分隔 Model ID"></textarea></label>
+              <label>自定义推理接入点 ID<textarea id="apiKeyEndpointIds" placeholder="每行或空格分隔 ep-..."></textarea></label>
+            </div>
             <p class="hint">自定义权限用于限制 Key 可访问的资源；留空创建会被拒绝。</p>
           </div>
           <div class="permission-section">
-            <div class="switch-row"><input id="apiKeyIpEnabled" type="checkbox" /><label for="apiKeyIpEnabled">IP 调用白名单</label></div>
+            <div class="permission-head"><div class="ip-control"><input id="apiKeyIpEnabled" type="checkbox" /><label for="apiKeyIpEnabled"><strong>IP 调用白名单</strong></label></div><span>限制调用方 IP</span></div>
             <div id="apiKeyIpSection" hidden>
-              <label class="full">IP 白名单<textarea id="apiKeyIpWhitelist" placeholder="192.168.1.1&#10;192.168.1.10-192.168.1.100&#10;192.168.1.10/24"></textarea></label>
+              <div class="permission-grid"><label>IP 白名单<textarea id="apiKeyIpWhitelist" placeholder="192.168.1.1&#10;192.168.1.10-192.168.1.100&#10;192.168.1.10/24"></textarea></label></div>
               <p class="hint">支持 IPv4、IPv6、IP 区间和网段，最多 100 条。</p>
             </div>
           </div>
-          <div class="actions"><button id="btnSubmitApiKey" class="na-btn na-btn-primary" type="button">创建 API Key</button></div>
+          <div class="form-footer"><p class="hint">默认权限为「全部（包括后续新增模型）」。</p><button id="btnSubmitApiKey" class="na-btn na-btn-primary" type="button">创建 API Key</button></div>
         </form>
         <div id="apiKeyRows" class="api-key-list"></div>
       </div>
@@ -580,6 +638,7 @@
           <td>${esc(p.create_date || "-")}</td>
           <td><div class="row-actions">
             <button type="button" data-select="${esc(p.project_name)}">选择</button>
+            <button type="button" class="primary" data-manage-keys="${esc(p.project_name)}">API Key</button>
             <button type="button" data-edit="${esc(p.project_name)}">编辑</button>
             <button type="button" data-delete="${esc(p.project_name)}">删除</button>
           </div></td>
@@ -670,9 +729,9 @@
       $("versionPanel").hidden = true;
       $("endpointModel").value = ""; $("endpointVersion").value = "";
       $("endpointName").value = "";
+      $("apiKeyForm").hidden = true;
       renderProjects();
       $("projectDetail").scrollIntoView({ behavior: "smooth", block: "start" });
-      openApiKeyForm();
       await loadModels();
       await loadApiKeys();
       await loadEndpoints();
@@ -767,8 +826,17 @@
         const selected = key.id === selectedApiKey ? "selected" : "";
         return `
           <div class="api-key-row ${selected}" data-key-id="${esc(key.id)}">
-            <div><span class="cell-strong">${esc(key.name || "未命名 Key")}</span><div class="hint">权限：${permissionText(key.permission)}｜白名单：${whitelistText(key)}</div></div>
+          <div class="api-key-main">
+            <div class="api-key-title"><strong title="${esc(key.name || "未命名 Key")}">${esc(key.name || "未命名 Key")}</strong></div>
+            <div class="api-key-meta">
+              <span class="meta-pill" title="资源权限">权限：${permissionText(key.permission)}</span>
+              <span class="meta-pill ${key.ip_whitelist_enabled ? "warn" : ""}" title="IP 调用白名单">白名单：${whitelistText(key)}</span>
+              <span class="meta-pill" title="所属项目">${esc(key.project_name || selectedProject || "未指定项目")}</span>
+            </div>
+          </div>
+          <div class="api-key-secret">
             <span class="api-key-value ${key.api_key ? "" : "empty"}" title="${esc(key.api_key || "未获取到明文")}">${esc(key.api_key || "未获取到明文")}</span>
+          </div>
             <div class="api-key-actions">
               <button type="button" data-copy="${esc(key.api_key)}">复制</button>
               <button type="button" data-select-key="${esc(key.id)}">选择</button>
@@ -939,10 +1007,16 @@
       renderProjects();
       $("projectManager").scrollIntoView({ behavior: "smooth", block: "start" });
     });
+    async function manageProjectApiKeys(name) {
+      await selectProject(name);
+      $("apiKeyForm").hidden = true;
+      $("apiKeyBlock").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     $("btnCreateEndpoint").addEventListener("click", createEndpoint);
     $("projectRows").addEventListener("click", async (event) => {
       const btn = event.target.closest("button"); if (!btn) return;
       if (btn.dataset.select) await selectProject(btn.dataset.select);
+      if (btn.dataset.manageKeys) await manageProjectApiKeys(btn.dataset.manageKeys);
       if (btn.dataset.edit) { const p = projects.find((x) => x.project_name === btn.dataset.edit); if (p) openEditForm(p); }
       if (btn.dataset.delete) await deleteProject(btn.dataset.delete);
     });
