@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from lib import upstream_creation
-from lib.volc_openapi import VolcOpenAPIError
+from lib.volc_openapi import VolcOpenAPIError, VolcOpenAPIClient
 
 
 class FakeClient:
@@ -397,6 +397,22 @@ class UpstreamCreationTests(unittest.TestCase):
             upstream_creation.VolcOpenAPIClient = original
         self.assertEqual(fake.calls, [("delete_api_key", {"api_key_id": "12"})])
         self.assertEqual(result, {"id": "12", "deleted": True})
+
+    def test_volc_client_delete_api_key_action(self):
+        client = VolcOpenAPIClient("ak", "sk")
+        calls = []
+        client.request = lambda **kwargs: calls.append(kwargs) or {}
+        client.delete_api_key(api_key_id="12")
+        self.assertEqual(calls[0]["action"], "DeleteApiKey")
+        self.assertEqual(calls[0]["body"], {"Id": 12})
+
+    def test_volc_client_update_api_key_disable_field(self):
+        client = VolcOpenAPIClient("ak", "sk")
+        calls = []
+        client.request = lambda **kwargs: calls.append(kwargs) or {}
+        client.update_api_key(api_key_id="12", disable=True)
+        self.assertEqual(calls[0]["action"], "UpdateApiKey")
+        self.assertEqual(calls[0]["body"], {"Id": 12, "Disable": True})
 
 
 if __name__ == "__main__":

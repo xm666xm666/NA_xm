@@ -1125,7 +1125,7 @@
       finally { button.disabled = false; }
     }
 
-    async function loadApiKeys() {
+    async function loadApiKeys({ silent = false } = {}) {
       if (!selectedProject) return;
       try {
         const data = await requestJson("/api/upstream-create/volc/api-keys", {
@@ -1137,7 +1137,7 @@
           ? selectedApiKey
           : apiKeys[0]?.id || "";
         renderApiKeys();
-        if (apiKeys.length) NAUi.toast(`已加载 ${apiKeys.length} 个 API Key`, "ok");
+        if (!silent && apiKeys.length) NAUi.toast(`已加载 ${apiKeys.length} 个 API Key`, "ok");
       } catch (e) {
         apiKeys = [];
         selectedApiKey = "";
@@ -1183,6 +1183,7 @@
         if (row) { row.disabled = disabled; row.status = disabled ? "Restricted" : "Active"; }
         renderApiKeys();
         NAUi.showBanner("userBanner", disabled ? "API Key 已禁用" : "API Key 已启用", "ok");
+        await loadApiKeys({ silent: true });
       } catch (e) {
         button.textContent = originalText;
         NAUi.showBanner("userBanner", e.message, "err");

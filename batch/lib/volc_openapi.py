@@ -373,6 +373,16 @@ class VolcOpenAPIClient:
             body=body,
         )
 
+    def delete_api_key(self, *, api_key_id: int | str) -> dict[str, Any]:
+        return self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="DeleteApiKey",
+            version="2024-01-01",
+            body={"Id": self._api_key_id_value(api_key_id)},
+        )
+
     def list_model_rate_limits(self, *, page_size: int = 100) -> list[dict[str, Any]]:
         """账号级模型限流（RPM/TPM）。控制台多数数字来自此处，而非接入点 RateLimit。"""
         by_name: dict[str, dict[str, Any]] = {}
