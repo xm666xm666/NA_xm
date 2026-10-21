@@ -349,6 +349,8 @@
       .form-footer { align-items: flex-start; flex-direction: column; }
       .form-footer button { width: 100%; }
     }
+    .api-key-only .detail-grid,
+    .api-key-only #endpointTableWrap { display: none; }
     @media (max-width: 1160px) {
       .detail-grid { grid-template-columns: 1fr; }
     }
@@ -436,14 +438,14 @@
 
     <section class="na-card na-animate-in" id="projectDetail" hidden>
       <div class="na-card-head">
-        <div><h2 class="na-card-title">推理接入点 · <span id="selectedProject"></span></h2><p class="na-card-desc">点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。</p></div>
+        <div><h2 class="na-card-title"><span id="detailModeTitle">推理接入点</span> · <span id="selectedProject"></span></h2><p class="na-card-desc" id="detailModeDesc">点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。</p></div>
         <div class="actions">
           <button id="btnChangeProject" class="na-btn na-btn-secondary" type="button">切换项目</button>
           <button id="btnLoadEndpoints" class="na-btn na-btn-ghost" type="button">刷新接入点</button>
         </div>
       </div>
 
-      <div class="detail-grid">
+      <div class="detail-grid" id="endpointWorkbench">
         <div class="detail-block">
           <div class="search-row">
             <input id="modelSearch" placeholder="搜索模型" aria-label="搜索模型" />
@@ -528,7 +530,7 @@
         <div id="apiKeyRows" class="api-key-list"></div>
       </div>
 
-      <div class="table-wrap">
+      <div class="table-wrap" id="endpointTableWrap">
         <table class="creation-table endpoint-table">
           <thead><tr><th>接入点</th><th>部署 ID</th><th>模型服务</th><th>状态</th><th class="wrap">描述</th><th>创建时间</th></tr></thead>
           <tbody id="endpointRows"><tr><td colspan="6">尚未加载。</td></tr></tbody>
@@ -717,9 +719,20 @@
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
     }
 
-    async function selectProject(name) {
+    function setProjectDetailMode(mode) {
+      const apiKeyMode = mode === "api-keys";
+      $("projectDetail").classList.toggle("api-key-only", apiKeyMode);
+      $("detailModeTitle").textContent = apiKeyMode ? "API Key 管理" : "推理接入点";
+      $("detailModeDesc").textContent = apiKeyMode
+        ? "为当前项目创建、复制或编辑调用凭证。"
+        : "点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。";
+      $("btnLoadEndpoints").hidden = apiKeyMode;
+    }
+
+    async function selectProject(name, mode = "endpoints") {
       selectedProject = name;
       $("selectedProject").textContent = name;
+      setProjectDetailMode(mode);
       $("projectDetail").hidden = false;
       $("credentialSection").hidden = true;
       $("projectManager").hidden = true;
@@ -732,9 +745,11 @@
       $("apiKeyForm").hidden = true;
       renderProjects();
       $("projectDetail").scrollIntoView({ behavior: "smooth", block: "start" });
-      await loadModels();
       await loadApiKeys();
-      await loadEndpoints();
+      if (mode !== "api-keys") {
+        await loadModels();
+        await loadEndpoints();
+      }
     }
 
     function renderModels() {
@@ -1008,7 +1023,7 @@
       $("projectManager").scrollIntoView({ behavior: "smooth", block: "start" });
     });
     async function manageProjectApiKeys(name) {
-      await selectProject(name);
+      await selectProject(name, "api-keys");
       $("apiKeyForm").hidden = true;
       $("apiKeyBlock").scrollIntoView({ behavior: "smooth", block: "start" });
     }
