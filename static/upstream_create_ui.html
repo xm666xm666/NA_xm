@@ -235,22 +235,26 @@
     .creation-table tbody tr.clickable:hover { background: color-mix(in srgb, var(--na-accent) 9%, transparent); }
     .creation-table td.wrap { min-width: 9rem; max-width: 24rem; overflow-wrap: anywhere; }
     .creation-table .cell-strong { font-weight: 700; color: var(--na-text); }
-    .row-actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
+    .row-actions { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: .4rem; }
     .row-actions button {
       border: 1px solid var(--na-border);
-      border-radius: .55rem;
+      border-radius: 999px;
       background: color-mix(in srgb, var(--na-panel-solid) 74%, transparent);
       color: var(--na-text-muted);
       display: inline-flex; align-items: center;
-      min-height: 1.75rem; padding: .22rem .55rem;
-      font-size: .68rem;
+      min-height: 1.85rem; padding: .28rem .68rem;
+      font-size: .7rem;
       font-weight: 650;
       line-height: 1; white-space: nowrap;
       cursor: pointer;
       transition: all .18s;
     }
     .row-actions button:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
-    .row-actions button.danger { color: var(--na-danger, #dc2626); border-color: color-mix(in srgb, var(--na-danger, #dc2626) 35%, transparent); }
+    .row-actions button.danger {
+      color: var(--na-danger, #dc2626);
+      border-color: color-mix(in srgb, var(--na-danger, #dc2626) 38%, transparent);
+      background: color-mix(in srgb, var(--na-danger, #dc2626) 6%, transparent);
+    }
     .row-actions button.danger:hover { color: #fff; border-color: var(--na-danger, #dc2626); background: var(--na-danger, #dc2626); }
     .row-actions button.primary {
       border-color: color-mix(in srgb, var(--na-accent) 42%, transparent);
@@ -349,20 +353,26 @@
     .meta-pill.warn { color: var(--na-warn, #b45309); border-color: color-mix(in srgb, var(--na-warn, #b45309) 35%, transparent); background: color-mix(in srgb, var(--na-warn-soft, rgba(180, 83, 9, .12)) 55%, transparent); }
     .api-key-row .api-key-value { min-width: 0; }
     .api-key-secret { min-width: 0; }
-    .api-key-actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
+    .api-key-actions { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: .4rem; }
     .api-key-actions button {
       border: 1px solid var(--na-border);
-      border-radius: .45rem;
+      border-radius: 999px;
       background: color-mix(in srgb, var(--na-panel-solid) 74%, transparent);
       color: var(--na-text-muted);
-      padding: .28rem .5rem;
-      font-size: .68rem;
+      display: inline-flex; align-items: center;
+      min-height: 1.85rem; padding: .28rem .68rem;
+      font-size: .7rem;
       font-weight: 650;
+      line-height: 1; white-space: nowrap;
       cursor: pointer;
       transition: all .18s;
     }
     .api-key-actions button:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
-    .api-key-actions button.danger { color: var(--na-danger, #dc2626); border-color: color-mix(in srgb, var(--na-danger, #dc2626) 35%, transparent); }
+    .api-key-actions button.danger {
+      color: var(--na-danger, #dc2626);
+      border-color: color-mix(in srgb, var(--na-danger, #dc2626) 38%, transparent);
+      background: color-mix(in srgb, var(--na-danger, #dc2626) 6%, transparent);
+    }
     .api-key-actions button.danger:hover { color: #fff; border-color: var(--na-danger, #dc2626); background: var(--na-danger, #dc2626); }
     .api-key-form {
       margin: .8rem 0 1rem;
@@ -867,7 +877,7 @@
             <button type="button" data-view-endpoints="${esc(p.project_name)}">接入点信息</button>
             <button type="button" class="primary" data-manage-keys="${esc(p.project_name)}">API Key</button>
             <button type="button" data-edit="${esc(p.project_name)}">编辑</button>
-            <button type="button" data-delete="${esc(p.project_name)}">删除</button>
+            <button type="button" class="danger" data-delete="${esc(p.project_name)}">删除</button>
           </div></td>
         </tr>`).join("");
     }
