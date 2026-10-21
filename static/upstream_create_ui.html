@@ -654,18 +654,18 @@
       <div class="detail-block api-key-block" id="apiKeyBlock">
         <div class="api-key-head">
           <div>
-            <h3>API Key 管理</h3>
+            <h3>API 密钥管理</h3>
             <p class="hint">为当前项目创建调用凭证，资源权限默认全部，可随时编辑范围和 IP 白名单。</p>
           </div>
           <div class="actions">
             <button id="btnApiKeyChangeProject" class="na-btn na-btn-secondary" type="button">切换项目</button>
-            <button id="btnShowApiKeyForm" class="na-btn na-btn-primary" type="button">新建 API Key</button>
-            <button id="btnLoadApiKeys" class="na-btn na-btn-ghost" type="button">刷新 API Key</button>
+            <button id="btnShowApiKeyForm" class="na-btn na-btn-primary" type="button">新建密钥</button>
+            <button id="btnLoadApiKeys" class="na-btn na-btn-ghost" type="button">刷新密钥</button>
           </div>
         </div>
         <form id="apiKeyForm" class="api-key-form" hidden>
           <div class="api-key-form-head">
-            <div><h3 id="apiKeyFormTitle">创建 API Key</h3><p>创建后可立即复制明文，也可以在列表中继续编辑资源权限。</p></div>
+            <div><h3 id="apiKeyFormTitle">创建密钥</h3><p>创建后可立即复制明文，也可以在列表中继续编辑资源权限。</p></div>
             <button id="btnCancelApiKey" class="na-btn na-btn-ghost" type="button">取消</button>
           </div>
           <div class="form-grid">
@@ -691,7 +691,7 @@
               <p class="hint">支持 IPv4、IPv6、IP 区间和网段，最多 100 条。</p>
             </div>
           </div>
-          <div class="form-footer"><p class="hint">默认权限为「全部（包括后续新增模型）」；火山云的 IP 白名单仅在自定义权限下可用。</p><button id="btnSubmitApiKey" class="na-btn na-btn-primary" type="button">创建 API Key</button></div>
+          <div class="form-footer"><p class="hint">默认权限为「全部（包括后续新增模型）」；火山云的 IP 白名单仅在自定义权限下可用。</p><button id="btnSubmitApiKey" class="na-btn na-btn-primary" type="button">创建密钥</button></div>
         </form>
         <div id="apiKeyRows" class="api-key-list"></div>
       </div>
@@ -875,7 +875,7 @@
           <td><div class="row-actions">
             <button type="button" class="primary" data-select="${esc(p.project_name)}">创建</button>
             <button type="button" data-view-endpoints="${esc(p.project_name)}">接入点信息</button>
-            <button type="button" class="primary" data-manage-keys="${esc(p.project_name)}">API Key</button>
+            <button type="button" class="primary" data-manage-keys="${esc(p.project_name)}">密钥</button>
             <button type="button" data-edit="${esc(p.project_name)}">编辑</button>
             <button type="button" class="danger" data-delete="${esc(p.project_name)}">删除</button>
           </div></td>
@@ -974,7 +974,7 @@
       if (modelMode) $("projectDetail").classList.add("model-only");
       if (endpointInfoMode) $("projectDetail").classList.add("endpoint-info");
       $("projectDetail").classList.toggle("api-key-only", apiKeyMode);
-      $("detailModeTitle").textContent = apiKeyMode ? "API Key 管理" : endpointInfoMode ? "接入点信息" : "创建模型接入点";
+      $("detailModeTitle").textContent = apiKeyMode ? "API 密钥管理" : endpointInfoMode ? "接入点信息" : "创建模型接入点";
       $("detailModeDesc").textContent = apiKeyMode
         ? "为当前项目创建、复制或编辑调用凭证。"
         : endpointInfoMode
@@ -1133,19 +1133,19 @@
 
     function renderApiKeys() {
       const target = $("apiKeyRows");
-      if (!apiKeys.length) { target.innerHTML = '<div class="hint">该项目没有 API Key。</div>'; return; }
+      if (!apiKeys.length) { target.innerHTML = '<div class="hint">该项目没有 API 密钥。</div>'; return; }
       target.innerHTML = apiKeys.map((key) => {
         const selected = key.id === selectedApiKey ? "selected" : "";
         return `
           <div class="api-key-row ${selected}" data-key-id="${esc(key.id)}">
           <div class="api-key-main">
-            <div class="api-key-title"><strong title="${esc(key.name || "未命名 Key")}">${esc(key.name || "未命名 Key")}</strong></div>
+            <div class="api-key-title"><strong title="${esc(key.name || "未命名密钥")}">${esc(key.name || "未命名密钥")}</strong></div>
             <div class="api-key-meta">
               <span class="meta-pill" title="资源权限">权限：${permissionText(key.permission)}</span>
               <span class="meta-pill ${key.ip_whitelist_enabled ? "warn" : ""}" title="IP 调用白名单">白名单：${whitelistText(key)}</span>
               <span class="meta-pill" title="所属项目">${esc(key.project_name || selectedProject || "未指定项目")}</span>
               <span class="meta-pill ${key.disabled ? "warn" : ""}" title="上游状态">状态：${esc(apiKeyStatusText(key.status))}</span>
-              <span class="meta-pill" title="该 API Key 最近一次用于接口鉴权的时间；上游数据可能有约 5 分钟延迟">最后使用：${esc(formatDateTime(key.last_access_time))}</span>
+              <span class="meta-pill" title="该 API 密钥最近一次用于接口鉴权的时间；上游数据可能有约 5 分钟延迟">最后使用：${esc(formatDateTime(key.last_access_time))}</span>
             </div>
           </div>
           <div class="api-key-secret">
@@ -1166,7 +1166,7 @@
       if (!row) return;
       selectedApiKey = row.id;
       renderApiKeys();
-      NAUi.toast(`已选择 ${row.name || "API Key"}`, "ok");
+      NAUi.toast(`已选择 ${row.name || "API 密钥"}`, "ok");
     }
 
     function parseList(value) {
@@ -1189,8 +1189,8 @@
 
     function resetApiKeyForm() {
       editingApiKey = "";
-      $("apiKeyFormTitle").textContent = "创建 API Key";
-      $("btnSubmitApiKey").textContent = "创建 API Key";
+      $("apiKeyFormTitle").textContent = "创建密钥";
+      $("btnSubmitApiKey").textContent = "创建密钥";
       $("apiKeyProject").value = selectedProject;
       $("apiKeyName").value = `api-key-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "")}`;
       $("apiKeyPermission").value = "all";
@@ -1212,7 +1212,7 @@
       const row = apiKeys.find((item) => item.id === id);
       if (!row) return;
       editingApiKey = row.id;
-      $("apiKeyFormTitle").textContent = "编辑 API Key";
+      $("apiKeyFormTitle").textContent = "编辑密钥";
       $("btnSubmitApiKey").textContent = "保存权限";
       $("apiKeyProject").value = row.project_name || selectedProject;
       $("apiKeyName").value = row.name || "";
@@ -1240,7 +1240,7 @@
         const path = isEdit ? "/api/upstream-create/volc/api-keys/update" : "/api/upstream-create/volc/api-keys/create";
         if (isEdit) payload.api_key_id = editingApiKey;
         const data = await requestJson(path, { method: "POST", body: payload });
-        NAUi.showBanner("userBanner", data.message || (isEdit ? "API Key 权限已更新" : "API Key 创建成功"), "ok");
+        NAUi.showBanner("userBanner", data.message || (isEdit ? "API 密钥权限已更新" : "API 密钥创建成功"), "ok");
         $("apiKeyForm").hidden = true;
         await loadApiKeys();
         if (data.data?.id) selectApiKey(data.data.id);
@@ -1260,7 +1260,7 @@
           ? selectedApiKey
           : apiKeys[0]?.id || "";
         renderApiKeys();
-        if (!silent && apiKeys.length) NAUi.toast(`已加载 ${apiKeys.length} 个 API Key`, "ok");
+        if (!silent && apiKeys.length) NAUi.toast(`已加载 ${apiKeys.length} 个 API 密钥`, "ok");
       } catch (e) {
         apiKeys = [];
         selectedApiKey = "";
@@ -1271,7 +1271,7 @@
 
     async function copyApiKey(id, button) {
       const row = apiKeys.find((item) => item.id === id);
-      if (!row) { NAUi.toast("未找到 API Key", "err"); return; }
+      if (!row) { NAUi.toast("未找到 API 密钥", "err"); return; }
       const originalText = button.textContent;
       button.disabled = true;
       button.textContent = "获取中";
@@ -1281,9 +1281,9 @@
           body: { ...credPayload(), project_name: selectedProject, api_key_id: id },
         });
         const value = String(data.data?.api_key || "").trim();
-        if (!value) throw new Error("上游未返回 API Key 明文");
+        if (!value) throw new Error("上游未返回 API 密钥明文");
         await navigator.clipboard.writeText(value);
-        NAUi.toast("已复制明文 API Key", "ok");
+        NAUi.toast("已复制明文 API 密钥", "ok");
       } catch (e) {
         button.textContent = originalText;
         NAUi.showBanner("userBanner", e.message, "err");
@@ -1305,7 +1305,7 @@
         const row = apiKeys.find((item) => item.id === id);
         if (row) { row.disabled = disabled; row.status = disabled ? "Restricted" : "Active"; }
         renderApiKeys();
-        NAUi.showBanner("userBanner", disabled ? "API Key 已禁用" : "API Key 已启用", "ok");
+        NAUi.showBanner("userBanner", disabled ? "API 密钥已禁用" : "API 密钥已启用", "ok");
         await loadApiKeys({ silent: true });
       } catch (e) {
         button.textContent = originalText;
@@ -1318,7 +1318,7 @@
     async function deleteApiKey(id, button) {
       const row = apiKeys.find((item) => item.id === id);
       const name = row?.name || `ID ${id}`;
-      if (!confirm(`确认删除 API Key「${name}」？删除后使用该 Key 的请求将无法通过方舟鉴权。`)) return;
+      if (!confirm(`确认删除 API 密钥「${name}」？删除后使用该密钥的请求将无法通过方舟鉴权。`)) return;
       const originalText = button.textContent;
       button.disabled = true;
       button.textContent = "删除中";
@@ -1330,8 +1330,8 @@
         apiKeys = apiKeys.filter((item) => item.id !== id);
         if (selectedApiKey === id) selectedApiKey = apiKeys[0]?.id || "";
         renderApiKeys();
-        NAUi.showBanner("userBanner", "API Key 删除成功", "ok");
-        NAUi.toast("API Key 删除成功", "ok");
+        NAUi.showBanner("userBanner", "API 密钥删除成功", "ok");
+        NAUi.toast("API 密钥删除成功", "ok");
       } catch (e) {
         button.textContent = originalText;
         NAUi.showBanner("userBanner", e.message, "err");
