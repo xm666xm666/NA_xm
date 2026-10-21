@@ -485,7 +485,7 @@
               <span class="label-head"><span>负责人</span></span>
               <input id="formOwner" autocomplete="off" placeholder="张三" />
               <span class="field-hint">留空时生成规则会记为 N/A。</span>
-              <span class="field-error"></span>
+              <span class="field-error" id="descriptionError"></span>
             </label>
             <label>
               <span class="label-head"><span>显示名称</span><span class="field-counter" id="displayNameCount">0/64</span></span>
@@ -713,7 +713,7 @@
       const parentError = subProject && !parentProject ? "父级项目不能为空" : "";
       setProjectFieldError("formProjectName", "projectNameError", projectNameError);
       setProjectFieldError("formDisplayName", "displayNameError", displayNameError);
-      setProjectFieldError("formDescription", "", descriptionError);
+      setProjectFieldError("formDescription", "descriptionError", descriptionError);
       setProjectFieldError("formParent", "parentProjectError", parentError);
       return !projectNameError && !displayNameError && !descriptionError && !parentError;
     }
