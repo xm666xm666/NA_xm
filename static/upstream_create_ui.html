@@ -235,15 +235,17 @@
     .creation-table tbody tr.clickable:hover { background: color-mix(in srgb, var(--na-accent) 9%, transparent); }
     .creation-table td.wrap { min-width: 9rem; max-width: 24rem; overflow-wrap: anywhere; }
     .creation-table .cell-strong { font-weight: 700; color: var(--na-text); }
-    .row-actions { display: inline-flex; gap: .35rem; }
+    .row-actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
     .row-actions button {
       border: 1px solid var(--na-border);
-      border-radius: .45rem;
+      border-radius: .55rem;
       background: color-mix(in srgb, var(--na-panel-solid) 74%, transparent);
       color: var(--na-text-muted);
-      padding: .28rem .5rem;
+      display: inline-flex; align-items: center;
+      min-height: 1.75rem; padding: .22rem .55rem;
       font-size: .68rem;
       font-weight: 650;
+      line-height: 1; white-space: nowrap;
       cursor: pointer;
       transition: all .18s;
     }
@@ -253,6 +255,10 @@
     .row-actions button.primary {
       border-color: color-mix(in srgb, var(--na-accent) 42%, transparent);
       background: var(--na-accent-soft); color: var(--na-text);
+    }
+    .row-actions button:disabled {
+      opacity: .5; cursor: not-allowed;
+      border-color: var(--na-border); background: color-mix(in srgb, var(--na-panel-solid) 60%, transparent);
     }
     .pill {
       display: inline-flex;
@@ -857,7 +863,7 @@
           <td class="wrap" title="${esc(p.description)}">${esc(p.description || "-")}</td>
           <td>${esc(p.create_date || "-")}</td>
           <td><div class="row-actions">
-            <button type="button" data-select="${esc(p.project_name)}">选择</button>
+            <button type="button" class="primary" data-select="${esc(p.project_name)}">创建</button>
             <button type="button" data-view-endpoints="${esc(p.project_name)}">接入点信息</button>
             <button type="button" class="primary" data-manage-keys="${esc(p.project_name)}">API Key</button>
             <button type="button" data-edit="${esc(p.project_name)}">编辑</button>
