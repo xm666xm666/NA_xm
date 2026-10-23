@@ -562,7 +562,7 @@
       </div>
       <div class="platform-modal-footer">
         <button type="button" class="na-btn na-btn-ghost" id="cancelSiteConfig">取消</button>
-        <button type="button" class="na-btn na-btn-primary" id="saveSiteConfig"><span class="na-spinner"></span><span class="na-btn-label">新增并测试</span></button>
+        <button type="button" class="na-btn na-btn-primary" id="saveSiteConfig"><span class="na-spinner"></span><span class="na-btn-label">保存站点</span></button>
       </div>
     </section>
   </div>
@@ -1370,15 +1370,12 @@
           });
           state.env = saved.data.env;
           await loadSites();
-          await warmupSession(saved.data.env, payload.totp_secret);
-          await loadGroupOptions(saved.data.env);
-          await loadRows();
           closeSiteConfig();
           if (state.siteManageWasOpen) {
             openSiteManage();
             state.siteManageWasOpen = false;
           }
-          NAUi.toast(state.siteEditingEnv ? "站点已更新并测试" : "站点已新增并测试", "ok");
+          NAUi.toast(state.siteEditingEnv ? "站点已更新，未自动登录" : "站点已新增，未自动登录", "ok");
         } catch (error) {
           NAUi.toast(error.message, "err");
         }
