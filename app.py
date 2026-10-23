@@ -17,7 +17,7 @@ from functools import wraps
 from pathlib import Path
 from types import FunctionType
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from flask import Flask, Response, g, jsonify, request, send_from_directory, stream_with_context
 
@@ -47,7 +47,6 @@ ENV_SITES_FILE = ENV_DIR / "sites.json"
 ENV_UPSTREAM_FILE = ENV_DIR / "upstream.json"
 EXCEL_DIR = NEW_DIR / "excel"
 _LIB_LOCK = threading.RLock()
-ENV_SITE_KEYS = ("test", "uat", "prod")
 
 
 def _ensure_excel_dir() -> Path:
@@ -676,6 +675,7 @@ def _normalize_env_site(raw: Any) -> dict[str, Any] | None:
     site: dict[str, Any] = {
         "base_url": base_url,
         "username": str(raw.get("username") or "").strip(),
+        "label": str(raw.get("label") or "").strip(),
         "password": raw.get("password") if raw.get("password") is not None else "",
         "default_key": str(raw.get("default_key") or "").strip(),
         "access_token": str(raw.get("access_token") or "").strip(),
@@ -719,13 +719,34 @@ def _load_env_sites() -> dict[str, Any]:
     }
 
 
-def _save_env_site_config(env_key: str, body: dict[str, Any]) -> dict[str, Any]:
-    """从 NA 信息页更新指定环境的登录配置；一次性验证码不落盘。"""
-    if env_key not in ENV_SITE_KEYS:
-        raise ValueError("环境仅支持 test、uat 或 prod")
+def _new_site_key(label: str, base_url: str, existing_data: dict[str, Any]) -> str:
+    """为页内新增站点生成稳定的路由 key。"""
+    host = ""
+    try:
+        host = urlparse(str(base_url or "")).netloc.lower()
+    except Exception:  # noqa: BLE001
+        host = ""
+    candidate = re.sub(r"[^a-z0-9-]+", "-", str(label or "").strip().lower()).strip("-")
+    if not candidate:
+        candidate = re.sub(r"[^a-z0-9-]+", "-", host).strip("-")
+    if not candidate:
+        candidate = f"site-{int(time.time())}"
+    candidate = candidate[:48].strip("-") or "site"
+    candidate = re.sub(r"-+$", "", candidate) or "site"
+    key = candidate
+    suffix = 2
+    while key in existing_data:
+        key = f"{candidate}-{suffix}"
+        suffix += 1
+    return key
+
+
+def _create_env_site_config(body: dict[str, Any]) -> dict[str, Any]:
+    """从 NA 信息页新增自定义站点；6/8 位验证码仅用于当次登录。"""
     if not isinstance(body, dict):
         raise ValueError("请填写站点连接配置")
 
+    label = str(body.get("label") or "").strip()
     base_url = BATCH["normalize_na_base_url"](str(body.get("base_url") or "").strip())
     if not base_url:
         raise ValueError("请填写登录网址")
@@ -733,19 +754,11 @@ def _save_env_site_config(env_key: str, body: dict[str, Any]) -> dict[str, Any]:
     if not username:
         raise ValueError("请填写账号")
 
-    existing = _load_env_sites().get("sites", {}).get(env_key) or {}
-    password = body.get("password")
-    password = "" if password is None else str(password)
-    if not password:
-        password = str(existing.get("password") or "")
+    password = str(body.get("password") or "")
     if not password:
         raise ValueError("请填写密码")
 
     user_otp_raw = str(body.get("totp_secret") or body.get("totp") or body.get("otp_code") or "").strip()
-    existing_otp_raw = str(existing.get("totp_secret") or existing.get("otp_code") or "").strip()
-    otp_raw = user_otp_raw or existing_otp_raw
-    if not otp_raw:
-        raise ValueError("请填写 TOTP 密钥、otpauth 链接，或 6/8 位验证码")
     if BATCH["is_plain_otp_code"](user_otp_raw) and len(user_otp_raw) not in {6, 8}:
         raise ValueError("一次性验证码仅支持 6 位或 8 位")
     if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw) and not BATCH["looks_like_totp_secret"](user_otp_raw):
@@ -763,22 +776,15 @@ def _save_env_site_config(env_key: str, body: dict[str, Any]) -> dict[str, Any]:
         data = {}
 
     ENV_DIR.mkdir(parents=True, exist_ok=True)
-    raw_site = data.get(env_key) if isinstance(data.get(env_key), dict) else {}
-    raw_site = dict(raw_site)
-    raw_site.update({
+    env_key = _new_site_key(label, base_url, data)
+    raw_site = {
+        "label": label or env_key.upper(),
         "base_url": base_url,
         "username": username,
         "password": password,
-    })
-    if not BATCH["is_plain_otp_code"](user_otp_raw):
-        raw_site["totp_secret"] = otp_raw
-        raw_site.pop("otp_code", None)
-    elif existing_otp_raw:
-        raw_site["totp_secret"] = existing_otp_raw
-        raw_site.pop("otp_code", None)
-    else:
-        raw_site.pop("totp_secret", None)
-        raw_site.pop("otp_code", None)
+    }
+    if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw):
+        raw_site["totp_secret"] = user_otp_raw
     data[env_key] = raw_site
     with ENV_SITES_FILE.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -787,6 +793,7 @@ def _save_env_site_config(env_key: str, body: dict[str, Any]) -> dict[str, Any]:
     site = _normalize_env_site(raw_site) or {}
     return {
         "env": env_key,
+        "label": raw_site["label"],
         "base_url": base_url,
         "username": username,
         "has_password": bool(password),
@@ -805,13 +812,11 @@ def api_env_sites():
 def _platform_site_client(env: str, *, otp_code: str = ""):
     """用指定环境的服务端凭据创建 ai-cloud 管理端会话。"""
     env_key = str(env or "").strip().lower()
-    if env_key not in ENV_SITE_KEYS:
-        raise ValueError("环境仅支持 test、uat 或 prod")
     _ensure_batch()
     sites = _load_env_sites().get("sites") or {}
     site = sites.get(env_key)
     if not isinstance(site, dict) or not site.get("base_url"):
-        raise ValueError(f"{env_key} 尚未配置，请在 env/sites.json 填写地址、账号、密码和可选 totp_secret")
+        raise ValueError(f"站点 {env_key} 不存在或未配置")
 
     # _parse_auth 会按 base_url 从 env/sites.json 补齐 TOTP 原始密钥；凭据不返回浏览器。
     auth = _parse_auth({
@@ -835,26 +840,26 @@ def api_platform_sites():
     items = [
         {
             "env": env,
-            "label": env.upper(),
-            "base_url": str((sites.get(env) or {}).get("base_url") or ""),
-            "configured": bool((sites.get(env) or {}).get("base_url")),
-            "username": str((sites.get(env) or {}).get("username") or ""),
-            "has_password": bool((sites.get(env) or {}).get("password")),
-            "has_totp_secret": bool((sites.get(env) or {}).get("has_totp_secret")),
+            "label": str(site.get("label") or env.upper()),
+            "base_url": str(site.get("base_url") or ""),
+            "configured": bool(site.get("base_url")),
+            "username": str(site.get("username") or ""),
+            "has_password": bool(site.get("password")),
+            "has_totp_secret": bool(site.get("has_totp_secret")),
         }
-        for env in ENV_SITE_KEYS
+        for env, site in sites.items()
     ]
     return jsonify({"success": True, "data": items})
 
 
-@app.put("/api/platform/sites/<env>/config")
-def api_platform_site_config(env: str):
-    """保存 NA 信息页的自定义站点登录配置；不回传敏感字段。"""
+@app.post("/api/platform/sites")
+def api_platform_site_create():
+    """新增 NA 信息页自定义站点；不回传敏感字段。"""
     body = request.get_json(silent=True) or {}
     try:
-        data = _save_env_site_config(env, body)
-        IDENTITY.store.audit("platform.site.config_saved", resource=f"env:{env}", detail={"env": env})
-        return jsonify({"success": True, "env": env, "data": data, "message": "登录配置已保存"})
+        data = _create_env_site_config(body)
+        IDENTITY.store.audit("platform.site.created", resource=f"env:{data['env']}", detail={"env": data["env"], "label": data.get("label", "")})
+        return jsonify({"success": True, "data": data, "message": "站点已新增"})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
