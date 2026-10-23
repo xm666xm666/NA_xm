@@ -71,9 +71,6 @@
 
         <h2 style="margin-top:1.1rem;font-size:0.92rem">网关连接（与批量 Tab 同步）</h2>
         <div class="na-toolbar" id="envSiteSwitch" hidden style="margin-bottom:0.45rem">
-          <button type="button" class="na-btn na-btn-ghost" data-env="test">test</button>
-          <button type="button" class="na-btn na-btn-ghost" data-env="uat">uat</button>
-          <button type="button" class="na-btn na-btn-ghost" data-env="prod">prod</button>
           <span class="na-hint" style="margin:0">从 env/sites.json 填入账号密码与 TOTP</span>
         </div>
         <div class="na-auth-tabs" id="authTabs">
@@ -339,13 +336,36 @@
       const available = new Set(envSitesCache.available || []);
       const show = Boolean(envSitesCache.configured && available.size);
       wrap.hidden = !show;
-      document.querySelectorAll("#envSiteSwitch [data-env]").forEach((btn) => {
-        const key = btn.dataset.env;
-        const ok = available.has(key);
-        btn.disabled = !ok;
-        btn.title = ok ? `填入 ${key} 站点连接信息` : `${key} 未在 env/sites.json 中配置`;
+      wrap.querySelectorAll("button[data-env]").forEach((btn) => btn.remove());
+      if (!show) {
+        setEnvSwitchActive("");
+        return;
+      }
+      const standard = ["test", "uat", "prod"];
+      const keys = [
+        ...standard.filter((key) => available.has(key)),
+        ...[...available].filter((key) => !standard.includes(key)),
+      ];
+      keys.forEach((key) => {
+        const site = envSitesCache.sites?.[key] || {};
+        const label = String(site.label || key);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "na-btn na-btn-ghost";
+        btn.dataset.env = key;
+        btn.textContent = label;
+        btn.title = `填入 ${label} 站点连接信息`;
+        wrap.insertBefore(btn, wrap.firstChild);
       });
       if (!show) setEnvSwitchActive("");
+    }
+
+    const agentEnvSiteSwitch = $("envSiteSwitch");
+    if (agentEnvSiteSwitch) {
+      agentEnvSiteSwitch.addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-env]");
+        if (btn) applyEnvSite(btn.dataset.env);
+      });
     }
 
     function updateTotpSecretHint(site) {

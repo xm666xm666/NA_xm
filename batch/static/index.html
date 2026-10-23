@@ -1273,9 +1273,6 @@
         <div class="card-header">
           <h2><span class="card-icon na-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/></svg></span>连接配置</h2>
           <div class="env-site-switch" id="envSiteSwitch" hidden aria-label="环境快捷切换">
-            <button type="button" class="env-site-btn" data-env="test" title="填入 test 站点">test</button>
-            <button type="button" class="env-site-btn" data-env="uat" title="填入 uat 站点">uat</button>
-            <button type="button" class="env-site-btn" data-env="prod" title="填入 prod 站点">prod</button>
           </div>
         </div>
         <div class="card-body">
@@ -2044,11 +2041,26 @@ sample-azure-test
       const show = Boolean(envSitesCache.configured && available.size);
       wrap.hidden = !show;
       wrap.classList.toggle('visible', show);
-      document.querySelectorAll('#envSiteSwitch .env-site-btn').forEach((btn) => {
-        const key = btn.dataset.env;
-        const ok = available.has(key);
-        btn.disabled = !ok;
-        btn.title = ok ? `填入 ${key} 站点连接信息` : `${key} 未在 env/sites.json 中配置`;
+      wrap.replaceChildren();
+      if (!show) {
+        setEnvSwitchActive('');
+        return;
+      }
+      const standard = ['test', 'uat', 'prod'];
+      const keys = [
+        ...standard.filter((key) => available.has(key)),
+        ...[...available].filter((key) => !standard.includes(key)),
+      ];
+      keys.forEach((key) => {
+        const site = envSitesCache.sites?.[key] || {};
+        const label = String(site.label || key);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'env-site-btn';
+        btn.dataset.env = key;
+        btn.textContent = label;
+        btn.title = `填入 ${label} 站点连接信息`;
+        wrap.append(btn);
       });
       if (!show) setEnvSwitchActive('');
     }
@@ -4165,12 +4177,13 @@ sample-azure-test
       const data = ev.data || {};
       if (data.type === 'na-theme-change' && data.theme) NATheme.apply(data.theme);
     });
-    document.querySelectorAll('#envSiteSwitch .env-site-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (btn.disabled) return;
-        applyEnvSite(btn.dataset.env);
+    const envSiteSwitch = $('envSiteSwitch');
+    if (envSiteSwitch) {
+      envSiteSwitch.addEventListener('click', (event) => {
+        const btn = event.target.closest('.env-site-btn');
+        if (btn) applyEnvSite(btn.dataset.env);
       });
-    });
+    }
 
     switchModule(activeModule);
     loadDefaultConfig().catch(() => {});
