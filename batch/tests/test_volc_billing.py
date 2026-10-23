@@ -56,6 +56,7 @@ class VolcBillingTests(unittest.TestCase):
                 "ConfigName": "input",
                 "SplitItemID": "ep-1",
                 "PayableAmount": "1.20",
+                "SavingPlanDeductionDiscountTotalAmount": "0.60",
             },
             {
                 "ExpenseDate": "2026-08-01",
@@ -64,6 +65,7 @@ class VolcBillingTests(unittest.TestCase):
                 "ConfigName": "input",
                 "SplitItemID": "ep-1",
                 "PayableAmount": "0.80",
+                "SavingPlanDeductionDiscountTotalAmount": "0.40",
             },
             {
                 "ExpenseDate": "2026-08-02",
@@ -72,6 +74,7 @@ class VolcBillingTests(unittest.TestCase):
                 "ConfigName": "input",
                 "SplitItemID": "ep-1",
                 "PayableAmount": "3",
+                "SavingPlanDeductionDiscountTotalAmount": "1.00",
             },
         ]
         mapped = [map_bill_item(item, bill_period="2026-08") for item in items]
@@ -79,11 +82,15 @@ class VolcBillingTests(unittest.TestCase):
         month = aggregate_rows(mapped, month=True)
         self.assertEqual(len(day), 2)
         day_by_date = {row["日期"]: row["费用"] for row in day}
+        saving_by_date = {row["日期"]: row["节省计划抵扣总额"] for row in day}
         self.assertEqual(day_by_date["2026-08-01"], 2.0)
         self.assertEqual(day_by_date["2026-08-02"], 3.0)
+        self.assertEqual(saving_by_date["2026-08-01"], 1.0)
+        self.assertEqual(saving_by_date["2026-08-02"], 1.0)
         self.assertEqual(len(month), 1)
         self.assertEqual(month[0]["日期"], "2026-08")
         self.assertEqual(month[0]["费用"], 5.0)
+        self.assertEqual(month[0]["节省计划抵扣总额"], 2.0)
         self.assertEqual(month[0]["分拆项ID"], "ep-1")
 
     def test_blank_or_default_project_skipped(self):
@@ -144,6 +151,7 @@ class VolcBillingTests(unittest.TestCase):
                         "配置名称": "c",
                         "分拆项ID": "x",
                         "费用": 1.5,
+                        "节省计划抵扣总额": 0.75,
                     }
                 ],
                 rows_month=[
@@ -154,6 +162,7 @@ class VolcBillingTests(unittest.TestCase):
                         "配置名称": "c",
                         "分拆项ID": "x",
                         "费用": 1.5,
+                        "节省计划抵扣总额": 0.75,
                     }
                 ],
             )
@@ -165,7 +174,7 @@ class VolcBillingTests(unittest.TestCase):
                 self.assertEqual(wb.sheetnames[:2], [SHEET_DAY, SHEET_MONTH])
                 self.assertIn(SHEET_NOTE, wb.sheetnames)
                 headers = [cell.value for cell in next(wb[SHEET_DAY].iter_rows(min_row=1, max_row=1))]
-                self.assertEqual(headers, ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用（¥）"])
+                self.assertEqual(headers, ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用（¥）", "节省计划抵扣总额（¥）"])
                 self.assertEqual(wb[SHEET_DAY]["A2"].value, "2026-08-01")
                 self.assertEqual(wb[SHEET_MONTH]["A2"].value, "2026-08")
                 self.assertEqual(wb[SHEET_DAY]["A3"].value, "合计")
@@ -173,8 +182,10 @@ class VolcBillingTests(unittest.TestCase):
                 self.assertIn("¥", str(wb[SHEET_DAY]["F2"].number_format))
                 self.assertEqual(wb[SHEET_MONTH]["A3"].value, "合计")
                 self.assertEqual(wb[SHEET_MONTH]["F3"].value, "=SUM(F2:F2)")
-                self.assertEqual(wb[SHEET_DAY].auto_filter.ref, "A1:F2")
-                self.assertEqual(wb[SHEET_MONTH].auto_filter.ref, "A1:F2")
+                self.assertEqual(wb[SHEET_DAY]["G3"].value, "=SUM(G2:G2)")
+                self.assertEqual(wb[SHEET_MONTH]["G3"].value, "=SUM(G2:G2)")
+                self.assertEqual(wb[SHEET_DAY].auto_filter.ref, "A1:G2")
+                self.assertEqual(wb[SHEET_MONTH].auto_filter.ref, "A1:G2")
             finally:
                 wb.close()
 
@@ -193,6 +204,7 @@ class VolcBillingTests(unittest.TestCase):
                         "ProductZh": "方舟",
                         "ConfigName": "out",
                         "PayableAmount": "4.5",
+                        "SavingPlanDeductionDiscountTotalAmount": "2.5",
                     }
                 ],
                 "Total": 1,
@@ -204,6 +216,7 @@ class VolcBillingTests(unittest.TestCase):
         self.assertFalse(stats.split_used)
         self.assertEqual(stats.day_rows, 1)
         self.assertEqual(stats.rows_day[0]["费用"], 4.5)
+        self.assertEqual(stats.rows_day[0]["节省计划抵扣总额"], 2.5)
         self.assertEqual(stats.rows_month[0]["日期"], "2026-08")
 
     def test_both_apis_denied_explains_iam(self):

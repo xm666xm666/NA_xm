@@ -742,7 +742,7 @@ def _new_site_key(label: str, base_url: str, existing_data: dict[str, Any]) -> s
 
 
 def _create_env_site_config(body: dict[str, Any]) -> dict[str, Any]:
-    """从 NA 信息页新增自定义站点；6/8 位验证码仅用于当次登录。"""
+    """从 NA 信息页新增自定义站点；仅保存 TOTP 原始密钥。"""
     if not isinstance(body, dict):
         raise ValueError("请填写站点连接配置")
 
@@ -758,11 +758,10 @@ def _create_env_site_config(body: dict[str, Any]) -> dict[str, Any]:
     if not password:
         raise ValueError("请填写密码")
 
-    user_otp_raw = str(body.get("totp_secret") or body.get("totp") or body.get("otp_code") or "").strip()
-    if BATCH["is_plain_otp_code"](user_otp_raw) and len(user_otp_raw) not in {6, 8}:
-        raise ValueError("一次性验证码仅支持 6 位或 8 位")
-    if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw) and not BATCH["looks_like_totp_secret"](user_otp_raw):
-        raise ValueError("TOTP 仅支持 Base32 密钥、otpauth 链接，或 6/8 位验证码")
+    user_totp_raw = str(body.get("totp_secret") or body.get("totp") or "").strip()
+    totp_secret = BATCH["pick_totp_secret"](user_totp_raw) if user_totp_raw else ""
+    if user_totp_raw and not totp_secret:
+        raise ValueError("仅支持 TOTP 原始密钥或 otpauth:// 链接")
 
     if ENV_SITES_FILE.exists():
         try:
@@ -783,8 +782,8 @@ def _create_env_site_config(body: dict[str, Any]) -> dict[str, Any]:
         "username": username,
         "password": password,
     }
-    if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw):
-        raw_site["totp_secret"] = user_otp_raw
+    if totp_secret:
+        raw_site["totp_secret"] = totp_secret
     data[env_key] = raw_site
     with ENV_SITES_FILE.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -798,7 +797,6 @@ def _create_env_site_config(body: dict[str, Any]) -> dict[str, Any]:
         "username": username,
         "has_password": bool(password),
         "has_totp_secret": bool(site.get("has_totp_secret")),
-        "otp_used_for_login": bool(BATCH["is_plain_otp_code"](user_otp_raw)),
     }
 
 
@@ -848,18 +846,17 @@ def _update_env_site_config(env_key: str, body: dict[str, Any]) -> dict[str, Any
     if not password:
         raise ValueError("请填写密码")
 
-    user_otp_raw = str(body.get("totp_secret") or body.get("totp") or body.get("otp_code") or "").strip()
-    if BATCH["is_plain_otp_code"](user_otp_raw) and len(user_otp_raw) not in {6, 8}:
-        raise ValueError("一次性验证码仅支持 6 位或 8 位")
-    if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw) and not BATCH["looks_like_totp_secret"](user_otp_raw):
-        raise ValueError("TOTP 仅支持 Base32 密钥、otpauth 链接，或 6/8 位验证码")
+    user_totp_raw = str(body.get("totp_secret") or body.get("totp") or "").strip()
+    totp_secret = BATCH["pick_totp_secret"](user_totp_raw) if user_totp_raw else ""
+    if user_totp_raw and not totp_secret:
+        raise ValueError("仅支持 TOTP 原始密钥或 otpauth:// 链接")
 
     raw_site["label"] = label
     raw_site["base_url"] = base_url
     raw_site["username"] = username
     raw_site["password"] = password
-    if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw):
-        raw_site["totp_secret"] = user_otp_raw
+    if totp_secret:
+        raw_site["totp_secret"] = totp_secret
         raw_site.pop("otp_code", None)
     data[env_key] = raw_site
     _write_env_site_data(data)
@@ -872,7 +869,6 @@ def _update_env_site_config(env_key: str, body: dict[str, Any]) -> dict[str, Any
         "username": username,
         "has_password": bool(password),
         "has_totp_secret": bool(normalized.get("has_totp_secret")),
-        "otp_used_for_login": bool(BATCH["is_plain_otp_code"](user_otp_raw)),
     }
 
 

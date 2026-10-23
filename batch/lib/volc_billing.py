@@ -24,6 +24,8 @@ _SUM_FONT = Font(name="宋体", bold=True, size=11)
 _SUM_FILL = PatternFill("solid", fgColor="FFE7E6E6")
 COST_FIELD = "费用"
 COST_COL_HEADER = "费用（¥）"
+SAVING_PLAN_FIELD = "节省计划抵扣总额"
+SAVING_PLAN_COL_HEADER = "节省计划抵扣总额（¥）"
 COST_NUMBER_FORMAT = '"¥"#,##0.00'
 SUM_LABEL = "合计"
 BILLING_SERVICE = "billing"
@@ -33,8 +35,8 @@ TIMESTAMP_FORMAT = "%Y%m%d%H%M%S"
 SHEET_DAY = "按天"
 SHEET_MONTH = "按月"
 SHEET_NOTE = "说明"
-DAY_HEADERS = ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用"]
-MONTH_HEADERS = ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用"]
+DAY_HEADERS = ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用", "节省计划抵扣总额"]
+MONTH_HEADERS = ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用", "节省计划抵扣总额"]
 _DEFAULT_PROJECT_LABELS = frozenset(
     {
         "default",
@@ -270,6 +272,13 @@ def _payable(item: dict[str, Any]) -> Decimal:
     return Decimal("0")
 
 
+def _saving_plan_deduction(item: dict[str, Any]) -> Decimal:
+    raw = item.get("SavingPlanDeductionDiscountTotalAmount")
+    if raw in (None, ""):
+        return Decimal("0")
+    return _parse_money(raw)
+
+
 def map_bill_item(item: dict[str, Any], *, bill_period: str) -> dict[str, Any]:
     if not isinstance(item, dict):
         return {}
@@ -281,6 +290,7 @@ def map_bill_item(item: dict[str, Any], *, bill_period: str) -> dict[str, Any]:
         "配置名称": _pick_text(item, "ConfigName"),
         "分拆项ID": _pick_text(item, "SplitItemID", "SplitItemId", "SplitItemName"),
         "费用": _format_money(_payable(item)),
+        SAVING_PLAN_FIELD: _format_money(_saving_plan_deduction(item)),
     }
 
 
@@ -298,12 +308,16 @@ def _row_key(row: dict[str, Any], *, month: bool = False) -> tuple[str, str, str
 
 
 def aggregate_rows(rows: list[dict[str, Any]], *, month: bool = False) -> list[dict[str, Any]]:
-    buckets: dict[tuple[str, str, str, str, str], Decimal] = {}
+    buckets: dict[tuple[str, str, str, str, str], tuple[Decimal, Decimal]] = {}
     for row in rows:
         if not row:
             continue
         key = _row_key(row, month=month)
-        buckets[key] = buckets.get(key, Decimal("0")) + _parse_money(row.get("费用"))
+        cost, saving_plan = buckets.get(key, (Decimal("0"), Decimal("0")))
+        buckets[key] = (
+            cost + _parse_money(row.get(COST_FIELD)),
+            saving_plan + _parse_money(row.get(SAVING_PLAN_FIELD)),
+        )
     out = [
         {
             "日期": key[0],
@@ -311,7 +325,8 @@ def aggregate_rows(rows: list[dict[str, Any]], *, month: bool = False) -> list[d
             "产品": key[2],
             "配置名称": key[3],
             "分拆项ID": key[4],
-            "费用": _format_money(amount),
+            "费用": _format_money(amount[0]),
+            SAVING_PLAN_FIELD: _format_money(amount[1]),
         }
         for key, amount in buckets.items()
     ]
@@ -451,7 +466,12 @@ def collect_volc_bills(
 
 
 def excel_cost_headers(headers: list[str]) -> list[str]:
-    return [COST_COL_HEADER if item == COST_FIELD else item for item in headers]
+    return [
+        COST_COL_HEADER if item == COST_FIELD
+        else SAVING_PLAN_COL_HEADER if item == SAVING_PLAN_FIELD
+        else item
+        for item in headers
+    ]
 
 
 def sheet_data_rows(ws) -> int:
@@ -468,6 +488,7 @@ def write_bill_sheet(ws, headers: list[str], rows: list[dict[str, Any]], *, add_
     cols = list(headers)
     display = excel_cost_headers(cols)
     cost_idx = next((i for i, name in enumerate(cols, start=1) if name == COST_FIELD), None)
+    saving_plan_idx = next((i for i, name in enumerate(cols, start=1) if name == SAVING_PLAN_FIELD), None)
     for col_idx, header in enumerate(display, start=1):
         ws.cell(row=1, column=col_idx, value=header)
     data_rows = list(rows or [])
@@ -475,19 +496,25 @@ def write_bill_sheet(ws, headers: list[str], rows: list[dict[str, Any]], *, add_
         for col_idx, header in enumerate(cols, start=1):
             value = row.get(header, "")
             cell = ws.cell(row=row_idx, column=col_idx, value="" if value is None else value)
-            if cost_idx and col_idx == cost_idx and value not in ("", None):
+            if col_idx in (cost_idx, saving_plan_idx) and value not in ("", None):
                 cell.number_format = COST_NUMBER_FORMAT
     last_data = 1 + len(data_rows)
     if add_sum and cost_idx:
         sum_row = last_data + 1
         letter = get_column_letter(cost_idx)
         ws.cell(row=sum_row, column=1, value=SUM_LABEL)
-        total = ws.cell(row=sum_row, column=cost_idx)
-        if data_rows:
-            total.value = f"=SUM({letter}2:{letter}{last_data})"
-        else:
-            total.value = 0
-        total.number_format = COST_NUMBER_FORMAT
+        for money_idx, money_letter in (
+            (cost_idx, letter),
+            (saving_plan_idx, get_column_letter(saving_plan_idx) if saving_plan_idx else ""),
+        ):
+            if not money_idx:
+                continue
+            total = ws.cell(row=sum_row, column=money_idx)
+            if data_rows:
+                total.value = f"=SUM({money_letter}2:{money_letter}{last_data})"
+            else:
+                total.value = 0
+            total.number_format = COST_NUMBER_FORMAT
     border = Border(left=_GRID_SIDE, right=_GRID_SIDE, top=_GRID_SIDE, bottom=_GRID_SIDE)
     max_row = ws.max_row or 0
     max_col = len(cols)
@@ -552,6 +579,10 @@ def save_bill_workbook(
             {
                 "项": COST_COL_HEADER,
                 "说明": "优先 PayableAmount（应付），其次结算/未税金额；列头与单元格均标注人民币 ¥，末行为 SUM 合计",
+            },
+            {
+                "项": SAVING_PLAN_COL_HEADER,
+                "说明": "来自 SavingPlanDeductionDiscountTotalAmount（节省计划抵扣总额）；与应付金额分开汇总",
             },
             {
                 "项": "分拆项ID",

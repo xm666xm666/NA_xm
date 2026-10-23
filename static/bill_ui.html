@@ -93,8 +93,8 @@
       <p class="na-subtitle">
         <span class="na-badge"><span class="na-badge-dot"></span>火山云 / Azure</span>
         按账期拉取上游账单。可选起止月份，<strong>每月各写一份 Excel</strong>（不把多月并进同一文件）。可一次采集<strong>火山云 + Azure</strong>写入同一工作簿（四张费用表），也可按厂商单独导出。
-        费用列标注 <code>费用（¥）</code>，表末行为 <code>SUM</code> 合计。
-        火山云列：日期、项目名、产品、配置名称、分拆项ID、费用（¥）。
+        费用列标注 <code>费用（¥）</code>，节省计划抵扣总额列标注 <code>节省计划抵扣总额（¥）</code>，表末行为 <code>SUM</code> 合计。
+        火山云列：日期、项目名、产品、配置名称、分拆项ID、费用（¥）、节省计划抵扣总额（¥）。
         Azure 列：日期、项目名、项目负责人、模型名、配置名称、地区、订阅、费用（¥）。
       </p>
       <p class="na-hint" style="margin-top:0.5rem">
@@ -219,7 +219,7 @@
             调用 <code>ListSplitBillDetail</code> / <code>ListBillDetail</code>。
             密钥须有账单查询权限；分拆项ID 还须开通
             <a href="https://console.volcengine.com/finance/bill/detail" target="_blank" rel="noopener">分账账单</a>。
-            导出工作表 <code>按天</code>、<code>按月</code>。列：日期、项目名、产品、配置名称、分拆项ID、<strong>费用（¥）</strong>；末行 <code>SUM</code> 合计。
+            导出工作表 <code>按天</code>、<code>按月</code>。列：日期、项目名、产品、配置名称、分拆项ID、<strong>费用（¥）</strong>、<strong>节省计划抵扣总额（¥）</strong>；末行 <code>SUM</code> 合计。
           </p>
         </details>
         <div id="previewWrap" hidden>
@@ -320,7 +320,7 @@
     let combinedFileReady = false;
     let currentProvider = "all";
     const PROVIDER_ORDER = ["all", "volc", "azure"];
-    const VOLC_HEADERS = ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用（¥）"];
+    const VOLC_HEADERS = ["日期", "项目名", "产品", "配置名称", "分拆项ID", "费用（¥）", "节省计划抵扣总额（¥）"];
     const AZURE_HEADERS = ["日期", "项目名", "项目负责人", "模型名", "配置名称", "地区", "订阅", "费用（¥）"];
 
     function updateProviderIndicator() {
@@ -419,9 +419,9 @@
         return;
       }
       const cellText = (row, h) => {
-        const key = h === "费用（¥）" ? "费用" : h;
+        const key = h === "费用（¥）" ? "费用" : h === "节省计划抵扣总额（¥）" ? "节省计划抵扣总额" : h;
         const v = row[h] ?? row[key];
-        if ((h === "费用（¥）" || h === "费用") && v !== "" && v != null && v !== undefined) {
+        if ((h === "费用（¥）" || h === "节省计划抵扣总额（¥）") && v !== "" && v != null && v !== undefined) {
           const n = Number(v);
           if (!Number.isNaN(n)) return `¥${n}`;
         }

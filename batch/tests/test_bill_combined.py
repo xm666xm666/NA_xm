@@ -38,6 +38,7 @@ class CombinedBillTests(unittest.TestCase):
                         "配置名称": "c",
                         "分拆项ID": "x",
                         "费用": 1.5,
+                        "节省计划抵扣总额": 0.5,
                     }
                 ],
                 rows_month=[
@@ -48,6 +49,7 @@ class CombinedBillTests(unittest.TestCase):
                         "配置名称": "c",
                         "分拆项ID": "x",
                         "费用": 1.5,
+                        "节省计划抵扣总额": 0.5,
                     }
                 ],
             )
@@ -86,14 +88,15 @@ class CombinedBillTests(unittest.TestCase):
                 self.assertIn(SHEET_VOLC_DAY, wb.sheetnames)
                 self.assertIn(SHEET_AZURE_DAY, wb.sheetnames)
                 volc_headers = [c.value for c in wb[SHEET_VOLC_DAY][1]]
-                self.assertEqual(volc_headers[-1], "费用（¥）")
+                self.assertEqual(volc_headers[-1], "节省计划抵扣总额（¥）")
                 self.assertEqual(wb[SHEET_VOLC_DAY]["A3"].value, SUM_LABEL)
                 self.assertEqual(wb[SHEET_VOLC_DAY]["F3"].value, "=SUM(F2:F2)")
+                self.assertEqual(wb[SHEET_VOLC_DAY]["G3"].value, "=SUM(G2:G2)")
                 azure_headers = [c.value for c in wb[SHEET_AZURE_DAY][1]]
                 self.assertEqual(azure_headers[-1], "费用（¥）")
                 self.assertEqual(wb[SHEET_AZURE_DAY]["A3"].value, SUM_LABEL)
                 self.assertEqual(wb[SHEET_AZURE_DAY]["H3"].value, "=SUM(H2:H2)")
-                self.assertEqual(wb[SHEET_VOLC_DAY].auto_filter.ref, "A1:F2")
+                self.assertEqual(wb[SHEET_VOLC_DAY].auto_filter.ref, "A1:G2")
                 self.assertEqual(wb[SHEET_AZURE_DAY].auto_filter.ref, "A1:H2")
             finally:
                 wb.close()

@@ -554,9 +554,9 @@
             <input id="loginPassword" type="password" autocomplete="new-password" placeholder="请输入密码" />
           </label>
           <label class="form-group full">
-            <span>TOTP 密钥 / 6~8 位验证码</span>
-            <input id="loginTotp" autocomplete="off" placeholder="Base32 密钥、otpauth://…、6 位验证码或 8 位备用码" />
-            <span class="platform-modal form-hint" id="loginTotpHint">可输入原始密钥自动生成验证码；6/8 位码仅本次登录使用。</span>
+            <span>TOTP 密钥</span>
+            <input id="loginTotp" autocomplete="off" placeholder="Base32 密钥或 otpauth://…" />
+            <span class="platform-modal form-hint" id="loginTotpHint">仅保存 TOTP 原始密钥，登录时自动生成验证码。</span>
           </label>
         </div>
       </div>
@@ -877,7 +877,7 @@
         $("siteAddress").textContent = `${current.base_url} · ${stateText}`;
       }
       function renderSiteConfigHint() {
-        $("loginTotpHint").textContent = "可输入原始密钥自动生成验证码；6/8 位码仅本次登录使用。";
+        $("loginTotpHint").textContent = "仅保存 TOTP 原始密钥，登录时自动生成验证码。";
       }
       async function openSiteConfig() {
         $("siteConfigTitle").textContent = "新增站点配置";
@@ -983,13 +983,13 @@
         state.sites = Array.isArray(payload.data) ? payload.data : [];
         renderEnvButtons();
       }
-      async function warmupSession(env, otpCode = "") {
+      async function warmupSession(env, totpSecret = "") {
         const label = siteFor(env)?.label || String(env || "").toUpperCase();
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(env)}/session`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(otpCode ? { otp_code: otpCode } : {})
+            body: JSON.stringify(totpSecret ? { totp_secret: totpSecret } : {})
           });
           state.sessions[env] = payload.data || {};
           renderSessionStatus();

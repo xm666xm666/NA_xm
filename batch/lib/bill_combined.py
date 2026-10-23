@@ -18,6 +18,7 @@ from .volc_billing import (
     COST_COL_HEADER,
     DAY_HEADERS as VOLC_DAY_HEADERS,
     MONTH_HEADERS as VOLC_MONTH_HEADERS,
+    SAVING_PLAN_COL_HEADER,
     bill_month_label,
     excel_cost_headers,
     sheet_data_rows,
@@ -97,6 +98,10 @@ def save_combined_bill_workbook(
             {
                 "项": COST_COL_HEADER,
                 "说明": f"人民币 ¥；末行 SUM 合计。Azure 币种：{currency}",
+            },
+            {
+                "项": SAVING_PLAN_COL_HEADER,
+                "说明": "火山云 SavingPlanDeductionDiscountTotalAmount（节省计划抵扣总额）；与应付金额分开汇总",
             },
         ],
         add_sum=False,
