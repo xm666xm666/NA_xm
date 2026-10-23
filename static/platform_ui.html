@@ -102,6 +102,19 @@
     .platform-modal .na-btn-primary { background:linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%); color:#fff; border:0; box-shadow:0 2px 8px rgba(34,211,238,.3); }
     .platform-modal .na-btn-primary:hover { box-shadow:0 4px 14px rgba(34,211,238,.4); transform:translateY(-1px); }
     .platform-modal .na-btn-primary:active { transform:translateY(0); }
+    .site-manage-list { display: grid; gap: .7rem; }
+    .site-manage-item {
+      display: grid; grid-template-columns: 1fr auto; gap: .7rem; align-items: center;
+      padding: .7rem .8rem; border: 1px solid var(--na-border); border-radius: .7rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 45%, transparent);
+    }
+    .site-manage-main { min-width: 0; display: grid; gap: .2rem; }
+    .site-manage-main strong { font-size: .8rem; color: var(--na-text); }
+    .site-manage-main span { font-size: .72rem; color: var(--na-text-muted); overflow-wrap: anywhere; }
+    .site-manage-actions { display: flex; gap: .4rem; }
+    .site-manage-empty { padding: 1rem; text-align: center; color: var(--na-text-muted); font-size: .78rem; }
+    .na-btn-danger { color: #fff; background: #dc2626; border-color: #dc2626; }
+    .na-btn-danger:hover { background: #b91c1c; border-color: #b91c1c; }
     @media (max-width:700px) { .platform-address { width:100%; margin-left:0; } .platform-table-wrap { max-height:none; } .platform-modal .form-grid { grid-template-columns:1fr; } }
     @media (min-width:1400px) { .platform-table { font-size:.82rem; } .platform-table th, .platform-table td { padding:.75rem .85rem; } }
     @media (min-width:1800px) { .platform-table { font-size:.85rem; } .platform-table th, .platform-table td { padding:.8rem .95rem; } }
@@ -478,6 +491,7 @@
         <div class="platform-envs" id="envButtons" aria-label="选择环境"></div>
         <span class="platform-address" id="siteAddress">正在读取环境配置…</span>
         <button type="button" class="na-btn na-btn-ghost" id="siteConfigBtn">新增站点</button>
+        <button type="button" class="na-btn na-btn-ghost" id="siteManageBtn">预设列表</button>
         <button type="button" class="na-btn na-btn-secondary" id="refreshBtn"><span class="na-spinner"></span><span class="na-btn-label">刷新列表</span></button>
       </div>
       <div class="platform-tabs" role="tablist" aria-label="NA信息资源">
@@ -553,11 +567,27 @@
     </section>
   </div>
 
+  <div class="platform-modal-backdrop" id="siteManageBackdrop" hidden>
+    <section class="platform-modal" role="dialog" aria-modal="true" aria-labelledby="siteManageTitle">
+      <div class="platform-modal-header">
+        <h2 id="siteManageTitle">预设列表</h2>
+        <p>编辑或删除本地站点配置；不会影响其他密钥和配置项。</p>
+      </div>
+      <div class="platform-modal-body">
+        <div class="site-manage-list" id="siteManageList"></div>
+      </div>
+      <div class="platform-modal-footer">
+        <button type="button" class="na-btn na-btn-ghost" id="cancelSiteManage">取消</button>
+        <button type="button" class="na-btn na-btn-primary" id="newSiteFromManage">新增站点</button>
+      </div>
+    </section>
+  </div>
+
   <script>
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 50, search: { name: "", group: "", model: "" } };
+      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 50, siteEditingEnv: null, siteManageWasOpen: false, search: { name: "", group: "", model: "" } };
       const CHANNEL_TYPES = {
         1: "OpenAI", 2: "Midjourney Proxy", 3: "Azure OpenAI", 4: "Ollama", 5: "Midjourney Proxy Plus",
         8: "自定义渠道", 11: "Google PaLM2", 14: "Anthropic Claude", 15: "百度文心千帆", 16: "智谱 ChatGLM",
@@ -851,6 +881,7 @@
       }
       async function openSiteConfig() {
         $("siteConfigTitle").textContent = "新增站点配置";
+        state.siteEditingEnv = null;
         $("loginLabel").value = "";
         $("loginBaseUrl").value = "";
         $("loginUsername").value = "";
@@ -860,10 +891,92 @@
         $("siteConfigBackdrop").hidden = false;
         $("loginLabel").focus();
       }
+      async function openSiteEdit(site) {
+        state.siteEditingEnv = site.env;
+        state.siteManageWasOpen = !$("siteManageBackdrop").hidden;
+        $("siteConfigTitle").textContent = "编辑站点配置";
+        $("loginLabel").value = site.label || "";
+        $("loginBaseUrl").value = site.base_url || "";
+        $("loginUsername").value = site.username || "";
+        $("loginPassword").value = "";
+        $("loginTotp").value = "";
+        renderSiteConfigHint();
+        $("siteManageBackdrop").hidden = true;
+        $("siteConfigBackdrop").hidden = false;
+        $("loginLabel").focus();
+      }
+      function openSiteManage() {
+        renderSiteManage();
+        $("siteManageBackdrop").hidden = false;
+      }
+      function closeSiteManage() {
+        $("siteManageBackdrop").hidden = true;
+      }
+      function renderSiteManage() {
+        const wrap = $("siteManageList");
+        wrap.replaceChildren();
+        if (!state.sites.length) {
+          const empty = document.createElement("div");
+          empty.className = "site-manage-empty";
+          empty.textContent = "暂无站点配置";
+          wrap.append(empty);
+          return;
+        }
+        state.sites.forEach((site) => {
+          const row = document.createElement("div");
+          row.className = "site-manage-item";
+          const main = document.createElement("div");
+          main.className = "site-manage-main";
+          const title = document.createElement("strong");
+          title.textContent = site.label || site.env;
+          const meta = document.createElement("span");
+          meta.textContent = `${site.base_url || ""} · ${site.username || ""}`;
+          main.append(title, meta);
+          const actions = document.createElement("div");
+          actions.className = "site-manage-actions";
+          const edit = document.createElement("button");
+          edit.type = "button";
+          edit.className = "na-btn na-btn-secondary";
+          edit.textContent = "编辑";
+          edit.addEventListener("click", () => openSiteEdit(site));
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "na-btn na-btn-ghost na-btn-danger";
+          remove.textContent = "删除";
+          remove.addEventListener("click", () => deleteSite(site));
+          actions.append(edit, remove);
+          row.append(main, actions);
+          wrap.append(row);
+        });
+      }
+      async function deleteSite(site) {
+        if (!confirm(`确定删除 ${site.label || site.env} 吗？此操作不可撤销。`)) return;
+        try {
+          await request(`/api/platform/sites/${encodeURIComponent(site.env)}`, { method: "DELETE" });
+          await loadSites();
+          if (state.env === site.env) {
+            state.env = state.sites[0]?.env || "";
+            renderEnvButtons();
+            if (state.env) {
+              await warmupSession(state.env);
+              await loadGroupOptions(state.env);
+              await loadRows();
+            } else {
+              state.rows = [];
+              renderTable();
+            }
+          }
+          renderSiteManage();
+          NAUi.toast("站点已删除", "ok");
+        } catch (error) {
+          NAUi.toast(error.message, "err");
+        }
+      }
       function closeSiteConfig() {
         $("siteConfigBackdrop").hidden = true;
         $("loginPassword").value = "";
         $("loginTotp").value = "";
+        state.siteEditingEnv = null;
       }
       async function loadSites() {
         const payload = await request("/api/platform/sites");
@@ -1248,8 +1361,10 @@
           totp_secret: $("loginTotp").value.trim(),
         };
         try {
-          const saved = await request("/api/platform/sites", {
-            method: "POST",
+          const saved = await request(state.siteEditingEnv
+            ? `/api/platform/sites/${encodeURIComponent(state.siteEditingEnv)}`
+            : "/api/platform/sites", {
+            method: state.siteEditingEnv ? "PUT" : "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
@@ -1259,7 +1374,11 @@
           await loadGroupOptions(saved.data.env);
           await loadRows();
           closeSiteConfig();
-          NAUi.toast("站点已新增并测试", "ok");
+          if (state.siteManageWasOpen) {
+            openSiteManage();
+            state.siteManageWasOpen = false;
+          }
+          NAUi.toast(state.siteEditingEnv ? "站点已更新并测试" : "站点已新增并测试", "ok");
         } catch (error) {
           NAUi.toast(error.message, "err");
         }
@@ -1288,6 +1407,13 @@
       $("siteConfigBtn").addEventListener("click", openSiteConfig);
       $("cancelSiteConfig").addEventListener("click", closeSiteConfig);
       $("saveSiteConfig").addEventListener("click", saveSiteConfig);
+      $("siteManageBtn").addEventListener("click", openSiteManage);
+      $("cancelSiteManage").addEventListener("click", closeSiteManage);
+      $("newSiteFromManage").addEventListener("click", () => {
+        closeSiteManage();
+        openSiteConfig();
+      });
+      $("siteManageBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeSiteManage(); });
       $("siteConfigBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeSiteConfig(); });
       $("cancelEdit").addEventListener("click", closeEditor);
       $("saveEdit").addEventListener("click", saveEditor);

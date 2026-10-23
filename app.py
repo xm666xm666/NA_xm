@@ -802,6 +802,92 @@ def _create_env_site_config(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _load_env_site_data() -> dict[str, Any]:
+    if ENV_SITES_FILE.exists():
+        try:
+            with ENV_SITES_FILE.open(encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            raise ValueError("env/sites.json 无法读取或解析") from exc
+        if not isinstance(data, dict):
+            data = {}
+    else:
+        data = {}
+    return data
+
+
+def _write_env_site_data(data: dict[str, Any]) -> None:
+    ENV_DIR.mkdir(parents=True, exist_ok=True)
+    with ENV_SITES_FILE.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
+def _update_env_site_config(env_key: str, body: dict[str, Any]) -> dict[str, Any]:
+    """编辑已有站点；只覆盖本次修改的字段并保留其他站点配置。"""
+    env_key = str(env_key or "").strip()
+    if not isinstance(body, dict):
+        raise ValueError("请填写站点连接配置")
+
+    data = _load_env_site_data()
+    raw_site = data.get(env_key)
+    if not isinstance(raw_site, dict):
+        raise ValueError("站点不存在或未配置")
+
+    label = str(body.get("label") or "").strip() or env_key.upper()
+    base_url = BATCH["normalize_na_base_url"](str(body.get("base_url") or "").strip())
+    if not base_url:
+        raise ValueError("请填写登录网址")
+    username = str(body.get("username") or "").strip()
+    if not username:
+        raise ValueError("请填写账号")
+
+    password = str(body.get("password") or "").strip()
+    if not password:
+        password = str(raw_site.get("password") or "")
+    if not password:
+        raise ValueError("请填写密码")
+
+    user_otp_raw = str(body.get("totp_secret") or body.get("totp") or body.get("otp_code") or "").strip()
+    if BATCH["is_plain_otp_code"](user_otp_raw) and len(user_otp_raw) not in {6, 8}:
+        raise ValueError("一次性验证码仅支持 6 位或 8 位")
+    if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw) and not BATCH["looks_like_totp_secret"](user_otp_raw):
+        raise ValueError("TOTP 仅支持 Base32 密钥、otpauth 链接，或 6/8 位验证码")
+
+    raw_site["label"] = label
+    raw_site["base_url"] = base_url
+    raw_site["username"] = username
+    raw_site["password"] = password
+    if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw):
+        raw_site["totp_secret"] = user_otp_raw
+        raw_site.pop("otp_code", None)
+    data[env_key] = raw_site
+    _write_env_site_data(data)
+
+    normalized = _normalize_env_site(raw_site) or {}
+    return {
+        "env": env_key,
+        "label": label,
+        "base_url": base_url,
+        "username": username,
+        "has_password": bool(password),
+        "has_totp_secret": bool(normalized.get("has_totp_secret")),
+        "otp_used_for_login": bool(BATCH["is_plain_otp_code"](user_otp_raw)),
+    }
+
+
+def _delete_env_site_config(env_key: str) -> dict[str, Any]:
+    """删除指定站点，仅移除该站点节点，不动其他站点或 upstream。"""
+    env_key = str(env_key or "").strip()
+    data = _load_env_site_data()
+    raw_site = data.get(env_key)
+    if not isinstance(raw_site, dict):
+        raise ValueError("站点不存在")
+    data.pop(env_key, None)
+    _write_env_site_data(data)
+    return {"env": env_key, "label": str(raw_site.get("label") or env_key.upper())}
+
+
 @app.get("/api/env-sites")
 def api_env_sites():
     """多环境快捷连接（按 sites.json 已配置站点）。未配置时 configured=false。"""
@@ -860,6 +946,28 @@ def api_platform_site_create():
         data = _create_env_site_config(body)
         IDENTITY.store.audit("platform.site.created", resource=f"env:{data['env']}", detail={"env": data["env"], "label": data.get("label", "")})
         return jsonify({"success": True, "data": data, "message": "站点已新增"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.put("/api/platform/sites/<env>")
+def api_platform_site_update(env: str):
+    """编辑 NA 信息页站点；密码/TOTP 留空则保持原值。"""
+    body = request.get_json(silent=True) or {}
+    try:
+        data = _update_env_site_config(env, body)
+        IDENTITY.store.audit("platform.site.updated", resource=f"env:{env}", detail={"env": env, "label": data.get("label", "")})
+        return jsonify({"success": True, "data": data, "message": "站点已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.delete("/api/platform/sites/<env>")
+def api_platform_site_delete(env: str):
+    try:
+        data = _delete_env_site_config(env)
+        IDENTITY.store.audit("platform.site.deleted", resource=f"env:{env}", detail={"env": env, "label": data.get("label", "")})
+        return jsonify({"success": True, "data": data, "message": "站点已删除"})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

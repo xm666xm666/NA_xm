@@ -1921,6 +1921,7 @@ Azure OpenAI 账号在门户 **标记（Tags）** 里约定一条：
 - **登录预加载**：网站账户登录且具备 NA信息权限后，主界面会立即在后台加载 NA信息页面和默认环境列表；切换到该 Tab 时可减少冷启动等待。
 - **会话预热**：进入 NA信息或切换站点时，服务端先建立并缓存对应 NA 站点管理端会话；页面只显示“已登录 / 已登录（缓存）”，不返回账号、密码或 TOTP。同一环境的 NA渠道 / NA令牌切换与编辑保存都会复用已缓存的客户端，避免重复登录触发 429。
 - **新增站点**：NA信息页可新增自定义站点的登录网址、账号、密码，以及 TOTP 原始密钥 / `otpauth://` 链接；也可直接填 6 位或 8 位一次性验证码。一次性验证码只用于当次登录，不会写入 `env/sites.json`。
+- **预设列表**：NA信息页可查看、编辑、删除站点条目，并修改站点名称；保存仍写入 `env/sites.json`，只更新目标站点节点，不影响其他站点或 `upstream` 配置。
 - **长文本展示**：名称、分组、活跃统计、模型白名单、IP 限制等过长字段在悬浮时显示完整内容，并提供复制按钮；令牌密钥仅掩码显示，悬浮不展示明文，但每行都提供复制按钮并复制完整值。
 - **渠道测试**：成功后把上游返回的响应时间写回当前行；失败时页面和提示同步展示上游错误信息，并且不会把已有响应时间改回“未测试”。
 - **编辑与保存**：编辑弹窗读取完整原始 JSON 字段，保存时固定 URL 中的记录 ID，避免 JSON 内误填 ID 改写其它记录。
@@ -2566,6 +2567,8 @@ python agent/tests/test_pipeline_runner.py
 | ---- | ---- | ---- |
 | `GET` | `/api/platform/sites` | 返回全部已配置站点及其地址，不返回账号、密码或 TOTP |
 | `POST` | `/api/platform/sites` | 新增自定义站点；不返回密码或 TOTP 密钥 |
+| `PUT` | `/api/platform/sites/<env>` | 编辑指定站点；不返回密码或 TOTP 密钥 |
+| `DELETE` | `/api/platform/sites/<env>` | 删除指定站点；保留其他站点与 upstream 配置 |
 | `POST` | `/api/platform/<env>/session` | 预热或复用指定环境的管理端会话；返回 `base_url`、`user_id`、`role`、`cached` 和 `expires_at` |
 | `GET` | `/api/platform/<env>/capabilities` | 探测并缓存当前上游版本的编辑器主要接口；结果按站点 / 用户缓存 10 分钟 |
 | `GET` | `/api/platform/<env>/groups` | 读取上游分组下拉选项；接口缺失时 NA信息前端改用当前列表分组兜底 |
@@ -2924,7 +2927,7 @@ cp env/sites.example.json env/sites.json   # 快捷按钮 + 上游凭证都写�
 | `access_token` | NA **个人设置 → 系统访问令牌**（或管理员签发的 Token） | 与 `user_id` 一起用，**可代替** username/password | 不要和账密混填同一套（填了 Token 且未填账密时按 Token 模式） |
 | `user_id` | 同上，创建 Token 时显示的用户 ID；或 NA 用户管理里的数字 ID | 整数 | 不要填用户名 |
 
-`GET /api/env-sites` **不会**把 `totp_secret` / `password` 明文下发到浏览器，只给 `has_totp_secret`。测试连接、批量、汇总、智能体在页面留空时，服务端按 `base_url`（或站点 `env`）从本文件补齐。NA信息默认按所选 `test` / `uat` / `prod` 从本文件建立服务端会话；页内「新增站点」可新增自定义站点地址、账号、密码或 TOTP 密钥，6/8 位一次性码仅用于当次会话。
+`GET /api/env-sites` **不会**把 `totp_secret` / `password` 明文下发到浏览器，只给 `has_totp_secret`。测试连接、批量、汇总、智能体在页面留空时，服务端按 `base_url`（或站点 `env`）从本文件补齐。NA信息默认按所选 `test` / `uat` / `prod` 从本文件建立服务端会话；页内「新增站点」和「预设列表」可新增、编辑或删除站点条目，6/8 位一次性码仅用于当次会话。
 
 未开登录 2FA 的环境：`totp_secret` 可留空。但**含渠道密钥导出** 仍要走 `/api/verify`，未预置密钥时会弹窗要码。
 
