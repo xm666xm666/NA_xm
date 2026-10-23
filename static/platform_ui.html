@@ -477,6 +477,7 @@
       <div class="platform-toolbar">
         <div class="platform-envs" id="envButtons" aria-label="选择环境"></div>
         <span class="platform-address" id="siteAddress">正在读取环境配置…</span>
+        <button type="button" class="na-btn na-btn-ghost" id="siteConfigBtn">登录配置</button>
         <button type="button" class="na-btn na-btn-secondary" id="refreshBtn"><span class="na-spinner"></span><span class="na-btn-label">刷新列表</span></button>
       </div>
       <div class="platform-tabs" role="tablist" aria-label="NA信息资源">
@@ -512,6 +513,40 @@
 
   <div class="platform-upstream-backdrop" id="upstreamEditorBackdrop" hidden>
     <iframe id="upstreamEditorFrame" class="platform-upstream-frame" title="上游编辑界面" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+  </div>
+
+  <div class="platform-modal-backdrop" id="siteConfigBackdrop" hidden>
+    <section class="platform-modal" role="dialog" aria-modal="true" aria-labelledby="siteConfigTitle">
+      <div class="platform-modal-header">
+        <h2 id="siteConfigTitle">自定义登录配置</h2>
+        <p>保存到当前环境的 <code>env/sites.json</code>，用于后续登录和编辑。</p>
+      </div>
+      <div class="platform-modal-body">
+        <div class="form-grid">
+          <label class="form-group full">
+            <span>登录网址</span>
+            <input id="loginBaseUrl" autocomplete="off" placeholder="https://..." />
+          </label>
+          <label class="form-group">
+            <span>账号</span>
+            <input id="loginUsername" autocomplete="username" placeholder="请输入账号" />
+          </label>
+          <label class="form-group">
+            <span>密码</span>
+            <input id="loginPassword" type="password" autocomplete="new-password" placeholder="留空保持当前密码" />
+          </label>
+          <label class="form-group full">
+            <span>TOTP 密钥 / 6~8 位验证码</span>
+            <input id="loginTotp" autocomplete="off" placeholder="Base32 密钥、otpauth://…、6 位验证码或 8 位备用码" />
+            <span class="platform-modal form-hint" id="loginTotpHint">可输入原始密钥自动生成验证码；6/8 位码仅本次登录使用。</span>
+          </label>
+        </div>
+      </div>
+      <div class="platform-modal-footer">
+        <button type="button" class="na-btn na-btn-ghost" id="cancelSiteConfig">取消</button>
+        <button type="button" class="na-btn na-btn-primary" id="saveSiteConfig"><span class="na-spinner"></span><span class="na-btn-label">保存并测试</span></button>
+      </div>
+    </section>
   </div>
 
   <script>
@@ -782,7 +817,7 @@
         state.sites.forEach((site) => {
           const button = document.createElement("button");
           button.type = "button"; button.className = "platform-env" + (site.env === state.env ? " active" : "");
-          button.textContent = site.label; button.disabled = !site.configured;
+          button.textContent = site.label;
           button.title = site.configured ? site.base_url : `${site.label} 未配置`;
           button.addEventListener("click", async () => {
             if (state.env === site.env) return;
@@ -794,6 +829,7 @@
           box.append(button);
         });
         const current = siteFor(state.env);
+        $("siteConfigBtn").disabled = !state.env;
         renderSessionStatus();
       }
       function renderSessionStatus() {
@@ -806,13 +842,44 @@
         const stateText = expired ? "缓存已过期" : (session.cached ? "已登录（缓存）" : "已登录");
         $("siteAddress").textContent = `${current.base_url} · ${stateText}`;
       }
-      async function warmupSession(env) {
+      function renderSiteConfigHint() {
+        const site = siteFor(state.env);
+        const totpInput = $("loginTotp");
+        const hint = $("loginTotpHint");
+        if (!site) return;
+        if (site.has_totp_secret) hint.textContent = "已配置 TOTP 密钥；输入新值可替换，6/8 位码仅本次登录使用。";
+        else hint.textContent = "可输入原始密钥自动生成验证码；6/8 位码仅本次登录使用。";
+        totpInput.placeholder = site.has_totp_secret ? "留空保持当前 TOTP 密钥" : "Base32 密钥、otpauth://…、6 位验证码或 8 位备用码";
+      }
+      async function openSiteConfig() {
+        const site = siteFor(state.env);
+        if (!site) { NAUi.toast("请先选择环境", "warn"); return; }
+        $("siteConfigTitle").textContent = `${site.label} 登录配置`;
+        $("loginBaseUrl").value = site.base_url || "";
+        $("loginUsername").value = site.username || "";
+        $("loginPassword").value = "";
+        $("loginTotp").value = "";
+        renderSiteConfigHint();
+        $("siteConfigBackdrop").hidden = false;
+        $("loginBaseUrl").focus();
+      }
+      function closeSiteConfig() {
+        $("siteConfigBackdrop").hidden = true;
+        $("loginPassword").value = "";
+        $("loginTotp").value = "";
+      }
+      async function loadSites() {
+        const payload = await request("/api/platform/sites");
+        state.sites = Array.isArray(payload.data) ? payload.data : [];
+        renderEnvButtons();
+      }
+      async function warmupSession(env, otpCode = "") {
         const label = siteFor(env)?.label || String(env || "").toUpperCase();
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(env)}/session`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({})
+            body: JSON.stringify(otpCode ? { otp_code: otpCode } : {})
           });
           state.sessions[env] = payload.data || {};
           renderSessionStatus();
@@ -1165,7 +1232,8 @@
       async function init() {
         try {
           const payload = await request("/api/platform/sites"); state.sites = Array.isArray(payload.data) ? payload.data : [];
-          state.env = state.sites.find((site) => site.configured)?.env || ""; renderEnvButtons();
+          state.env = state.sites.find((site) => site.configured)?.env || state.sites[0]?.env || "";
+          renderEnvButtons();
           if (state.env) {
             await warmupSession(state.env);
             await loadGroupOptions(state.env);
@@ -1173,6 +1241,31 @@
           }
           else { renderTable(); setMeta("未检测到已配置的 test / uat / prod；请填写 env/sites.json。", "error"); }
         } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
+      }
+      async function saveSiteConfig() {
+        const site = siteFor(state.env);
+        if (!site) return;
+        const payload = {
+          base_url: $("loginBaseUrl").value.trim(),
+          username: $("loginUsername").value.trim(),
+          password: $("loginPassword").value,
+          totp_secret: $("loginTotp").value.trim(),
+        };
+        try {
+          await request(`/api/platform/sites/${encodeURIComponent(site.env)}/config`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          await loadSites();
+          await warmupSession(site.env, payload.totp_secret);
+          await loadGroupOptions(site.env);
+          await loadRows();
+          closeSiteConfig();
+          NAUi.toast("登录配置已保存并测试", "ok");
+        } catch (error) {
+          NAUi.toast(error.message, "err");
+        }
       }
       document.querySelectorAll(".platform-tabs button").forEach((button) => button.addEventListener("click", () => {
         const next = button.dataset.kind; if (next === state.kind) return; state.kind = next;
@@ -1194,7 +1287,13 @@
         state.page = 1; renderTable();
         setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
       });
-      $("refreshBtn").addEventListener("click", loadRows); $("cancelEdit").addEventListener("click", closeEditor); $("saveEdit").addEventListener("click", saveEditor);
+      $("refreshBtn").addEventListener("click", loadRows);
+      $("siteConfigBtn").addEventListener("click", openSiteConfig);
+      $("cancelSiteConfig").addEventListener("click", closeSiteConfig);
+      $("saveSiteConfig").addEventListener("click", saveSiteConfig);
+      $("siteConfigBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeSiteConfig(); });
+      $("cancelEdit").addEventListener("click", closeEditor);
+      $("saveEdit").addEventListener("click", saveEditor);
       $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
       document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("editorBackdrop").hidden) closeEditor(); });
       window.addEventListener("message", (event) => {

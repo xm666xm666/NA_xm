@@ -185,6 +185,8 @@ def _load_batch_modules():
             "enrich_auth_from_env": data_summary.enrich_auth_from_env,
             "pick_totp_secret": totp.pick_totp_secret,
             "has_otp_source": totp.has_otp_source,
+            "is_plain_otp_code": totp.is_plain_otp_code,
+            "looks_like_totp_secret": totp.looks_like_totp_secret,
             "default_excel_path": data_summary_exporter.default_excel_path,
             "latest_excel_path": data_summary_exporter.latest_excel_path,
             "build_timestamped_path": data_summary_exporter.build_timestamped_path,
@@ -717,6 +719,82 @@ def _load_env_sites() -> dict[str, Any]:
     }
 
 
+def _save_env_site_config(env_key: str, body: dict[str, Any]) -> dict[str, Any]:
+    """从 NA 信息页更新指定环境的登录配置；一次性验证码不落盘。"""
+    if env_key not in ENV_SITE_KEYS:
+        raise ValueError("环境仅支持 test、uat 或 prod")
+    if not isinstance(body, dict):
+        raise ValueError("请填写站点连接配置")
+
+    base_url = BATCH["normalize_na_base_url"](str(body.get("base_url") or "").strip())
+    if not base_url:
+        raise ValueError("请填写登录网址")
+    username = str(body.get("username") or "").strip()
+    if not username:
+        raise ValueError("请填写账号")
+
+    existing = _load_env_sites().get("sites", {}).get(env_key) or {}
+    password = body.get("password")
+    password = "" if password is None else str(password)
+    if not password:
+        password = str(existing.get("password") or "")
+    if not password:
+        raise ValueError("请填写密码")
+
+    user_otp_raw = str(body.get("totp_secret") or body.get("totp") or body.get("otp_code") or "").strip()
+    existing_otp_raw = str(existing.get("totp_secret") or existing.get("otp_code") or "").strip()
+    otp_raw = user_otp_raw or existing_otp_raw
+    if not otp_raw:
+        raise ValueError("请填写 TOTP 密钥、otpauth 链接，或 6/8 位验证码")
+    if BATCH["is_plain_otp_code"](user_otp_raw) and len(user_otp_raw) not in {6, 8}:
+        raise ValueError("一次性验证码仅支持 6 位或 8 位")
+    if user_otp_raw and not BATCH["is_plain_otp_code"](user_otp_raw) and not BATCH["looks_like_totp_secret"](user_otp_raw):
+        raise ValueError("TOTP 仅支持 Base32 密钥、otpauth 链接，或 6/8 位验证码")
+
+    if ENV_SITES_FILE.exists():
+        try:
+            with ENV_SITES_FILE.open(encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            raise ValueError("env/sites.json 无法读取或解析") from exc
+        if not isinstance(data, dict):
+            data = {}
+    else:
+        data = {}
+
+    ENV_DIR.mkdir(parents=True, exist_ok=True)
+    raw_site = data.get(env_key) if isinstance(data.get(env_key), dict) else {}
+    raw_site = dict(raw_site)
+    raw_site.update({
+        "base_url": base_url,
+        "username": username,
+        "password": password,
+    })
+    if not BATCH["is_plain_otp_code"](user_otp_raw):
+        raw_site["totp_secret"] = otp_raw
+        raw_site.pop("otp_code", None)
+    elif existing_otp_raw:
+        raw_site["totp_secret"] = existing_otp_raw
+        raw_site.pop("otp_code", None)
+    else:
+        raw_site.pop("totp_secret", None)
+        raw_site.pop("otp_code", None)
+    data[env_key] = raw_site
+    with ENV_SITES_FILE.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+    site = _normalize_env_site(raw_site) or {}
+    return {
+        "env": env_key,
+        "base_url": base_url,
+        "username": username,
+        "has_password": bool(password),
+        "has_totp_secret": bool(site.get("has_totp_secret")),
+        "otp_used_for_login": bool(BATCH["is_plain_otp_code"](user_otp_raw)),
+    }
+
+
 @app.get("/api/env-sites")
 def api_env_sites():
     """多环境快捷连接（按 sites.json 已配置站点）。未配置时 configured=false。"""
@@ -724,7 +802,7 @@ def api_env_sites():
     return jsonify({"success": True, **payload})
 
 
-def _platform_site_client(env: str):
+def _platform_site_client(env: str, *, otp_code: str = ""):
     """用指定环境的服务端凭据创建 ai-cloud 管理端会话。"""
     env_key = str(env or "").strip().lower()
     if env_key not in ENV_SITE_KEYS:
@@ -743,6 +821,8 @@ def _platform_site_client(env: str):
         "access_token": site.get("access_token"),
         "user_id": site.get("user_id"),
     })
+    if otp_code:
+        auth["otp_code"] = str(otp_code).strip()
     client = BATCH["platform_connected_client"](str(site["base_url"]), auth)
     return env_key, site, client
 
@@ -758,17 +838,33 @@ def api_platform_sites():
             "label": env.upper(),
             "base_url": str((sites.get(env) or {}).get("base_url") or ""),
             "configured": bool((sites.get(env) or {}).get("base_url")),
+            "username": str((sites.get(env) or {}).get("username") or ""),
+            "has_password": bool((sites.get(env) or {}).get("password")),
+            "has_totp_secret": bool((sites.get(env) or {}).get("has_totp_secret")),
         }
         for env in ENV_SITE_KEYS
     ]
     return jsonify({"success": True, "data": items})
 
 
+@app.put("/api/platform/sites/<env>/config")
+def api_platform_site_config(env: str):
+    """保存 NA 信息页的自定义站点登录配置；不回传敏感字段。"""
+    body = request.get_json(silent=True) or {}
+    try:
+        data = _save_env_site_config(env, body)
+        IDENTITY.store.audit("platform.site.config_saved", resource=f"env:{env}", detail={"env": env})
+        return jsonify({"success": True, "env": env, "data": data, "message": "登录配置已保存"})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
 @app.post("/api/platform/<env>/session")
 def api_platform_session(env: str):
     """预热指定 NA 站点会话；只返回非敏感登录状态，凭据不出服务端。"""
     try:
-        env_key, site, client = _platform_site_client(env)
+        body = request.get_json(silent=True) or {}
+        env_key, site, client = _platform_site_client(env, otp_code=str(body.get("otp_code") or "").strip())
         return jsonify({
             "success": True,
             "env": env_key,
