@@ -24,10 +24,11 @@
     const menu = document.getElementById("authUserMenu");
     if (!menu) return;
     const count = Number.isFinite(Number(pendingRequests)) ? Math.max(0, Number(pendingRequests)) : 0;
+    const hasPendingRequests = user.role === "superadmin" && count > 0;
     const permissionLink = user.role === "superadmin"
       ? `<a href="/admin/users#permission-requests">权限申请${count ? ` <span class="na-auth-count" aria-label="${count} 条待处理">${count}</span>` : ""}</a><a href="/admin/users#users">管理用户</a>`
       : '<a href="/permissions/request">申请功能权限</a>';
-    menu.innerHTML = `<details class="na-auth-menu"><summary title="账户菜单">${esc(user.username)} <span>${esc(user.role)}</span></summary><div><a href="/account">账户设置</a>${permissionLink}<button type="button" data-na-logout>退出登录</button></div></details>`;
+    menu.innerHTML = `<details class="na-auth-menu"><summary title="${hasPendingRequests ? `账户菜单 · ${count} 条权限申请待处理` : "账户菜单"}"${hasPendingRequests ? ' class="na-auth-alert" aria-label="有待处理的权限申请"' : ""}>${esc(user.username)} <span>${esc(user.role)}</span></summary><div><a href="/account">账户设置</a>${permissionLink}<button type="button" data-na-logout>退出登录</button></div></details>`;
     menu.querySelector("[data-na-logout]")?.addEventListener("click", async (event) => {
       const button = event.currentTarget;
       button.disabled = true;

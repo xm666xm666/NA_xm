@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/static/na-components.css?v=auth-4" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=auth-1"></script>
-  <script src="/static/auth-shell.js?v=web-7"></script>
+  <script src="/static/auth-shell.js?v=web-8"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <style>
     .na-llm-panel h3 { margin: 0 0 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--na-accent-2); font-family: var(--na-font-display); }
@@ -84,6 +84,18 @@
     }
     .na-auth-menu { position: relative; font: 600 .76rem var(--na-font-display); }
     .na-auth-menu summary { list-style: none; cursor: pointer; color: var(--na-text); white-space: nowrap; }
+    .na-auth-menu summary.na-auth-alert { position: relative; padding-right: .6rem; }
+    .na-auth-menu summary.na-auth-alert::after {
+      content: "";
+      position: absolute;
+      top: -2px;
+      right: 0;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #ef4444;
+      box-shadow: 0 0 0 2px var(--na-panel-solid, #0f172a);
+    }
     .na-auth-menu summary::-webkit-details-marker { display: none; }
     .na-auth-menu summary span { color: var(--na-accent); margin-left: .3rem; font-size: .68rem; }
     .na-auth-menu > div { position: absolute; right: 0; top: calc(100% + .65rem); display: grid; min-width: 124px; padding: .4rem; border: 1px solid var(--na-border); border-radius: .55rem; background: var(--na-panel-solid, #0f172a); box-shadow: 0 12px 35px rgba(0,0,0,.28); z-index: 99; }
