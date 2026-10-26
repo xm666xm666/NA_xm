@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urlparse, urlunparse
+
+_INVISIBLE_SPACES_RE = re.compile(r"[\s\u00a0\u200b-\u200f\u2060\u3000\ufeff]+")
 
 
 def normalize_na_base_url(raw: str) -> str:
@@ -10,7 +13,7 @@ def normalize_na_base_url(raw: str) -> str:
 
     例如 ``https://host/console/log`` → ``https://host``
     """
-    text = (raw or "").strip()
+    text = _INVISIBLE_SPACES_RE.sub("", str(raw or "")).strip()
     if not text:
         return ""
 

@@ -588,6 +588,12 @@
       "use strict";
       const $ = (id) => document.getElementById(id);
       const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 50, siteEditingEnv: null, siteManageWasOpen: false, search: { name: "", group: "", model: "" } };
+
+      function cleanNaBaseUrlInput(raw) {
+        return String(raw ?? "")
+          .replace(/^[\s\u00a0\u200b-\u200f\u2060\u3000\ufeff]+/, "")
+          .replace(/[\s\u00a0\u200b-\u200f\u2060\u3000\ufeff]+$/, "");
+      }
       const CHANNEL_TYPES = {
         1: "OpenAI", 2: "Midjourney Proxy", 3: "Azure OpenAI", 4: "Ollama", 5: "Midjourney Proxy Plus",
         8: "自定义渠道", 11: "Google PaLM2", 14: "Anthropic Claude", 15: "百度文心千帆", 16: "智谱 ChatGLM",
@@ -1355,7 +1361,7 @@
       async function saveSiteConfig() {
         const payload = {
           label: $("loginLabel").value.trim(),
-          base_url: $("loginBaseUrl").value.trim(),
+          base_url: cleanNaBaseUrlInput($("loginBaseUrl").value),
           username: $("loginUsername").value.trim(),
           password: $("loginPassword").value,
           totp_secret: $("loginTotp").value.trim(),
@@ -1412,6 +1418,9 @@
       });
       $("siteManageBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeSiteManage(); });
       $("siteConfigBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeSiteConfig(); });
+      $("loginBaseUrl").addEventListener("blur", (event) => {
+        event.target.value = cleanNaBaseUrlInput(event.target.value);
+      });
       $("cancelEdit").addEventListener("click", closeEditor);
       $("saveEdit").addEventListener("click", saveEditor);
       $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
