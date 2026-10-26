@@ -1596,8 +1596,21 @@ def _excel_query_path(*keys: str, fallback: Path | None = None, expected_kind: s
 
 
 def _merge_overview_sites(body: dict[str, Any]) -> list[dict[str, Any]]:
-    """优先用请求里的站点（可带 otp_code）；否则用 env/sites.json，并按 env 叠验证码。"""
+    """优先用请求里的站点（可带 otp_code）；否则按 site_envs 过滤 env/sites.json。"""
     raw = [item for item in (body.get("sites") or []) if isinstance(item, dict)]
+    selected_envs = body.get("site_envs")
+    if isinstance(selected_envs, list):
+        selected = {
+            str(item.get("env") or "").strip().lower()
+            for item in raw
+            if isinstance(item, dict) and str(item.get("base_url") or "").strip()
+        }
+        selected.update(str(item).strip().lower() for item in selected_envs if str(item).strip())
+        raw = [item for item in raw if str(item.get("env") or "").strip().lower() in selected]
+        if any(str(item.get("base_url") or "").strip() for item in raw):
+            return raw
+        rows = _env_site_payloads()
+        return [row for row in rows if str(row.get("env") or "").strip().lower() in selected]
     if any(str(item.get("base_url") or "").strip() for item in raw):
         return raw
     otp_by_env = {

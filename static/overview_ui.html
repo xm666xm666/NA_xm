@@ -21,6 +21,25 @@
       border: 1px solid var(--na-border);
       color: var(--na-text-muted);
     }
+    button.project-chip {
+      cursor: pointer;
+      font-family: inherit;
+      background: transparent;
+      transition: border-color 0.2s, color 0.2s, background-color 0.2s, transform 0.2s;
+    }
+    button.project-chip:hover {
+      color: var(--na-text);
+      border-color: var(--na-accent);
+    }
+    button.project-chip.active {
+      color: var(--na-accent);
+      border-color: color-mix(in srgb, var(--na-accent) 55%, transparent);
+      background: color-mix(in srgb, var(--na-accent) 14%, transparent);
+    }
+    button.project-chip:focus-visible {
+      outline: 2px solid var(--na-accent);
+      outline-offset: 2px;
+    }
     .sheet-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 0.75rem; }
     .sheet-table th, .sheet-table td {
       border: 1px solid var(--na-border);
@@ -238,6 +257,7 @@
     let analysisReady = false;
     let canFillKeys = false;
     let envSites = [];
+    let selectedEnvs = new Set(ENV_ORDER);
     let hygienePayload = { actions: [], disabled_actions: [] };
     let pendingDisable = { keys: [], force_hold: false, file: "", dryOk: false };
     const ARTIFACT_CAP = 200;
@@ -464,8 +484,49 @@
       btn.classList.toggle("loading", !!on);
     }
 
-    function renderChips(names) {
+    function renderChips() {
       const box = $("siteChips");
+      box.innerHTML = "";
+      if (!envSites.length) {
+        const span = document.createElement("span");
+        span.className = "project-chip";
+        span.textContent = "未配置 env 站点";
+        box.appendChild(span);
+        return;
+      }
+      envSites.forEach((site) => {
+        const env = String(site.env || "");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `project-chip${selectedEnvs.has(env) ? " active" : ""}`;
+        btn.dataset.env = env;
+        btn.textContent = `NA · ${site.label || env}`;
+        btn.title = `${selectedEnvs.has(env) ? "已选择" : "未选择"} ${env} 环境，点击切换`;
+        btn.setAttribute("aria-pressed", selectedEnvs.has(env) ? "true" : "false");
+        box.appendChild(btn);
+      });
+    }
+
+    function selectedSiteNames() {
+      return payloadSites().map((site) => site.label || site.env);
+    }
+
+    function siteStatusOrder() {
+      return [
+        ...ENV_ORDER.filter((env) => envSites.some((site) => site.env === env)),
+        ...envSites.map((site) => site.env).filter((env) => !ENV_ORDER.includes(env)),
+      ];
+    }
+
+    function statusTextForEnv(item) {
+      if (item.empty) return "无渠道";
+      return `${item.keys_filled || 0}/${item.channels || 0}`;
+    }
+
+    function renderInfoChips(names) {
+      if (!names) return;
+      const box = $("siteChips");
+      if (envSites.length) return;
       box.innerHTML = "";
       (names || []).forEach((name) => {
         const span = document.createElement("span");
@@ -491,16 +552,15 @@
 
     function formatKeyStatus(status) {
       const envs = (status && status.envs) || {};
-      return ENV_ORDER.map((env) => {
+      return siteStatusOrder().map((env) => {
         const item = envs[env] || {};
-        if (item.empty) return `${env} 无渠道`;
-        return `${env} ${item.keys_filled || 0}/${item.channels || 0}`;
+        return `${env} ${statusTextForEnv(item)}`;
       }).join(" · ");
     }
 
     function logKeyStatus(status, prefix) {
       const envs = (status && status.envs) || {};
-      ENV_ORDER.forEach((env) => {
+      siteStatusOrder().forEach((env) => {
         const item = envs[env];
         if (!item) return;
         if (item.empty) {
@@ -536,7 +596,7 @@
     }
 
     function payloadSites() {
-      return envSites.map((s) => ({
+      return envSites.filter((s) => selectedEnvs.has(s.env)).map((s) => ({
         env: s.env,
         label: s.label || s.env,
         base_url: s.base_url,
@@ -575,6 +635,7 @@
       } catch (e) {
         addLog("读取 env/sites.json 失败: " + (e.message || e), "warn");
       }
+      renderChips();
     }
 
     async function inspectSitesAuth(sites) {
@@ -752,17 +813,21 @@
         $("btnExportChannels").disabled = !fileReady;
         $("btnExportTokens").disabled = !fileReady;
         $("btnDownloadAnalysis").disabled = !analysisReady;
-        renderChips(info.env_sites && info.env_sites.length ? info.env_sites.map((e) => `NA · ${e}`) : ["未配置 env 站点"]);
+        renderInfoChips(info.env_sites && info.env_sites.length ? info.env_sites.map((e) => `NA · ${e}`) : ["未配置 env 站点"]);
         const src = info.sources || {};
         const bits = [];
         if (src.gateway) bits.push("网关 " + src.gateway);
         if (src.volc) bits.push("火山 " + src.volc);
         if (src.azure) bits.push("Azure " + src.azure);
+        const selectedNames = selectedSiteNames();
+        const selectedHint = selectedNames.length
+          ? `已选择 ${selectedNames.length} 个环境：${selectedNames.join("、")}`
+          : "未选择环境，仅提取已有文件";
         $("cfgHint").textContent = bits.length
-          ? `将按上方所选盘点/上游文件提取：${bits.join("；")}。test/uat/prod 默认补齐渠道密钥。`
-          : (info.env_sites && info.env_sites.length
-            ? `未检测到已有表，将现场采集并获取密钥：${info.env_sites.join("、")}`
-            : "env/sites.json 无有效站点且 excel/ 无盘点/上游文件时，无法生成。");
+          ? `将按上方所选盘点/上游文件提取：${bits.join("；")}。${selectedHint}。`
+          : (selectedNames.length
+            ? `未检测到已有表，将现场采集并获取密钥：${selectedNames.join("、")}。`
+            : "未选择环境。可从已有文件提取；若需要现场采集，请先勾选环境。");
         if (info.filename) {
           $("excelNameHint").textContent = info.path || (`excel/${info.filename}`);
           const s = info.summary || {};
@@ -851,8 +916,8 @@
           sites = ready;
         }
         NAUi.showBanner("userBanner", "正在生成总览表（提取已有文件 / 缺侧采集 / 默认获取密钥）…", "info");
-        addLog("开始：按所选盘点/上游文件提取 → test/uat/prod 默认获取密钥 → 缺的一侧再现场采集");
-        const collectBody = { include_keys: true, sites };
+        addLog(`开始：按所选盘点/上游文件提取 → 已选环境 ${selectedSiteNames().join("、") || "无"} → 缺的一侧再现场采集`);
+        const collectBody = { include_keys: true, sites, site_envs: [...selectedEnvs] };
         if (selectedFile("selSummary")) collectBody.source_summary = selectedFile("selSummary");
         if (selectedFile("selUpstream")) collectBody.source_upstream = selectedFile("selUpstream");
         const resp = await fetch("/api/overview/collect", {
@@ -922,7 +987,7 @@
             const resp = await fetch("/api/overview/fill-keys", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sites: [site] }),
+              body: JSON.stringify({ sites: [site], site_envs: [site.env] }),
             });
             const data = await resp.json();
             (data.data?.warnings || []).forEach((w) => addLog(`[${envLabel}] ${w}`, "warn"));
@@ -1181,6 +1246,16 @@
     $("btnRefreshFiles")?.addEventListener("click", async () => {
       await loadArtifactSelects();
       NAUi.toast("已刷新文件列表", "ok", 1600);
+    });
+
+    $("siteChips").addEventListener("click", (event) => {
+      const btn = event.target.closest("button.project-chip");
+      if (!btn) return;
+      const env = btn.dataset.env;
+      if (!env) return;
+      if (selectedEnvs.has(env)) selectedEnvs.delete(env);
+      else selectedEnvs.add(env);
+      renderChips();
     });
 
     loadEnvSites().then(async () => {
