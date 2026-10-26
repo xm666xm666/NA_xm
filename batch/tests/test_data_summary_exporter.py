@@ -23,6 +23,7 @@ from lib.data_summary import (  # noqa: E402
 )
 from lib.data_summary_exporter import (  # noqa: E402
     build_timestamped_filename,
+    load_workbook_data,
     is_staging_excel,
     latest_excel_path,
     list_summary_excel_files,
@@ -438,3 +439,17 @@ def test_dup_channel_sheet_colors_by_model_list(tmp_path: Path):
     assert fill_same == fill_same2
     assert fill_same != fill_other
     wb.close()
+
+
+def test_custom_env_sheets_are_saved_and_loaded(tmp_path: Path):
+    excel_path = tmp_path / "custom-env.xlsx"
+    save_workbook_data(
+        excel_path,
+        channel_env_rows={"k8s-test": [{"名称": "channel-a"}]},
+        token_env_rows={"k8s-test": [{"名称": "token-a"}]},
+    )
+    assert "k8s-test-渠道管理" in load_workbook(excel_path).sheetnames
+    assert "k8s-test-令牌管理" in load_workbook(excel_path).sheetnames
+    channel_rows, token_rows = load_workbook_data(excel_path)
+    assert channel_rows["k8s-test"][0]["名称"] == "channel-a"
+    assert token_rows["k8s-test"][0]["名称"] == "token-a"

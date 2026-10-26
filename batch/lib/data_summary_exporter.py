@@ -19,15 +19,17 @@ from .data_summary import (
     DUP_TOKEN_HEADERS,
     ENVS,
     EXCEL_STEM,
-    SHEET_CHANNELS,
     SHEET_DUP_CHANNELS,
     SHEET_DUP_TOKENS,
-    SHEET_TOKENS,
     TOKEN_HEADERS,
     BATCH_CONFIG_HEADER,
     build_duplicate_channels,
     build_duplicate_tokens,
+    channel_sheet_title,
     normalize_token_row,
+    ordered_summary_envs,
+    summary_envs_from_sheet_names,
+    token_sheet_title,
 )
 from .overview_batch_export import batch_line_for_row
 
@@ -347,17 +349,17 @@ def _write_sheet(
 
 
 def load_workbook_data(path: Path) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
-    channel_env_rows: dict[str, list[dict[str, Any]]] = {env: [] for env in ENVS}
-    token_env_rows: dict[str, list[dict[str, Any]]] = {env: [] for env in ENVS}
+    channel_env_rows: dict[str, list[dict[str, Any]]] = {}
+    token_env_rows: dict[str, list[dict[str, Any]]] = {}
     if not path.exists():
         return channel_env_rows, token_env_rows
 
     wb = load_workbook(path)
-    for env in ENVS:
-        ch_title = SHEET_CHANNELS[env]
+    for env in summary_envs_from_sheet_names(wb.sheetnames):
+        ch_title = channel_sheet_title(env)
         if ch_title in wb.sheetnames:
             channel_env_rows[env] = _read_sheet_rows(wb[ch_title], CHANNEL_HEADERS)
-        tok_title = SHEET_TOKENS[env]
+        tok_title = token_sheet_title(env)
         if tok_title in wb.sheetnames:
             token_env_rows[env] = _read_sheet_rows(wb[tok_title], TOKEN_HEADERS)
     wb.close()
@@ -388,17 +390,19 @@ def save_workbook_data(
     def rows_with_batch_config(rows: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
         return [dict(row, **{BATCH_CONFIG_HEADER: batch_line_for_row(row, kind)}) for row in rows]
 
-    for env in ENVS:
+    for env in ordered_summary_envs(ENVS, channel_env_rows, token_env_rows):
+        channel_rows = channel_env_rows.get(env, [])
+        token_rows = token_env_rows.get(env, [])
         _write_sheet(
-            _ensure_sheet(wb, SHEET_CHANNELS[env], ch_headers),
+            _ensure_sheet(wb, channel_sheet_title(env), ch_headers),
             ch_headers + [BATCH_CONFIG_HEADER],
-            rows_with_batch_config(channel_env_rows.get(env, []), "channels"),
+            rows_with_batch_config(channel_rows, "channels"),
             color_by="分组",
         )
         _write_sheet(
-            _ensure_sheet(wb, SHEET_TOKENS[env], TOKEN_HEADERS),
+            _ensure_sheet(wb, token_sheet_title(env), TOKEN_HEADERS),
             TOKEN_HEADERS + [BATCH_CONFIG_HEADER],
-            rows_with_batch_config(token_env_rows.get(env, []), "tokens"),
+            rows_with_batch_config(token_rows, "tokens"),
             color_by="分组",
         )
 
@@ -443,8 +447,8 @@ def workbook_summary(path: Path) -> dict[str, Any]:
     """读取各工作表行数统计。"""
     channel_env_rows, token_env_rows = load_workbook_data(path)
     return {
-        "channels": {env: len(channel_env_rows.get(env, [])) for env in ENVS},
-        "tokens": {env: len(token_env_rows.get(env, [])) for env in ENVS},
+        "channels": {env: len(channel_env_rows.get(env, [])) for env in ordered_summary_envs(ENVS, channel_env_rows, token_env_rows)},
+        "tokens": {env: len(token_env_rows.get(env, [])) for env in ordered_summary_envs(ENVS, channel_env_rows, token_env_rows)},
         "duplicate_channels": len(build_duplicate_channels(channel_env_rows)),
         "duplicate_tokens": len(build_duplicate_tokens(token_env_rows)),
     }

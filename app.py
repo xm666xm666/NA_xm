@@ -4760,10 +4760,10 @@ def data_summary_info():
                 "exists": exists,
                 "auto_created": False,
                 "summary": summary,
-                "envs": list(BATCH["ENVS"]),
+                "envs": list((summary or {}).get("channels") or BATCH["ENVS"]),
                 "sheets": {
-                    "channels": [f"{env}-渠道管理" for env in BATCH["ENVS"]],
-                    "tokens": [f"{env}-令牌管理" for env in BATCH["ENVS"]],
+                    "channels": [f"{env}-渠道管理" for env in ((summary or {}).get("channels") or BATCH["ENVS"])],
+                    "tokens": [f"{env}-令牌管理" for env in ((summary or {}).get("channels") or BATCH["ENVS"])],
                     "duplicate_channels": "重复模型",
                     "duplicate_tokens": "重复模型相关令牌",
                 },

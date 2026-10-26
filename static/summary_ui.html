@@ -86,7 +86,7 @@
         <div class="na-site-list" id="siteList" aria-live="polite"></div>
         <div class="na-toolbar">
           <button type="button" class="na-btn na-btn-ghost" id="btnAddSite">+ 添加站点</button>
-          <button type="button" class="na-btn na-btn-ghost" id="btnLoadEnvSites" hidden title="从 env/sites.json 重新载入 test/uat/prod">从 env 载入</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnLoadEnvSites" hidden title="从 env/sites.json 重新载入全部站点">从 env 载入</button>
         </div>
       </section>
 
@@ -315,7 +315,7 @@
       if (env === "test") return "test";
       if (env === "uat") return "uat";
       if (env === "prod") return "prod";
-      return "auto";
+      return env ? "custom" : "auto";
     }
 
     function addLog(msg, cls = "") {
@@ -371,7 +371,7 @@
         const site = sitesMap[key];
         if (!site?.base_url) return;
         rows.push(normalizeSite({
-          label: key,
+          label: site.label || key,
           base_url: site.base_url,
           username: site.username || DEFAULT_USERNAME,
           password: site.password || "",
@@ -384,7 +384,7 @@
         const site = sitesMap[key];
         if (!site?.base_url) return;
         rows.push(normalizeSite({
-          label: key,
+          label: site.label || key,
           base_url: site.base_url,
           username: site.username || DEFAULT_USERNAME,
           password: site.password || "",
@@ -477,6 +477,10 @@
     function renderSites(sites) {
       const list = $("siteList");
       list.innerHTML = "";
+      const envOptions = [
+        ...ENV_ORDER,
+        ...sites.map((site) => String(site.env || "").trim()).filter(Boolean),
+      ].filter((value, index, values) => value && values.indexOf(value) === index);
       sites.forEach((site, index) => {
         const card = document.createElement("div");
         card.className = "na-site-card";
@@ -494,9 +498,7 @@
             <label>密码<input data-field="password" type="password" value="${site.password || ""}" placeholder="密码" autocomplete="off" /></label>
             <label>环境<select data-field="env">
               <option value="" ${!env ? "selected" : ""}>自动</option>
-              <option value="test" ${env === "test" ? "selected" : ""}>test</option>
-              <option value="uat" ${env === "uat" ? "selected" : ""}>uat</option>
-              <option value="prod" ${env === "prod" ? "selected" : ""}>prod</option>
+              ${envOptions.map((option) => `<option value="${option}" ${env === option ? "selected" : ""}>${option}</option>`).join("")}
             </select></label>
           </div>`;
         list.appendChild(card);

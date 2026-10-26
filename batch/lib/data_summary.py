@@ -99,7 +99,7 @@ def _build_type_label_map() -> dict[int, str]:
 
 def detect_env(base_url: str, explicit: str = "") -> str:
     env = (explicit or "").strip().lower()
-    if env in ENVS:
+    if env:
         return env
     text = (base_url or "").lower()
     if re.search(r"[\-/_.]uat[\-/_.]|uat[\-/_.]", text):
@@ -109,6 +109,44 @@ def detect_env(base_url: str, explicit: str = "") -> str:
     if re.search(r"[\-/_.]test[\-/_.]|test[\-/_.]", text):
         return "test"
     return "test"
+
+
+def ordered_summary_envs(*sources: Any) -> list[str]:
+    """test/uat/prod 优先，并保留 env/sites.json 中的自定义站点环境。"""
+    keys: list[str] = []
+    for source in sources:
+        if isinstance(source, dict):
+            candidates = source.keys()
+        elif isinstance(source, (list, tuple, set)):
+            candidates = source
+        else:
+            continue
+        for raw in candidates:
+            key = str(raw or "").strip().lower()
+            if key and key not in keys:
+                keys.append(key)
+    return [env for env in ENVS if env in keys] + sorted(key for key in keys if key not in ENVS)
+
+
+def summary_envs_from_sheet_names(sheet_names: list[str]) -> list[str]:
+    envs: set[str] = set()
+    for name in sheet_names or []:
+        text = str(name or "").strip()
+        if text.endswith("-渠道管理") and text != "-渠道管理":
+            envs.add(text[: -len("-渠道管理")].strip().lower())
+        if text.endswith("-令牌管理") and text != "-令牌管理":
+            envs.add(text[: -len("-令牌管理")].strip().lower())
+    return ordered_summary_envs(envs)
+
+
+def channel_sheet_title(env: str) -> str:
+    key = str(env or "test").strip().lower() or "test"
+    return f"{key}-渠道管理"
+
+
+def token_sheet_title(env: str) -> str:
+    key = str(env or "test").strip().lower() or "test"
+    return f"{key}-令牌管理"
 
 
 def _env_sites_path() -> Path:
@@ -704,7 +742,7 @@ def fetch_site_data(
 def _read_channel_sheet_with_keys(path: Path, env: str) -> tuple[list[str], list[dict[str, Any]]]:
     from openpyxl import load_workbook as _load_wb
 
-    title = SHEET_CHANNELS[env]
+    title = channel_sheet_title(env)
     wb = _load_wb(path)
     if title not in wb.sheetnames:
         wb.close()
@@ -755,12 +793,17 @@ def scan_channel_key_status(path: Path | None) -> dict[str, Any]:
             "can_continue": False,
         }
     src = Path(path)
+    from openpyxl import load_workbook as _load_wb
+
+    probe = _load_wb(src, read_only=True)
+    env_keys = summary_envs_from_sheet_names(probe.sheetnames)
+    probe.close()
     envs: dict[str, dict[str, Any]] = {}
     pending_total = 0
     filled_total = 0
     channels_total = 0
     has_key_column = False
-    for env in ENVS:
+    for env in env_keys:
         headers, rows = _try_read_channel_sheet_with_keys(src, env)
         named = [row for row in rows if str(row.get("名称") or "").strip()]
         has_col = "密钥" in headers
@@ -795,10 +838,10 @@ def _load_all_env_rows_from_excel(
     src: Path,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
     """读出各环境渠道（尽量保留密钥列）与令牌，供写回同一份 Excel。"""
-    channel_env_rows: dict[str, list[dict[str, Any]]] = {e: [] for e in ENVS}
-    token_env_rows: dict[str, list[dict[str, Any]]] = {e: [] for e in ENVS}
+    channel_env_rows: dict[str, list[dict[str, Any]]] = {}
+    token_env_rows: dict[str, list[dict[str, Any]]] = {}
     loaded_ch, loaded_tk = load_workbook_data(src)
-    for e in ENVS:
+    for e in ordered_summary_envs(ENVS, loaded_ch, loaded_tk):
         token_env_rows[e] = loaded_tk.get(e, [])
         headers, env_rows = _try_read_channel_sheet_with_keys(src, e)
         for row in env_rows:
@@ -1070,9 +1113,9 @@ def _exclude_duplicate_names(
     if not duplicate_names:
         return env_rows, 0
 
-    filtered: dict[str, list[dict[str, Any]]] = {env: [] for env in ENVS}
     skipped = 0
-    for env in ENVS:
+    for env in ordered_summary_envs(env_rows):
+        filtered.setdefault(env, [])
         for row in env_rows.get(env, []):
             if _duplicate_name_key(row) in duplicate_names:
                 skipped += 1
@@ -1084,8 +1127,8 @@ def _exclude_duplicate_names(
 def build_duplicate_channels(env_rows: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
     name_to_sources: dict[str, list[str]] = {}
     name_to_row: dict[str, dict[str, Any]] = {}
-    for env in ENVS:
-        sheet = SHEET_CHANNELS[env]
+    for env in ordered_summary_envs(env_rows):
+        sheet = channel_sheet_title(env)
         for row in env_rows.get(env, []):
             name = _duplicate_name_key(row)
             if not name:
@@ -1112,8 +1155,8 @@ def build_duplicate_channels(env_rows: dict[str, list[dict[str, Any]]]) -> list[
 def build_duplicate_tokens(env_rows: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
     name_to_sources: dict[str, list[str]] = {}
     name_to_row: dict[str, dict[str, Any]] = {}
-    for env in ENVS:
-        sheet = SHEET_TOKENS[env]
+    for env in ordered_summary_envs(env_rows):
+        sheet = token_sheet_title(env)
         for row in env_rows.get(env, []):
             name = _duplicate_name_key(row)
             if not name:
@@ -1141,8 +1184,9 @@ def _skipped_by_env(
     env_rows: dict[str, list[dict[str, Any]]],
     duplicate_names: set[str],
 ) -> dict[str, int]:
-    counts: dict[str, int] = {env: 0 for env in ENVS}
-    for env in ENVS:
+    counts: dict[str, int] = {}
+    for env in ordered_summary_envs(env_rows):
+        counts[env] = 0
         for row in env_rows.get(env, []):
             if _duplicate_name_key(row) in duplicate_names:
                 counts[env] += 1
@@ -1164,12 +1208,17 @@ def run_data_summary_collect(
     channel_env_rows: dict[str, list[dict[str, Any]]] = {env: [] for env in ENVS}
     token_env_rows: dict[str, list[dict[str, Any]]] = {env: [] for env in ENVS}
     touched_envs: set[str] = set()
+    workbook_envs = list(ENVS)
 
     # 一键采集始终新建 Excel；同一次点击多站时通过 output_path 写入同一新文件
     session_path = output_path if (output_path and output_path.exists()) else None
     if session_path:
         try:
-            for env in ENVS:
+            prev_ch, prev_tk = load_workbook_data(session_path)
+            workbook_envs = ordered_summary_envs(ENVS, prev_ch, prev_tk)
+            channel_env_rows = {env: [] for env in workbook_envs}
+            token_env_rows = {env: [] for env in workbook_envs}
+            for env in workbook_envs:
                 try:
                     _hdr, rows = _read_channel_sheet_with_keys(session_path, env)
                     for row in rows:
@@ -1177,8 +1226,7 @@ def run_data_summary_collect(
                     channel_env_rows[env] = rows
                 except ValueError:
                     pass
-            prev_ch, prev_tk = load_workbook_data(session_path)
-            for env in ENVS:
+            for env in workbook_envs:
                 if not channel_env_rows[env]:
                     channel_env_rows[env] = prev_ch.get(env, [])
                 token_env_rows[env] = list(prev_tk.get(env, []))
@@ -1197,6 +1245,8 @@ def run_data_summary_collect(
             )
             resolved_url = normalize_na_base_url(site.base_url)
             touched_envs.add(env)
+            channel_env_rows.setdefault(env, [])
+            token_env_rows.setdefault(env, [])
 
             # 本站结果覆盖该环境（不与历史同环境合并，避免脏数据）
             channel_env_rows[env] = list(channels)
@@ -1241,10 +1291,13 @@ def run_data_summary_collect(
     stats.tokens_skipped_duplicate = 0
     stats.channels_skipped_by_env = _skipped_by_env(channel_env_rows, ch_dup_names)
     stats.tokens_skipped_by_env = _skipped_by_env(token_env_rows, tk_dup_names)
-    stats.channels_in_sheet = {env: len(channel_env_rows.get(env, [])) for env in ENVS}
-    stats.tokens_in_sheet = {env: len(token_env_rows.get(env, [])) for env in ENVS}
+    summary_envs = ordered_summary_envs(ENVS, channel_env_rows, token_env_rows)
+    stats.channels_in_sheet = {env: len(channel_env_rows.get(env, [])) for env in summary_envs}
+    stats.tokens_in_sheet = {env: len(token_env_rows.get(env, [])) for env in summary_envs}
 
-    for env in ENVS:
+    for env in summary_envs:
+        channel_env_rows.setdefault(env, [])
+        token_env_rows.setdefault(env, [])
         channel_env_rows[env] = _sort_rows_by_id(channel_env_rows.get(env, []))
         token_env_rows[env] = _sort_rows_by_id(token_env_rows.get(env, []))
 
