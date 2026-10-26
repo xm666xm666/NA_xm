@@ -21,6 +21,7 @@ from lib.data_summary import (  # noqa: E402
     channel_to_row,
     enrich_auth_from_env,
     enrich_site_from_env,
+    match_env_site_dict,
     parse_sites,
     token_to_row,
 )
@@ -461,6 +462,27 @@ def test_parse_sites_fills_password_and_totp_from_env():
     assert sites[0].totp_secret == SAMPLE_TOTP
 
 
+def test_match_env_site_by_exact_url_and_avoids_legacy_fallback():
+    data = {
+        "test": {
+            "base_url": "https://na-test.example.com",
+            "username": "legacy",
+            "password": "legacy-pass",
+            "totp_secret": SAMPLE_TOTP,
+        },
+        "k8s-test": {
+            "base_url": "https://ai-cloud-k8s-test.example.com",
+            "username": "k8s-admin",
+            "password": "k8s-pass",
+            "totp_secret": SAMPLE_TOTP,
+        },
+    }
+    with patch("lib.data_summary.load_raw_env_sites", return_value=data):
+        raw = match_env_site_dict("https://ai-cloud-k8s-test.example.com")
+        assert raw == data["k8s-test"]
+        assert match_env_site_dict("https://unknown.example.com") is None
+
+
 if __name__ == "__main__":
     import tempfile
 
@@ -486,4 +508,5 @@ if __name__ == "__main__":
     test_enrich_site_from_env_keeps_explicit_password()
     test_enrich_auth_from_env_fills_password_and_totp()
     test_parse_sites_fills_password_and_totp_from_env()
+    test_match_env_site_by_exact_url_and_avoids_legacy_fallback()
     print("all tests passed")

@@ -816,8 +816,23 @@ def _load_env_site_data() -> dict[str, Any]:
 
 def _write_env_site_data(data: dict[str, Any]) -> None:
     ENV_DIR.mkdir(parents=True, exist_ok=True)
+    ordered: dict[str, Any] = {}
+    for key, value in (data or {}).items():
+        if str(key).startswith("_"):
+            ordered[key] = value
+    for key in ("test", "uat", "prod"):
+        if key in data:
+            ordered[key] = data[key]
+    for key in BATCH["ordered_site_keys"](data):
+        if key not in ordered:
+            ordered[key] = data[key]
+    if "upstream" in data:
+        ordered["upstream"] = data["upstream"]
+    for key, value in data.items():
+        if key not in ordered:
+            ordered[key] = value
     with ENV_SITES_FILE.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(ordered, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
 

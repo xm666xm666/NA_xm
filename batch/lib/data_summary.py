@@ -11,6 +11,7 @@ from typing import Any
 
 from .api_client import NewAPIClient, SecureVerificationError, authenticate_client, coerce_verify_ssl, refresh_auth_session_cache
 from .channel_types import load_bundled_types
+from .env_clusters import ordered_site_keys
 from .rate_budget import (
     assert_can_proceed,
     note_rate_limited,
@@ -130,17 +131,18 @@ def match_env_site_dict(base_url: str, env: str = "") -> dict[str, Any] | None:
     data = load_raw_env_sites()
     if not data:
         return None
-    wanted_env = (env or "").strip().lower()
-    if wanted_env in ENVS and isinstance(data.get(wanted_env), dict):
-        return data[wanted_env]
     target = normalize_na_base_url(base_url)
     if target:
-        for key in ENVS:
+        for key in ordered_site_keys(data):
             raw = data.get(key)
             if not isinstance(raw, dict):
                 continue
             if normalize_na_base_url(str(raw.get("base_url") or "")) == target:
                 return raw
+        return None
+    wanted_env = (env or "").strip().lower()
+    if wanted_env and isinstance(data.get(wanted_env), dict):
+        return data[wanted_env]
     guessed = detect_env(base_url, wanted_env)
     raw = data.get(guessed)
     return raw if isinstance(raw, dict) else None
