@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-BATCH_DIR = Path(__file__).resolve().parents[1]
-if str(BATCH_DIR) not in sys.path:
-    sys.path.insert(0, str(BATCH_DIR))
-
-from lib.token_batch_update import (  # noqa: E402
+from batch.lib.token_batch_update import (  # noqa: E402
     parse_token_quota_update_rows,
     run_token_batch_quota_update,
 )
-from lib.api_client import NewAPIClient  # noqa: E402
+from batch.lib.api_client import NewAPIClient  # noqa: E402
 
 
 def _existing_token() -> dict:
@@ -59,9 +54,10 @@ def test_quota_update_preview_and_confirm_preserve_token_settings():
     client = MagicMock()
     client.list_all_tokens.return_value = [existing]
     client.get_token.return_value = existing
+    client.supports_token_input_quota.return_value = False
 
-    with patch("lib.token_batch_update.NewAPIClient", return_value=client), patch(
-        "lib.token_batch_update.authenticate_client"
+    with patch("batch.lib.token_batch_update.NewAPIClient", return_value=client), patch(
+        "batch.lib.token_batch_update.authenticate_client"
     ):
         preview = run_token_batch_quota_update(
             base_url="http://example.com",
@@ -100,9 +96,10 @@ def test_quota_update_skips_same_value_and_missing_token():
     existing.update({"remain_quota": 500000, "unlimited_quota": False})
     client = MagicMock()
     client.list_all_tokens.return_value = [existing]
+    client.supports_token_input_quota.return_value = False
 
-    with patch("lib.token_batch_update.NewAPIClient", return_value=client), patch(
-        "lib.token_batch_update.authenticate_client"
+    with patch("batch.lib.token_batch_update.NewAPIClient", return_value=client), patch(
+        "batch.lib.token_batch_update.authenticate_client"
     ):
         result = run_token_batch_quota_update(
             base_url="http://example.com",
@@ -113,6 +110,49 @@ def test_quota_update_skips_same_value_and_missing_token():
 
     assert result.matched_count == 0
     assert result.skipped_count == 2
+
+
+def test_v103_quota_update_defaults_to_monthly_tokens():
+    existing = _existing_token()
+    existing.update(
+        {
+            "amount_limit_enabled": True,
+            "input_token_limit_enabled": True,
+            "input_token_period": "month",
+            "input_token_limit_k": "400",
+        }
+    )
+    client = MagicMock()
+    client.list_all_tokens.return_value = [existing]
+    client.get_token.return_value = existing
+    client.supports_token_input_quota.return_value = True
+
+    with patch("batch.lib.token_batch_update.NewAPIClient", return_value=client), patch(
+        "batch.lib.token_batch_update.authenticate_client"
+    ):
+        preview = run_token_batch_quota_update(
+            base_url="http://example.com",
+            batch_text="legacy-token g1 500000",
+            auth={},
+            dry_run=True,
+        )
+        assert preview.items[0]["message"].startswith("预更新 ID=8")
+
+        done = run_token_batch_quota_update(
+            base_url="http://example.com",
+            batch_text="legacy-token g1 500000",
+            auth={},
+            dry_run=False,
+        )
+
+    assert done.updated_count == 1
+    sent = client.update_token.call_args.args[0]
+    assert sent["amount_limit_enabled"] is False
+    assert sent["unlimited_quota"] is True
+    assert sent["remain_quota"] == 0
+    assert sent["input_token_limit_enabled"] is True
+    assert sent["input_token_period"] == "month"
+    assert sent["input_token_limit_k"] == "500"
 
 
 def test_api_client_keeps_model_rate_limits_for_quota_update():
@@ -140,5 +180,6 @@ if __name__ == "__main__":
     test_parse_requires_explicit_quota()
     test_quota_update_preview_and_confirm_preserve_token_settings()
     test_quota_update_skips_same_value_and_missing_token()
+    test_v103_quota_update_defaults_to_monthly_tokens()
     test_api_client_keeps_model_rate_limits_for_quota_update()
     print("ok")

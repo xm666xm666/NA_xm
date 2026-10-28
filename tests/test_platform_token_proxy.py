@@ -69,3 +69,43 @@ def test_token_editor_proxy_falls_back_and_decrypts(monkeypatch):
 
     assert response.status_code == 200
     assert json.loads(response.get_data(as_text=True))["data"] == token
+
+
+def test_token_editor_proxy_converts_v103_fields_for_old_gateway(monkeypatch):
+    token = {"id": 8, "name": "prod", "key": "sk-plain"}
+    client = NewAPIClient("https://old-upstream.example")
+    sent_bodies = []
+
+    def get(url, **kwargs):
+        assert url == "https://old-upstream.example/api/token/model_quota_capabilities"
+        response = _response(404, {"success": False})
+        response.raise_for_status = lambda: None
+        return response
+
+    def request(method, url, *, data=None, headers=None, timeout=None):
+        assert url == "https://old-upstream.example/api/token/"
+        sent_bodies.append(json.loads(data))
+        response = _response(200, {"success": True, "data": token})
+        response.headers = {"Content-Type": "application/json"}
+        return response
+
+    client.session = SimpleNamespace(get=get, request=request)
+    monkeypatch.setattr(server, "_platform_site_client", lambda env: (env, {}, client))
+
+    with server.app.test_request_context(
+        "/api/platform/test/upstream/api/token/",
+        method="PUT",
+        json={
+            "id": 8,
+            "amount_limit_enabled": True,
+            "input_token_limit_enabled": True,
+            "input_token_period": "month",
+            "input_token_limit_k": "500",
+        },
+    ):
+        response = server.api_platform_upstream_proxy("test", "api/token/")
+
+    assert response.status_code == 200
+    assert "amount_limit_enabled" not in sent_bodies[0]
+    assert "input_token_limit_enabled" not in sent_bodies[0]
+    assert sent_bodies[0]["unlimited_quota"] is False

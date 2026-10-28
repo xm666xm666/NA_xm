@@ -108,7 +108,28 @@ def _quota_label(unlimited: bool, quota: int) -> str:
     return "无限额度" if unlimited else f"{quota} tokens"
 
 
-def _describe_quota_change(existing: dict[str, Any], quota: int) -> str:
+def _existing_monthly_tokens(existing: dict[str, Any]) -> int | None:
+    if not existing.get("input_token_limit_enabled"):
+        return None
+    limit_k = str(existing.get("input_token_limit_k") or "").strip()
+    if limit_k:
+        return _as_int(limit_k) * 1000
+    raw_limit = existing.get("input_token_limit")
+    return _as_int(raw_limit) if raw_limit not in (None, "") else None
+
+
+def _describe_quota_change(
+    existing: dict[str, Any],
+    quota: int,
+    *,
+    monthly_tokens: bool = False,
+) -> str:
+    if monthly_tokens:
+        old_quota = _existing_monthly_tokens(existing)
+        before = "无限月Tokens" if old_quota is None else f"{old_quota} tokens"
+        if old_quota == quota:
+            return "额度无变化"
+        return f"月Tokens「{before}」→「{quota} tokens」"
     old_unlimited = bool(existing.get("unlimited_quota"))
     old_quota = _as_int(existing.get("remain_quota"))
     before = _quota_label(old_unlimited, old_quota)
@@ -118,7 +139,12 @@ def _describe_quota_change(existing: dict[str, Any], quota: int) -> str:
     return f"额度「{before}」→「{after}」"
 
 
-def _build_quota_update_payload(existing: dict[str, Any], quota: int) -> dict[str, Any]:
+def _build_quota_update_payload(
+    existing: dict[str, Any],
+    quota: int,
+    *,
+    monthly_tokens: bool = False,
+) -> dict[str, Any]:
     """构造完整 PUT 请求体，只替换额度字段并原样保留其他令牌配置。"""
     model_limits_enabled, model_limits = read_model_limits(existing)
     payload: dict[str, Any] = {
@@ -126,14 +152,27 @@ def _build_quota_update_payload(existing: dict[str, Any], quota: int) -> dict[st
         "name": str(existing.get("name") or "").strip(),
         "status": _as_int(existing.get("status"), 1),
         "expired_time": _as_int(existing.get("expired_time"), -1),
-        "remain_quota": quota,
-        "unlimited_quota": False,
         "group": str(existing.get("group") or "").strip(),
         "cross_group_retry": bool(existing.get("cross_group_retry")),
         "allow_ips": existing.get("allow_ips"),
         # 上游更新接口会整体写回模型限流；必须带回现有值，不能因调额度而清空。
         "token_model_rate_limits": existing.get("token_model_rate_limits") or [],
     }
+    if monthly_tokens:
+        if quota % 1000 != 0:
+            raise ValueError("v1.0.3 月Tokens额度必须为1000的整数倍")
+        payload.update(
+            {
+                "amount_limit_enabled": False,
+                "unlimited_quota": True,
+                "remain_quota": 0,
+                "input_token_limit_enabled": True,
+                "input_token_period": "month",
+                "input_token_limit_k": str(quota // 1000),
+            }
+        )
+    else:
+        payload.update({"remain_quota": quota, "unlimited_quota": False})
     if model_limits:
         apply_model_limits(payload, model_limits)
     else:
@@ -161,6 +200,7 @@ def run_token_batch_quota_update(
     existing_index = build_existing_index(existing_tokens)
     seen_pairs: set[tuple[str, str]] = set()
     result = TokenQuotaUpdateResult(total=len(rows), dry_run=dry_run)
+    monthly_tokens = client.supports_token_input_quota()
 
     for index, row in enumerate(rows, start=1):
         name = str(row.get("名称") or "").strip()
@@ -204,7 +244,7 @@ def run_token_batch_quota_update(
                 continue
 
             token_id = _as_int(existing.get("id"))
-            change = _describe_quota_change(existing, quota)
+            change = _describe_quota_change(existing, quota, monthly_tokens=monthly_tokens)
             if change == "额度无变化":
                 result.skipped_count += 1
                 result.items.append(
@@ -237,7 +277,7 @@ def run_token_batch_quota_update(
 
             # 使用详情接口拿到完整字段，避免 PUT 时覆盖模型限制、IP 白名单等现有配置。
             current = client.get_token(token_id)
-            current_change = _describe_quota_change(current, quota)
+            current_change = _describe_quota_change(current, quota, monthly_tokens=monthly_tokens)
             if current_change == "额度无变化":
                 result.skipped_count += 1
                 result.items.append(
@@ -253,7 +293,11 @@ def run_token_batch_quota_update(
                 )
                 continue
 
-            payload = _build_quota_update_payload(current, quota)
+            payload = _build_quota_update_payload(
+                current,
+                quota,
+                monthly_tokens=monthly_tokens,
+            )
             client.update_token(payload, preserve_token_model_rate_limits=True)
             result.updated_count += 1
             result.items.append(
@@ -268,9 +312,22 @@ def run_token_batch_quota_update(
             )
             existing_index[pair] = {
                 **current,
-                "remain_quota": quota,
-                "unlimited_quota": False,
             }
+            if monthly_tokens:
+                existing_index[pair].update(
+                    {
+                        "amount_limit_enabled": False,
+                        "unlimited_quota": True,
+                        "remain_quota": 0,
+                        "input_token_limit_enabled": True,
+                        "input_token_period": "month",
+                        "input_token_limit_k": str(quota // 1000),
+                    }
+                )
+            else:
+                existing_index[pair].update(
+                    {"remain_quota": quota, "unlimited_quota": False}
+                )
         except Exception as exc:  # noqa: BLE001
             result.failed_count += 1
             result.items.append(

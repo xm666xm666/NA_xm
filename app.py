@@ -1193,13 +1193,19 @@ def api_platform_upstream_proxy(env: str, upstream_path: str):
     if request.query_string:
         target = f"{target}?{request.query_string.decode('latin-1')}"
     headers = {**client._headers(), "Content-Type": request.headers.get("Content-Type", "application/json")}
+    token_payload = request.get_json(silent=True) if request.method in {"POST", "PUT", "PATCH"} else None
     try:
         request_kwargs = {
-            "data": request.get_data(cache=False),
+            "data": request.get_data(),
             "headers": headers,
             "timeout": client.timeout,
         }
         if path == "api/token" or path.startswith("api/token/"):
+            if isinstance(token_payload, dict):
+                token_payload = client.prepare_token_payload_for_gateway(token_payload)
+                headers["Content-Type"] = "application/json"
+                request_kwargs["data"] = json.dumps(token_payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                request_kwargs["headers"] = headers
             upstream = client._perform_token_request(request.method, target, request_kwargs)
         else:
             upstream = client.session.request(request.method, target, **request_kwargs)

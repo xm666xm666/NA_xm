@@ -281,7 +281,7 @@ def get_token(client: NewAPIClient, token_id: int) -> dict[str, Any]:
 
 
 def update_token(client: NewAPIClient, token_id: int, record: dict[str, Any]) -> dict[str, Any]:
-    body = dict(record)
+    body = client.prepare_token_payload_for_gateway(dict(record))
     body["id"] = int(token_id)
     return client.update_token(body, preserve_token_model_rate_limits=True)
 

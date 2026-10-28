@@ -660,12 +660,36 @@
         if (!Number.isFinite(n)) return "$0.00";
         return `$${(n / 500000).toFixed(2)}`;
       }
+      function formatTokenQuota(value) {
+        const n = Number(value || 0);
+        if (!Number.isFinite(n) || n < 0) return "-";
+        if (n < 1000) return `${n}`;
+        const k = n / 1000;
+        const text = Number.isInteger(k) ? k.toString() : k.toFixed(1).replace(/\.0$/, "");
+        return `${text}k`;
+      }
+      function monthlyTokenLimit(record) {
+        if (!record?.input_token_limit_enabled || record?.input_token_period !== "month") return null;
+        const k = Number(record.input_token_limit_k);
+        if (Number.isFinite(k) && k > 0) return Math.round(k * 1000);
+        const limit = Number(record.input_token_quota?.limit_tokens);
+        return Number.isFinite(limit) && limit > 0 ? limit : null;
+      }
       function rateLimitText(record) {
         const rules = record.token_model_rate_limits;
         if (Array.isArray(rules) && rules.length > 0) return `已配置 ${rules.length} 条`;
         return "未配置";
       }
       function quotaText(record) {
+        if (record.input_token_limit_enabled) {
+          const quota = record.input_token_quota || {};
+          const used = Number(quota.used_tokens || 0);
+          const limit = Number(quota.limit_tokens || monthlyTokenLimit(record) || 0);
+          if (limit > 0) {
+            return `${formatTokenQuota(Math.max(0, limit - used))} / ${formatTokenQuota(limit)} Tokens`;
+          }
+          return "无限月Tokens";
+        }
         if (record.unlimited_quota) return "无限额度";
         const used = Number(record.used_quota || 0);
         const remain = Number(record.remain_quota || 0);
@@ -778,7 +802,12 @@
         const models = record.token_model_limit_enabled ? normalizeBatchModels(record.token_model_limit) : "";
         if (!name || !group || !models) return "";
         const parts = [name, group, models];
-        if (!record.unlimited_quota) parts.push(String(record.remain_quota ?? 0));
+        const monthlyTokens = monthlyTokenLimit(record);
+        if (monthlyTokens !== null) {
+          parts.push(String(monthlyTokens));
+        } else if (!record.unlimited_quota) {
+          parts.push(String(record.remain_quota ?? 0));
+        }
         return parts.join("\t");
       }
       function applyBatchLine(record, button) {

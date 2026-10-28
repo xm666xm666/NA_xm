@@ -66,6 +66,20 @@ def test_optional_tokens_create_limited_quota():
     assert payload["remain_quota"] == 500000
 
 
+def test_monthly_tokens_use_v103_fields():
+    payload = build_token_payload(
+        parse_token_line("tok-a\tg1\tm1,m2\t500000"),
+        monthly_tokens=True,
+    )
+
+    assert payload["amount_limit_enabled"] is False
+    assert payload["unlimited_quota"] is True
+    assert payload["remain_quota"] == 0
+    assert payload["input_token_limit_enabled"] is True
+    assert payload["input_token_period"] == "month"
+    assert payload["input_token_limit_k"] == "500"
+
+
 def test_optional_tokens_support_space_and_csv_input():
     space_row = parse_token_line("tok-a g1 m1,m2 1000000")
     csv_row = parse_token_line("tok-b,g1,m1,m2,2000000")
@@ -94,6 +108,7 @@ if __name__ == "__main__":
     test_csv_columns_still_work()
     test_顿号_models()
     test_optional_tokens_create_limited_quota()
+    test_monthly_tokens_use_v103_fields()
     test_optional_tokens_support_space_and_csv_input()
     test_missing_tokens_stays_unlimited()
     test_negative_tokens_rejected()

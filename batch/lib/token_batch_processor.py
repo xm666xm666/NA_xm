@@ -51,7 +51,7 @@ def _find_token_by_name_group(
 def _build_update_payload(
     existing: dict[str, Any], limits_payload: dict[str, Any]
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "id": int(existing["id"]),
         "name": existing.get("name") or limits_payload.get("name"),
         "group": existing.get("group") or limits_payload.get("group"),
@@ -62,6 +62,17 @@ def _build_update_payload(
         "cross_group_retry": existing.get("cross_group_retry", False),
         **limits_payload,
     }
+    for key in (
+        "amount_limit_enabled",
+        "unlimited_quota",
+        "remain_quota",
+        "input_token_limit_enabled",
+        "input_token_period",
+        "input_token_limit_k",
+    ):
+        if key in limits_payload:
+            payload[key] = limits_payload[key]
+    return payload
 
 
 def _ensure_token_model_limits(
@@ -183,7 +194,10 @@ def run_token_batch_create(
             models = parse_model_list(str(row.get("模型限制") or ""))
             validate_models_in_group(models, group=group, channels=channels)
 
-            payload = build_token_payload(row)
+            payload = build_token_payload(
+                row,
+                monthly_tokens=client.supports_token_input_quota(),
+            )
             if not extract_model_limit(payload):
                 raise ValueError("模型限制列表不能为空")
 

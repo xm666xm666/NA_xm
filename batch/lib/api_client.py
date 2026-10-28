@@ -22,7 +22,11 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from .rate_budget import assert_can_proceed, note_rate_limited, note_used, remaining
-from .token_api_fields import apply_model_limits, extract_model_limit
+from .token_api_fields import (
+    apply_model_limits,
+    extract_model_limit,
+    legacy_token_quota_payload,
+)
 from .totp import resolve_otp_code
 
 _log = logging.getLogger("na.api_client")
@@ -258,6 +262,7 @@ class NewAPIClient:
         self._token_crypto_private_key = None
         self._token_crypto_key_header = ""
         self._token_crypto_enabled = False
+        self._token_input_quota_supported: bool | None = None
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
         self.set_verify_ssl(verify_ssl)
@@ -370,6 +375,28 @@ class NewAPIClient:
             except (ValueError, TypeError, UnicodeDecodeError) as exc:
                 raise RuntimeError("解密 New API 令牌密钥失败") from exc
         return result
+
+    def supports_token_input_quota(self) -> bool:
+        """探测 v1.0.3 及以上版本的独立 Token 额度协议。"""
+        if self._token_input_quota_supported is None:
+            try:
+                response = self.session.get(
+                    f"{self.base_url}/api/token/model_quota_capabilities",
+                    headers=self._headers(),
+                    timeout=self.timeout,
+                )
+                payload = response.json() if response.status_code == 200 else {}
+                self._token_input_quota_supported = bool(payload.get("success"))
+            except Exception:
+                self._token_input_quota_supported = False
+        return self._token_input_quota_supported
+
+    def prepare_token_payload_for_gateway(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """编辑器/批量请求按上游版本自动选择新额度或老金额额度协议。"""
+        body = dict(payload)
+        if self.supports_token_input_quota():
+            return body
+        return legacy_token_quota_payload(body)
 
     def login(
         self,

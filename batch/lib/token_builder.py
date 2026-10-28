@@ -6,7 +6,12 @@ import re
 from typing import Any
 
 from .channel_models import get_models_for_group
-from .token_api_fields import apply_model_limits, extract_model_limit, read_model_limits
+from .token_api_fields import (
+    apply_monthly_token_quota,
+    apply_model_limits,
+    extract_model_limit,
+    read_model_limits,
+)
 from .token_duplicate_checker import normalize_model_limits
 
 MODEL_KEYS = ("模型限制", "模型限制列表", "models", "token_model_limit")
@@ -181,7 +186,11 @@ def validate_models_in_group(
         )
 
 
-def build_token_payload(row: dict[str, Any]) -> dict[str, Any]:
+def build_token_payload(
+    row: dict[str, Any],
+    *,
+    monthly_tokens: bool = False,
+) -> dict[str, Any]:
     name = str(row.get("名称") or row.get("name") or "").strip()
     group = str(row.get("分组") or row.get("group") or "").strip()
     models_raw = str(row.get("模型限制") or row.get("模型限制列表") or "").strip()
@@ -212,6 +221,10 @@ def build_token_payload(row: dict[str, Any]) -> dict[str, Any]:
         "expired_time": -1,
         "cross_group_retry": False,
     }
+    if monthly_tokens:
+        if quota is not None and quota % 1000 != 0:
+            raise ValueError("v1.0.3 月Tokens额度必须为1000的整数倍")
+        payload = apply_monthly_token_quota(payload, quota)
     return apply_model_limits(payload, model_limit)
 
 

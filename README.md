@@ -1342,7 +1342,7 @@ demo-alpha-test-glm-4.7 demo-alpha-test 字节火山方舟、豆包通用 demo-a
 名称 [Tab/空格] 令牌分组 [Tab/空格] 模型1、模型2 [Tab/空格] 额度(tokens，可选)
 ```
 
-- 第 4 列 `额度(tokens)` 是非负整数，直接写入 New API 的 `remain_quota`；填写后创建有限额度令牌（`unlimited_quota=false`），省略该列则创建无限额度令牌（`unlimited_quota=true`）
+- 第 4 列 `额度(tokens)` 是非负整数。工具会先探测上游能力：New API v1.0.3 及以上版本默认写入**自然月 Token 限制**（例如 `500000` 转为 `input_token_limit_k="500"`）；老版本继续写入金额额度 `remain_quota`。省略该列则保持无限制
 - 支持批量创建；预删除 / 预禁用 / 预启用 / 确认（按名称+分组；可只写 `名称 分组`，完整创建行也可）
 - **本站唯一**：令牌名全站不可重复（分组或模型限制不同也不允许同名）；批量内同名跳过
 - 删除 / 禁用 / 启用仍按「名称 + 分组」匹配；禁用可再启用；已过期或额度用尽的令牌可能无法启用
@@ -1353,6 +1353,15 @@ demo-alpha-test-glm-4.7 demo-alpha-test 字节火山方舟、豆包通用 demo-a
 #### 有限额度创建
 
 `额度(tokens)` 以令牌的可用 token 额度为单位。`0` 合法，但表示有限额度为 0，令牌会因额度用尽而无法调用；不需要限制时请**省略该列**，而不是填 `0`。
+
+v1.0.3 及以上上游使用独立的自然月 Token 限制字段，工具自动将第 4 列转换为：
+
+| 目标 | 输入 | 创建结果 |
+| ---- | ---- | -------- |
+| 50 万 tokens | `demo-b  team-a  model-a、model-b  500000` | `input_token_limit_enabled=true`，`input_token_period="month"`，`input_token_limit_k="500"` |
+| 100 万 tokens | `demo-c  team-a  model-c  1000000` | `input_token_limit_enabled=true`，`input_token_period="month"`，`input_token_limit_k="1000"` |
+
+老版本不具备上述能力时，工具自动回退到旧协议，仍写入 `remain_quota`，不会发送 `amount_limit_enabled` 或 `input_token_*` 字段导致编辑器 400。
 
 | 目标 | 输入示例 | 创建结果 |
 | ---- | -------- | -------- |
@@ -1379,11 +1388,11 @@ legacy-token-b  team-b  1000000
 legacy-token-c  team-c  model-c、model-d  2000000
 ```
 
-更新时**必须显式填写额度**。旧三列创建行没有额度时会被拒绝，不会把现有令牌改成无限额度。按名称+分组找不到令牌、额度没有变化或批量内重复时会跳过。
+更新时**必须显式填写额度**。旧三列创建行没有额度时会被拒绝，不会把现有令牌改成无限额度。按名称+分组找不到令牌、额度没有变化或批量内重复时会跳过。v1.0.3 及以上版本会按自然月 Tokens 比较并更新 `input_token_*` 字段；老版本则比较并更新 `remain_quota / unlimited_quota`。
 
 导入的 `example_batch_token_update.txt` 是仅含「名称、分组、额度」的安全示例；载入后所有写操作会锁定，修改为实际令牌数据后才可预更新，避免将示例行提交到站点。
 
-为避免 New API 的 `PUT /api/token/` 覆盖字段，工具会先读取令牌详情再提交完整请求体。更新仅修改 `remain_quota` 与 `unlimited_quota`，并保留名称、分组、状态、模型白名单、模型级限流、IP 白名单、过期时间、跨分组重试和密钥。
+为避免 New API 的 `PUT /api/token/` 覆盖字段，工具会先读取令牌详情再提交完整请求体。额度更新只切换对应协议字段：v1.0.3 及以上更新自然月 `input_token_*`，老版本更新 `remain_quota / unlimited_quota`；两者都会保留名称、分组、状态、模型白名单、模型级限流、IP 白名单、过期时间、跨分组重试和密钥。
 
 > 若令牌当前状态为「额度用尽」，补充额度后状态不会自动改为启用；请再使用下方 **预启用 → 确认启用** 恢复启用状态。
 
@@ -2498,7 +2507,7 @@ python agent/tests/test_pipeline_runner.py
 
 `POST /api/channel-remark-sync` **请求体：** `base_url`、认证字段、`dry_run`（默认 `true`）。扫描该站点全部渠道，常规渠道取 `base_url`，Azure 取同字段所代表的 `AZURE_OPENAI_ENDPOINT`；只以 `PUT /api/channel/` 提交 `id` 与 `remark`。原备注非空时换行追加，同一地址已存在则跳过。备注追加后超过 **255** 个字符、缺少地址或渠道 ID 时，该渠道不提交更新，`items[]` 会返回对应名称和失败原因；其他渠道可继续完成。
 
-`POST /api/token-batch-update` **请求体：** `base_url`、认证字段、`batch_text`、`dry_run`（默认 `true`）。`batch_text` 支持完整四列 `名称 分组 模型列表 额度(tokens)` 或精简三列 `名称 分组 额度(tokens)`；每条都必须明确给出额度。接口按名称+分组匹配，更新仅写入 `remain_quota` 和 `unlimited_quota=false`，并保留其余令牌配置。  
+`POST /api/token-batch-update` **请求体：** `base_url`、认证字段、`batch_text`、`dry_run`（默认 `true`）。`batch_text` 支持完整四列 `名称 分组 模型列表 额度(tokens)` 或精简三列 `名称 分组 额度(tokens)`；每条都必须明确给出额度。接口按名称+分组匹配，并先探测上游版本：v1.0.3 及以上写入自然月 `input_token_*`，老版本写入 `remain_quota`；两者都保留其余令牌配置。
 **预览示例：**
 
 ```json
