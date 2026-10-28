@@ -18,6 +18,7 @@ from lib.log_exporter import (  # noqa: E402
     fetch_all_usage_logs,
     format_log_row,
     export_usage_logs_xlsx,
+    run_logs_export,
 )
 from lib.api_client import _parse_log_list_payload  # noqa: E402
 
@@ -279,6 +280,92 @@ def test_parse_log_list_keeps_missing_total_as_none():
     assert parsed["items"] == [{"id": 1}]
 
 
+def test_run_logs_export_uses_gateway_direct_export(tmp_path=None):
+    import tempfile
+    from types import SimpleNamespace
+
+    tmp = Path(tempfile.mkdtemp()) if tmp_path is None else tmp_path
+    calls = []
+
+    class DirectClient:
+        base_url = "https://na.example"
+        timeout = 1
+
+        def _headers(self):
+            return {}
+
+        @property
+        def session(self):
+            def get(url, *, params=None, headers=None, timeout=None):
+                calls.append({"url": url, "params": params, "timeout": timeout})
+                return SimpleNamespace(
+                    status_code=200,
+                    headers={"Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+                    content=b"PK\x03\x04direct-export",
+                    raise_for_status=lambda: None,
+                )
+
+            return SimpleNamespace(get=get)
+
+    result = run_logs_export(
+        DirectClient(),
+        is_admin=True,
+        filters={"log_type": 2, "model_name": "glm", "group": "g"},
+        export_format="xlsx",
+        dest_dir=tmp,
+    )
+
+    assert result.direct_export is True
+    assert result.total == 1
+    assert result.data == b""
+    assert (tmp / result.filename).read_bytes() == b"PK\x03\x04direct-export"
+    assert calls[0]["url"] == "https://na.example/api/log/export"
+    assert calls[0]["params"]["format"] == "xlsx"
+    assert calls[0]["params"]["type"] == 2
+    assert calls[0]["params"]["model_name"] == "glm"
+    assert calls[0]["timeout"] >= 900
+
+
+def test_run_logs_export_falls_back_for_old_gateway(tmp_path=None):
+    import tempfile
+    from types import SimpleNamespace
+
+    tmp = Path(tempfile.mkdtemp()) if tmp_path is None else tmp_path
+
+    class OldClient:
+        base_url = "https://old.example"
+        timeout = 1
+
+        def _headers(self):
+            return {}
+
+        def get_status(self):
+            return {"data": {"quota_per_unit": 500000}}
+
+        def list_logs(self, **kwargs):
+            assert "model_name" not in kwargs
+            assert kwargs["group"] == "g"
+            return {"items": [SAMPLE_LOG], "total": 1, "page_size": 100}
+
+        @property
+        def session(self):
+            def get(url, **kwargs):
+                return SimpleNamespace(status_code=404, raise_for_status=lambda: None)
+
+            return SimpleNamespace(get=get)
+
+    result = run_logs_export(
+        OldClient(),
+        is_admin=True,
+        filters={"model_name": "alias-m", "group": "g"},
+        export_format="csv",
+    )
+
+    assert result.direct_export is False
+    assert result.total == 1
+    assert result.data.startswith(b"\xef\xbb\xbf")
+
+
 if __name__ == "__main__":
     test_admin_row_has_core_and_other_fields()
     test_user_row_hides_admin_fields()
@@ -292,4 +379,6 @@ if __name__ == "__main__":
     test_fetch_stops_at_reported_total()
     test_fetch_filters_model_name_locally()
     test_parse_log_list_keeps_missing_total_as_none()
+    test_run_logs_export_uses_gateway_direct_export()
+    test_run_logs_export_falls_back_for_old_gateway()
     print("ok")

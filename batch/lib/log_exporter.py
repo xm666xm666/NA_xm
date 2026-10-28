@@ -155,6 +155,7 @@ class LogExportResult:
     is_admin: bool
     gateway_total: int = 0
     model_query: str = ""
+    direct_export: bool = False
 
 
 def _parse_other(raw: Any) -> dict[str, Any]:
@@ -440,6 +441,98 @@ def _sleep_interruptible(seconds: float, cancel: Callable[[], bool] | None) -> N
         if remaining <= 0:
             return
         time.sleep(min(0.2, remaining))
+
+
+def _gateway_export_filters(filters: dict[str, Any]) -> dict[str, Any]:
+    """把本地筛选参数映射到新版 /api/log/export。"""
+    params: dict[str, Any] = {"format": "placeholder"}
+    for source_key, target_key in (
+        ("log_type", "type"),
+        ("start_timestamp", "start_timestamp"),
+        ("end_timestamp", "end_timestamp"),
+        ("model_name", "model_name"),
+        ("username", "username"),
+        ("token_name", "token_name"),
+        ("channel", "channel"),
+        ("group", "group"),
+    ):
+        value = filters.get(source_key)
+        if value not in (None, ""):
+            params[target_key] = value
+    return params
+
+
+def _looks_like_export_payload(data: bytes, export_format: str, content_type: str) -> bool:
+    if not data:
+        return False
+    if export_format == "xlsx":
+        return data[:2] == b"PK"
+    content_type = content_type.lower()
+    return data.startswith(b"\xef\xbb\xbf") or "text/csv" in content_type
+
+
+def _gateway_direct_export(
+    client: NewAPIClient,
+    *,
+    filters: dict[str, Any],
+    export_format: str,
+    progress: Callable[[int, int], None] | None,
+    cancel: Callable[[], bool] | None,
+    dest_dir: Any,
+) -> LogExportResult | None:
+    """新版上游直接导出；老版本 404/405 或返回非日志文件时返回 None。"""
+    _raise_if_cancelled(cancel)
+    if progress:
+        try:
+            progress(0, 0, "正在调用网关直接导出…")
+        except TypeError:
+            progress(0, 0)
+
+    params = _gateway_export_filters(filters)
+    params["format"] = export_format
+    try:
+        resp = client.session.get(
+            f"{client.base_url}/api/log/export",
+            params=params,
+            headers=client._headers(),
+            timeout=max(int(client.timeout or 30), 900),
+        )
+    except requests.RequestException:
+        return None
+
+    if resp.status_code in (404, 405):
+        return None
+    resp.raise_for_status()
+    content_type = resp.headers.get("Content-Type") or resp.headers.get("content-type") or ""
+    if not _looks_like_export_payload(resp.content, export_format, content_type):
+        return None
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"usage_logs_{stamp}.{export_format}"
+    content_type = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        if export_format == "xlsx"
+        else "text/csv; charset=utf-8"
+    )
+    data = resp.content
+    if dest_dir is not None:
+        from pathlib import Path
+
+        path = Path(dest_dir) / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        data = b""
+
+    return LogExportResult(
+        total=1,
+        rows=[],
+        filename=filename,
+        content_type=content_type,
+        data=data,
+        is_admin=True,
+        gateway_total=1,
+        direct_export=True,
+    )
 
 
 def fetch_all_usage_logs(
@@ -738,6 +831,22 @@ def run_logs_export(
     cancel: Callable[[], bool] | None = None,
     dest_dir: Any = None,
 ) -> LogExportResult:
+    fmt = (export_format or "xlsx").lower()
+    if fmt not in {"xlsx", "csv"}:
+        raise ValueError("导出格式仅支持 xlsx 或 csv")
+
+    if is_admin:
+        direct = _gateway_direct_export(
+            client,
+            filters=filters or {},
+            export_format=fmt,
+            progress=progress,
+            cancel=cancel,
+            dest_dir=dest_dir,
+        )
+        if direct is not None:
+            return direct
+
     if quota_per_unit is None:
         try:
             _raise_if_cancelled(cancel)
@@ -777,7 +886,6 @@ def run_logs_export(
             model_query=model_query,
         )
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    fmt = (export_format or "csv").lower()
     dest_path = None
     if dest_dir is not None:
         from pathlib import Path

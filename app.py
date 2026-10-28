@@ -4662,7 +4662,7 @@ def logs_export():
                 return
             if result.data:
                 _store_excel_bytes(result.filename, result.data)
-            done_message = "导出完成"
+            done_message = "导出完成（网关直接导出）" if result.direct_export else "导出完成"
             if result.model_query and result.gateway_total > result.total:
                 done_message = (
                     f"导出完成：{result.total} 条"
