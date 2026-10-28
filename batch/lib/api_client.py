@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import logging
@@ -16,12 +17,17 @@ import requests
 import urllib3
 from urllib3.exceptions import InsecureRequestWarning
 
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
 from .rate_budget import assert_can_proceed, note_rate_limited, note_used, remaining
 from .token_api_fields import apply_model_limits, extract_model_limit
 from .totp import resolve_otp_code
 
 _log = logging.getLogger("na.api_client")
 _INSECURE_SSL_WARNINGS_DISABLED = False
+_TOKEN_CRYPTO_HEADER = "X-Token-Crypto-Key"
 
 
 def coerce_verify_ssl(value: Any, default: bool = True) -> bool:
@@ -248,6 +254,10 @@ class NewAPIClient:
         self.auth_mode: str = ""  # "password" | "token"
         self.session_cache_hit = False
         self.session_cache_expires_at = 0.0
+        self._token_crypto_lock = threading.Lock()
+        self._token_crypto_private_key = None
+        self._token_crypto_key_header = ""
+        self._token_crypto_enabled = False
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
         self.set_verify_ssl(verify_ssl)
@@ -265,6 +275,91 @@ class NewAPIClient:
         if self.user_id is not None:
             headers["New-Api-User"] = str(self.user_id)
         return headers
+
+    def _token_crypto_public_key_header(self) -> str:
+        """生成进程内 RSA-2048 会话公钥，格式为 Base64(SPKI DER)。"""
+        if self._token_crypto_key_header:
+            return self._token_crypto_key_header
+        with self._token_crypto_lock:
+            if not self._token_crypto_key_header:
+                private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+                spki_der = private_key.public_key().public_bytes(
+                    Encoding.DER,
+                    PublicFormat.SubjectPublicKeyInfo,
+                )
+                self._token_crypto_private_key = private_key
+                self._token_crypto_key_header = base64.b64encode(spki_der).decode("ascii")
+        return self._token_crypto_key_header
+
+    @staticmethod
+    def _token_crypto_required(response: requests.Response) -> bool:
+        """只在上游明确要求令牌加密协议时降级，避免吞掉其他 400 参数错误。"""
+        try:
+            payload = response.json()
+        except (ValueError, TypeError):
+            return False
+        if not isinstance(payload, dict):
+            return False
+        message = str(payload.get("message") or "")
+        return _TOKEN_CRYPTO_HEADER in message and any(
+            marker in message
+            for marker in ("missing", "invalid", "缺失", "非法", "无效")
+        )
+
+    def _request_token_api(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
+    ) -> requests.Response:
+        url = f"{self.base_url}{path}"
+        headers = self._headers()
+        request_kwargs: dict[str, Any] = {
+            "params": params,
+            "headers": headers,
+            "timeout": self.timeout,
+        }
+        if json_body is not None:
+            request_kwargs["json"] = json_body
+
+        response = self.session.request(method, url, **request_kwargs)
+        if self._token_crypto_enabled:
+            headers = {**headers, _TOKEN_CRYPTO_HEADER: self._token_crypto_public_key_header()}
+            request_kwargs["headers"] = headers
+            response = self.session.request(method, url, **request_kwargs)
+        elif response.status_code == 400 and self._token_crypto_required(response):
+            headers = {**headers, _TOKEN_CRYPTO_HEADER: self._token_crypto_public_key_header()}
+            request_kwargs["headers"] = headers
+            response = self.session.request(method, url, **request_kwargs)
+            self._token_crypto_enabled = True
+        response.raise_for_status()
+        return response
+
+    def _decrypt_token_keys(self, value: Any) -> Any:
+        """解密新版 New API 返回的 token.key 字段。"""
+        if isinstance(value, list):
+            return [self._decrypt_token_keys(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        result = dict(value)
+        encrypted_key = result.get("key")
+        if isinstance(encrypted_key, str) and encrypted_key and self._token_crypto_private_key is not None:
+            try:
+                ciphertext = base64.b64decode(encrypted_key, validate=True)
+                plaintext = self._token_crypto_private_key.decrypt(
+                    ciphertext,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None,
+                    ),
+                )
+                result["key"] = plaintext.decode("utf-8")
+            except (ValueError, TypeError, UnicodeDecodeError) as exc:
+                raise RuntimeError("解密 New API 令牌密钥失败") from exc
+        return result
 
     def login(
         self,
@@ -845,11 +940,10 @@ class NewAPIClient:
         page_size = min(max(1, int(page_size)), 100)
 
         while True:
-            resp = self.session.get(
-                f"{self.base_url}/api/token/",
+            resp = self._request_token_api(
+                "GET",
+                "/api/token/",
                 params={"p": page, "size": page_size},
-                headers=self._headers(),
-                timeout=self.timeout,
             )
             resp.raise_for_status()
             payload = resp.json()
@@ -866,7 +960,7 @@ class NewAPIClient:
             if not isinstance(batch, list):
                 break
 
-            items.extend(batch)
+            items.extend(self._decrypt_token_keys(batch))
             try:
                 total_int = int(total)
             except (TypeError, ValueError):
@@ -879,16 +973,15 @@ class NewAPIClient:
         return items
 
     def get_token(self, token_id: int) -> dict[str, Any]:
-        resp = self.session.get(
-            f"{self.base_url}/api/token/{token_id}",
-            headers=self._headers(),
-            timeout=self.timeout,
+        resp = self._request_token_api(
+            "GET",
+            f"/api/token/{token_id}",
         )
         resp.raise_for_status()
         data = resp.json()
         if not data.get("success"):
             raise RuntimeError(data.get("message") or "获取令牌详情失败")
-        token = data.get("data") or {}
+        token = self._decrypt_token_keys(data.get("data") or {})
         if not isinstance(token, dict):
             raise RuntimeError("令牌详情格式异常")
         return token
@@ -926,30 +1019,30 @@ class NewAPIClient:
             # 旧网关对模型级限流字段兼容性不一致，默认沿用原有行为。
             body.pop("token_model_rate_limits", None)
 
-        resp = self.session.put(
-            f"{self.base_url}/api/token/",
-            json=body,
-            headers=self._headers(),
-            timeout=self.timeout,
+        resp = self._request_token_api(
+            "PUT",
+            "/api/token/",
+            json_body=body,
         )
         resp.raise_for_status()
         data = resp.json()
         if not data.get("success"):
             raise RuntimeError(data.get("message") or "更新令牌失败")
+        if isinstance(data.get("data"), (dict, list)):
+            data["data"] = self._decrypt_token_keys(data["data"])
         return data
 
     def search_tokens(self, keyword: str) -> list[dict[str, Any]]:
-        resp = self.session.get(
-            f"{self.base_url}/api/token/search",
+        resp = self._request_token_api(
+            "GET",
+            "/api/token/search",
             params={"keyword": keyword, "token": ""},
-            headers=self._headers(),
-            timeout=self.timeout,
         )
         resp.raise_for_status()
         data = resp.json()
         if not data.get("success"):
             return []
-        items = data.get("data") or []
+        items = self._decrypt_token_keys(data.get("data") or [])
         return items if isinstance(items, list) else []
 
     def fetch_token_key(self, token_id: int) -> str:

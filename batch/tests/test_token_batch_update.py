@@ -119,7 +119,7 @@ def test_api_client_keeps_model_rate_limits_for_quota_update():
     client = NewAPIClient("http://example.com")
     response = MagicMock()
     response.json.return_value = {"success": True, "data": {}}
-    client.session.put = MagicMock(return_value=response)
+    client.session.request = MagicMock(return_value=response)
 
     client.update_token(
         {
@@ -131,7 +131,7 @@ def test_api_client_keeps_model_rate_limits_for_quota_update():
         preserve_token_model_rate_limits=True,
     )
 
-    sent = client.session.put.call_args.kwargs["json"]
+    sent = client.session.request.call_args.kwargs["json"]
     assert sent["token_model_rate_limits"] == [{"model_name": "m1", "rpm": 2}]
 
 
