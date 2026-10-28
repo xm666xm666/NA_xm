@@ -1492,7 +1492,7 @@ sample-azure-test-gpt-x sample-azure-test Azure OpenAI sample-azure-test-gpt-x s
 
           <div class="hint">
             <strong>无需表头</strong>。前三列为<strong>名称 · 令牌分组 · 模型限制</strong>；第 4 列可选填<strong>额度 Tokens</strong>（非负整数）。列间可用 Tab、空格或英文逗号；多模型用顿号「、」或英文逗号（与渠道「模型」列一致）。
-            填写额度时会创建有限额度令牌；省略第 4 列即为<strong>无限额度</strong>，均默认永不过期。本站内<strong>令牌名须唯一</strong>：批量内同名则跳过，与本站已有同名令牌则拒绝创建。令牌分组不存在时将自动创建（需 Root 权限）。
+            v1.0.3 及以上站点填写额度时自动写入<strong>自然月 Token 额度</strong>；老版本写入金额额度。省略第 4 列即为<strong>无限制</strong>，均默认永不过期。本站内<strong>令牌名须唯一</strong>：批量内同名则跳过，与本站已有同名令牌则拒绝创建。令牌分组不存在时将自动创建（需 Root 权限）。
             已有令牌要改分组：到「<strong>分组设置 → 分组切换</strong>」，勾选或全选后切到目标分组。
           </div>
 
@@ -1526,7 +1526,7 @@ demo-beta-test-ds-v3-样例丙	demo-beta-test	demo-beta-test-ds-v3	1000000
           <div class="delete-section" id="tokenUpdateSection">
             <div class="hint" style="padding:8px 10px;border-radius:8px;background:var(--accent-soft, rgba(34,211,238,.08));border:1px solid rgba(34,211,238,.22);">
               <strong>更新令牌额度</strong>：按<strong>名称+分组</strong>匹配已有令牌。仅处理明确填写<strong>额度 Tokens</strong>的行；可用精简三列 <code>名称 分组 额度</code>，或使用上方完整四列数据。
-              更新只改变令牌额度与「无限额度」开关，<strong>不会修改</strong>名称、分组、模型限制、模型级限流、IP 白名单、过期时间或密钥。须先<strong>预更新</strong>查看变更，再点「确认更新」。
+              更新只切换令牌额度协议：v1.0.3 及以上更新自然月 Token 额度，老版本更新金额额度与「无限额度」开关。<strong>不会修改</strong>名称、分组、模型限制、模型级限流、IP 白名单、过期时间或密钥。须先<strong>预更新</strong>查看变更，再点「确认更新」。
             </div>
             <div class="actions">
               <button class="btn-secondary" id="btnPreviewUpdateToken">预更新</button>

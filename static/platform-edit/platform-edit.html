@@ -4,7 +4,38 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NA信息编辑</title>
-    <script type="module" crossorigin src="/static/platform-edit/assets/platform-edit-DRwaX6z0.js"></script>
+    <script>
+      (async () => {
+        const params = new URLSearchParams(window.location.search);
+        const env = params.get("env") || "";
+        try {
+          const response = await fetch(`/api/platform/${encodeURIComponent(env)}/upstream/api/status`, {
+            cache: "no-store",
+          });
+          const result = await response.json();
+          const status = result?.data || {};
+          localStorage.setItem("status", JSON.stringify(status));
+          localStorage.setItem("system_name", status.system_name || "New API");
+          localStorage.setItem("logo", status.logo || "");
+          localStorage.setItem("footer_html", status.footer_html || "");
+          localStorage.setItem("display_in_currency", status.display_in_currency ?? true);
+          localStorage.setItem("quota_display_type", status.quota_display_type || "USD");
+          if (status.quota_per_unit !== undefined && status.quota_per_unit !== null) {
+            localStorage.setItem("quota_per_unit", String(status.quota_per_unit));
+          }
+        } catch (_) {
+          // 保持编辑器可用；缺失站点配置时使用 New API 默认换算率。
+        }
+        if (!Number(localStorage.getItem("quota_per_unit"))) {
+          localStorage.setItem("quota_per_unit", "500000");
+        }
+        const script = document.createElement("script");
+        script.type = "module";
+        script.crossOrigin = "";
+        script.src = "/static/platform-edit/assets/platform-edit-DRwaX6z0.js";
+        document.head.append(script);
+      })();
+    </script>
     <link rel="stylesheet" crossorigin href="/static/platform-edit/assets/platform-edit-BgirvJ1w.css">
   </head>
   <body>

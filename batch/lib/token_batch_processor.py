@@ -210,11 +210,15 @@ def run_token_batch_create(
             )
 
             model_hint = extract_model_limit(payload).replace(",", "、")
-            quota_hint = (
-                "无限额度"
-                if payload.get("unlimited_quota")
-                else f"额度 {payload.get('remain_quota')} tokens"
-            )
+            if payload.get("input_token_limit_enabled"):
+                monthly_k = int(payload.get("input_token_limit_k") or 0)
+                quota_hint = f"自然月额度 {monthly_k * 1000} tokens"
+            else:
+                quota_hint = (
+                    "无限额度"
+                    if payload.get("unlimited_quota")
+                    else f"额度 {payload.get('remain_quota')} tokens"
+                )
             result.success_count += 1
             message = f"创建成功（{quota_hint}），可用模型: {model_hint}"
             if group in created_groups:
@@ -230,6 +234,9 @@ def run_token_batch_create(
                     "success": True,
                     "unlimited_quota": bool(payload.get("unlimited_quota")),
                     "remain_quota": int(payload.get("remain_quota") or 0),
+                    "input_token_limit_enabled": bool(payload.get("input_token_limit_enabled")),
+                    "input_token_period": payload.get("input_token_period") or "",
+                    "input_token_limit_k": payload.get("input_token_limit_k") or "",
                     "message": message,
                 }
             )

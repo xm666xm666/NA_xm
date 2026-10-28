@@ -1165,6 +1165,7 @@ _PLATFORM_UPSTREAM_ALLOWED_PREFIXES = (
     "api/group/",
     "api/models",
     "api/model_quota",
+    "api/status",
     "api/prefill_group",
     "api/token",
     "api/user/2fa/status",

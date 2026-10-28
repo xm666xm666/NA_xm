@@ -1936,7 +1936,7 @@ Azure OpenAI 账号在门户 **标记（Tags）** 里约定一条：
 - **渠道测试**：成功后把上游返回的响应时间写回当前行；失败时页面和提示同步展示上游错误信息，并且不会把已有响应时间改回“未测试”。
 - **编辑与保存**：编辑弹窗读取完整原始 JSON 字段，保存时固定 URL 中的记录 ID，避免 JSON 内误填 ID 改写其它记录。
 - **提交反馈**：保存成功或失败都会关闭编辑栏，父页面展示对应提示；成功后自动刷新列表。
-- **上游一致编辑界面**：NA渠道 / NA令牌的编辑弹窗直接复用上游 `EditChannelModal` / `EditTokenModal` 组件，构建产物位于 `static/platform-edit/`；微页面启动时先读取 `/auth/me` 并为本站 CSRF 校验注入 `X-CSRF-Token`，编辑请求经服务端平台代理转发，凭据不出服务端。
+- **上游一致编辑界面**：NA渠道 / NA令牌的编辑弹窗直接复用上游 `EditChannelModal` / `EditTokenModal` 组件，构建产物位于 `static/platform-edit/`；微页面先加载上游 `/api/status`，同步 `quota_per_unit` 等展示配置，避免令牌金额换算显示 `$NaN`；随后读取 `/auth/me` 并为本站 CSRF 校验注入 `X-CSRF-Token`，编辑请求经服务端平台代理转发，凭据不出服务端。
 - **接口版本探针**：编辑器启动后先通过 `GET /api/platform/<env>/capabilities` 向上游发起一次只读并发探测，识别渠道、令牌、分组、模型、预填组、2FA、Passkey 和模型配额等主要接口是否存在；结果按站点 / 用户缓存 10 分钟。自建接口在旧版上游缺失时直接降级，通用接口缺失时自动回退到旧接口。
 - **旧版上游兼容**：令牌分组的对象 / 数组返回、渠道分组的对象 / 数组返回，以及用户模型和模型配额候选的常见旧结构，都会在编辑代理层归一化为上游组件期望的结构；模型与分组缺失时会尝试用更通用的旧接口补齐，不阻塞基础编辑。
 - **New API 令牌加密回退**：首次请求仍按旧版明文协议调用；若 v1.0.3 及以上版本对 `/api/token/` 相关接口返回 400 并要求 `X-Token-Crypto-Key`，客户端会在进程内存生成 RSA-2048 会话密钥对，以 `Base64(SPKI DER)` 公钥重试，并用 RSA-OAEP + SHA-256 解密列表、搜索、详情和保存响应中的令牌密钥。私钥不落盘、不传浏览器、不写入日志。
@@ -1951,7 +1951,7 @@ Azure OpenAI 账号在门户 **标记（Tags）** 里约定一条：
 
 #### 编辑代理与兼容性
 
-编辑器复用上游 `EditChannelModal` / `EditTokenModal`，请求统一经过 `/api/platform/<env>/upstream/...` 服务端代理。代理只放行编辑弹窗需要的渠道、令牌、模型、分组、预填组、安全验证和模型配额接口，并兼容有无末尾斜杠的路径。微页面启动时读取 `/auth/me` 并自动注入 `X-CSRF-Token`；浏览器不会收到上游账号、密码、TOTP 或上游会话 Cookie。
+编辑器复用上游 `EditChannelModal` / `EditTokenModal`，请求统一经过 `/api/platform/<env>/upstream/...` 服务端代理。代理只放行编辑弹窗需要的站点状态、渠道、令牌、模型、分组、预填组、安全验证和模型配额接口，并兼容有无末尾斜杠的路径。微页面启动时读取 `/auth/me` 并自动注入 `X-CSRF-Token`；浏览器不会收到上游账号、密码、TOTP 或上游会话 Cookie。
 
 1. 复制 `env/sites.example.json` 为 `env/sites.json`，为需要管理的 `test`、`uat`、`prod` 分别填写 `base_url`、`username`、`password`；账号开启登录两步验证时填入该环境自己的 `totp_secret`。
 2. 请让该环境账号具备 New API 管理端权限（Admin 或更高角色）。渠道管理接口要求管理员权限；令牌管理也按上游站点的实际授权返回。
@@ -3378,6 +3378,6 @@ batch 与 agent 共用包名 `lib`。首页加载 LLM 预设会切到 agent。�
 - [x] **渠道更新原配置**（预更新 / 确认更新；不改密钥；已有备注弹窗确认后才覆盖为本行 `base_url`；`POST /api/batch-update-channels`）
 - [x] **全量同步渠道 Base URL 到备注**（预览 / 确认；Azure 只取 `AZURE_OPENAI_ENDPOINT`；已有备注换行追加；255 字符超限按渠道报错）
 - [x] **智能提取「更新」模式**（先点更新再提取；火山自动升级示例；`for_update`）
-- [x] **NA信息 New API 管理端**（test / uat / prod NA渠道与 NA令牌；分页、悬浮复制、结构化编辑、测试/启停/删除；批量配置行转换与一键填入；New API v1.0.3 令牌 RSA 响应加密回退；测试失败回传上游错误；凭据仅服务端读取）
+- [x] **NA信息 New API 管理端**（test / uat / prod NA渠道与 NA令牌；分页、悬浮复制、结构化编辑、测试/启停/删除；批量配置行转换与一键填入；New API v1.0.3 令牌 RSA 响应加密回退和自然月 Token 额度；测试失败回传上游错误；凭据仅服务端读取）
 - [x] **完整网站账户与 RBAC**（自适应登录 / 注册 / 恢复验证码重置；超管、管理员、用户三角色；权限申请顶部红点；超管用户管理；Argon2id、Redis 会话、CSRF、审计）
 - [x] **PostgreSQL 18 + Redis 8 容器化部署**（Docker / Podman Rocky Linux 8/9 兼容；Alembic；Kubernetes StatefulSet / Deployment / Ingress 模板）

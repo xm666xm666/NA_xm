@@ -108,4 +108,27 @@ def test_token_editor_proxy_converts_v103_fields_for_old_gateway(monkeypatch):
     assert response.status_code == 200
     assert "amount_limit_enabled" not in sent_bodies[0]
     assert "input_token_limit_enabled" not in sent_bodies[0]
+    assert "input_token_period" not in sent_bodies[0]
+    assert "input_token_limit_k" not in sent_bodies[0]
     assert sent_bodies[0]["unlimited_quota"] is False
+
+
+def test_status_proxy_is_allowed_for_editor(monkeypatch):
+    client = NewAPIClient("https://upstream.example")
+
+    def request(method, url, **kwargs):
+        assert method == "GET"
+        assert url == "https://upstream.example/api/status"
+        response = _response(200, {"success": True, "data": {"quota_per_unit": 500000}})
+        response.headers = {"Content-Type": "application/json"}
+        response.content = json.dumps({"success": True, "data": {"quota_per_unit": 500000}}).encode("utf-8")
+        return response
+
+    client.session = SimpleNamespace(request=request)
+    monkeypatch.setattr(server, "_platform_site_client", lambda env: (env, {}, client))
+
+    with server.app.test_request_context("/api/platform/test/upstream/api/status"):
+        response = server.api_platform_upstream_proxy("test", "api/status")
+
+    assert response.status_code == 200
+    assert json.loads(response.get_data(as_text=True))["data"]["quota_per_unit"] == 500000
