@@ -2588,7 +2588,7 @@ python agent/tests/test_pipeline_runner.py
 | `DELETE` | `/api/platform/<env>/tokens/<id>` | 删除指定令牌 |
 | `ANY` | `/api/platform/<env>/upstream/<path>` | 上游编辑弹窗专用代理；支持 `GET` / `POST` / `PUT` / `PATCH` / `DELETE`，仅转发白名单内接口 |
 
-模型编辑调用上游 `/api/models/`，令牌编辑调用上游 `/api/token/`。模型和令牌的列表、详情与保存结果使用上游原始字段，兼容 New API 的版本差异。令牌接口先走旧版协议；上游返回 400 并要求 `X-Token-Crypto-Key` 时自动启用 RSA-OAEP/SHA-256 响应加密协议。模型、令牌的保存操作会写入本网站审计日志，但审计内容仅记录环境和记录 ID，不记录令牌或凭据。
+模型编辑调用上游 `/api/models/`，令牌编辑调用上游 `/api/token/`。模型和令牌的列表、详情与保存结果使用上游原始字段，兼容 New API 的版本差异；上游编辑代理会保留路径尾斜杠，避免把 `/api/token/` 改写到 `/api/token`。令牌接口先走旧版协议；上游返回 400 并要求 `X-Token-Crypto-Key` 时自动启用 RSA-OAEP/SHA-256 响应加密协议。模型、令牌的保存操作会写入本网站审计日志，但审计内容仅记录环境和记录 ID，不记录令牌或凭据。
 
 ### 数据汇总 API
 

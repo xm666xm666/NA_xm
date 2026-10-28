@@ -314,7 +314,6 @@ class NewAPIClient:
         params: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
     ) -> requests.Response:
-        url = f"{self.base_url}{path}"
         headers = self._headers()
         request_kwargs: dict[str, Any] = {
             "params": params,
@@ -324,17 +323,27 @@ class NewAPIClient:
         if json_body is not None:
             request_kwargs["json"] = json_body
 
-        response = self.session.request(method, url, **request_kwargs)
+        response = self._perform_token_request(method, f"{self.base_url}{path}", request_kwargs)
+        response.raise_for_status()
+        return response
+
+    def _perform_token_request(
+        self,
+        method: str,
+        url: str,
+        request_kwargs: dict[str, Any],
+    ) -> requests.Response:
+        headers = dict(request_kwargs.get("headers") or {})
         if self._token_crypto_enabled:
-            headers = {**headers, _TOKEN_CRYPTO_HEADER: self._token_crypto_public_key_header()}
+            headers[_TOKEN_CRYPTO_HEADER] = self._token_crypto_public_key_header()
             request_kwargs["headers"] = headers
-            response = self.session.request(method, url, **request_kwargs)
-        elif response.status_code == 400 and self._token_crypto_required(response):
+
+        response = self.session.request(method, url, **request_kwargs)
+        if not self._token_crypto_enabled and response.status_code == 400 and self._token_crypto_required(response):
             headers = {**headers, _TOKEN_CRYPTO_HEADER: self._token_crypto_public_key_header()}
             request_kwargs["headers"] = headers
             response = self.session.request(method, url, **request_kwargs)
             self._token_crypto_enabled = True
-        response.raise_for_status()
         return response
 
     def _decrypt_token_keys(self, value: Any) -> Any:
@@ -344,6 +353,7 @@ class NewAPIClient:
         if not isinstance(value, dict):
             return value
         result = dict(value)
+        result = {name: self._decrypt_token_keys(child) for name, child in result.items()}
         encrypted_key = result.get("key")
         if isinstance(encrypted_key, str) and encrypted_key and self._token_crypto_private_key is not None:
             try:

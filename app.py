@@ -1178,7 +1178,8 @@ _PLATFORM_UPSTREAM_ALLOWED_PREFIXES = (
 @app.route("/api/platform/<env>/upstream/<path:upstream_path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 def api_platform_upstream_proxy(env: str, upstream_path: str):
     """供上游真实编辑弹窗使用；上游凭据与会话仅保留在服务端。"""
-    path = upstream_path.strip("/")
+    raw_path = upstream_path.strip()
+    path = raw_path.strip("/")
     if ".." in path.split("/") or not path.startswith(_PLATFORM_UPSTREAM_ALLOWED_PREFIXES):
         return jsonify({"success": False, "message": "不支持的上游接口"}), 404
     try:
@@ -1187,19 +1188,34 @@ def api_platform_upstream_proxy(env: str, upstream_path: str):
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
     target = f"{client.base_url.rstrip('/')}/{path}"
+    if raw_path.endswith("/") and not target.endswith("/"):
+        target += "/"
     if request.query_string:
         target = f"{target}?{request.query_string.decode('latin-1')}"
     headers = {**client._headers(), "Content-Type": request.headers.get("Content-Type", "application/json")}
     try:
-        upstream = client.session.request(
-            request.method,
-            target,
-            data=request.get_data(cache=False),
-            headers=headers,
-            timeout=client.timeout,
-        )
+        request_kwargs = {
+            "data": request.get_data(cache=False),
+            "headers": headers,
+            "timeout": client.timeout,
+        }
+        if path == "api/token" or path.startswith("api/token/"):
+            upstream = client._perform_token_request(request.method, target, request_kwargs)
+        else:
+            upstream = client.session.request(request.method, target, **request_kwargs)
     except requests.RequestException as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 502
+    if (path == "api/token" or path.startswith("api/token/")) and upstream.status_code == 200:
+        try:
+            payload = upstream.json()
+            payload = client._decrypt_token_keys(payload)
+            return Response(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                status=upstream.status_code,
+                content_type="application/json; charset=utf-8",
+            )
+        except (ValueError, TypeError, RuntimeError):
+            pass
     return Response(upstream.content, status=upstream.status_code, content_type=upstream.headers.get("Content-Type", "application/json"))
 
 
