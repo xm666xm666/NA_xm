@@ -938,8 +938,20 @@
     }
 
     function projectCreatedTimestamp(value) {
-      const timestamp = Date.parse(String(value || "").replace(" ", "T"));
-      return Number.isFinite(timestamp) ? timestamp : 0;
+      const raw = String(value || "").trim();
+      if (!raw) return 0;
+      const candidates = [
+        raw,
+        raw.replace(" ", "T"),
+        raw.replace(/\s+([+-]\d{2}:?\d{2})$/, "T$1"),
+        raw.replace(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/, "$1-$2-$3"),
+        raw.replace(/^(\d{4})年(\d{1,2})月(\d{1,2})日?/, "$1-$2-$3"),
+      ];
+      for (const candidate of candidates) {
+        const timestamp = Date.parse(candidate);
+        if (Number.isFinite(timestamp)) return timestamp;
+      }
+      return 0;
     }
 
     function toggleProjectCreatedSort() {
@@ -947,6 +959,7 @@
       const header = $("sortProjectCreated").closest("th");
       header.setAttribute("aria-sort", projectCreatedSort === "desc" ? "descending" : "ascending");
       $("projectCreatedSort").textContent = projectCreatedSort === "desc" ? "↓" : "↑";
+      projectPage = 1;
       renderProjects();
     }
 
