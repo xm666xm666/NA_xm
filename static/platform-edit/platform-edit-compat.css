@@ -1,0 +1,3 @@
+body.na-legacy-token-quota .semi-form-field[data-na-legacy-unlimited] .semi-switch {
+  transform: scaleX(-1);
+}

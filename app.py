@@ -1017,6 +1017,21 @@ def api_platform_capabilities(env: str):
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
+@app.get("/api/platform/<env>/token-quota-capability")
+def api_platform_token_quota_capability(env: str):
+    """令牌编辑器打开时按需探测，识别新版 Token 额度或老版无限额度协议。"""
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        supported = bool(client.supports_token_input_quota(force_refresh=True))
+        return jsonify({
+            "success": True,
+            "env": env_key,
+            "data": {"token_quota_capabilities": supported},
+        })
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
 @app.get("/api/platform/<env>/channels")
 def api_platform_channels(env: str):
     try:

@@ -113,6 +113,26 @@ def test_token_editor_proxy_converts_v103_fields_for_old_gateway(monkeypatch):
     assert sent_bodies[0]["unlimited_quota"] is False
 
 
+def test_token_quota_capability_probe_forces_refresh(monkeypatch):
+    client = NewAPIClient("https://upstream.example")
+    calls = []
+    monkeypatch.setattr(
+        client,
+        "supports_token_input_quota",
+        lambda *, force_refresh: calls.append(force_refresh) or False,
+    )
+    monkeypatch.setattr(server, "_platform_site_client", lambda env: (env, {}, client))
+
+    with server.app.test_request_context("/api/platform/test/token-quota-capability"):
+        response = server.api_platform_token_quota_capability("test")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["data"]["token_quota_capabilities"] is False
+    assert calls == [True]
+
+
 def test_status_proxy_is_allowed_for_editor(monkeypatch):
     client = NewAPIClient("https://upstream.example")
 

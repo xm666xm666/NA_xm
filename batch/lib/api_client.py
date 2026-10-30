@@ -376,8 +376,10 @@ class NewAPIClient:
                 raise RuntimeError("解密 New API 令牌密钥失败") from exc
         return result
 
-    def supports_token_input_quota(self) -> bool:
+    def supports_token_input_quota(self, *, force_refresh: bool = False) -> bool:
         """探测 v1.0.3 及以上版本的独立 Token 额度协议。"""
+        if force_refresh:
+            self._token_input_quota_supported = None
         if self._token_input_quota_supported is None:
             try:
                 response = self.session.get(
