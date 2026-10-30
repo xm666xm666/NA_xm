@@ -53,7 +53,7 @@ NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，
 
 智能体：异步任务（LLM 规划 → 门禁确认 → 智能提取、批量配置、数据汇总，可选上游信息 / 一表总览 / 智能分析；Web / Jobs API / 兼容 /api/agent/run）
 上游创建：火山云项目与推理接入点管控；新建项目默认挂到 `default`，显示名称遵循 `项目名-负责人`，备注可编辑；默认返回已开通模型并支持上游版本选择；接入点支持创建、编辑、停止、启动与删除
-上游信息：采集云厂商资源（火山云 IAM + Azure OpenAI 服务主体；可一键写入同一工作簿；表末列为部署时间；表头可筛选）
+上游信息：采集云厂商资源（火山云 IAM + Azure OpenAI 服务主体；可一键写入同一工作簿；表末列为部署时间；表头可筛选）。火山云页还提供方舟 Tokens 查询与 CSV 导出
 上游账单：按账期起止采集火山云 / Azure 费用（可跨月，每月一份 Excel；也可一键写入同一工作簿四张费用表；表头可筛选）
 一表总览：页内选择产物（禁止静默 latest）；环境站点为多选芯片（默认选中 test/uat/prod，可增选自定义站点）；按已选站点拉渠道密钥；智能分析对照火山/Azure；建议表可筛选、全选/反选后预禁用；卫生策略可配置；可按所选总览导出渠道/令牌批量 TXT；渠道/令牌表在最后一列写入批量配置；写入 excel/智能分析表格_时间戳.xlsx
 
@@ -216,7 +216,7 @@ NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，
 | **使用日志**   | 新版 NA 优先调用 `/api/log/export` 直接传回 CSV / Excel；老版本自动回退分页导出到 `excel/`；后台任务 + 进度轮询；可**终止**；完成后点「下载 Excel」取最新一份 |
 | **数据汇总**   | 多站点全量采集渠道 + 令牌（渠道含管理员备注）；工作台已认证或已预置 TOTP 时**不再弹审查窗**，仅缺码站点弹 30 秒临时码；**每次一键采集新建** `ai网关令牌及渠道列表_时间戳.xlsx`；全部站点写完后再点「下载 Excel」；「继续补全密钥」才更新最新一份（不含总览文件） |
 | **智能体** | 异步任务 + SSE + 提取门禁 + 渠道/令牌写入；可选上游、总览（不含密钥）、智能分析；登录 2FA 可在连接、门禁确认、重试时刷新；与批量页共用连接；完成后分别下载数据汇总、上游信息、一表总览/分析表 |
-| **上游信息**   | 采集云厂商资源：**火山云**与 **Azure OpenAI**。可「一键采集全部上游」写入同一工作簿（工作表 `火山云`、`Azure OpenAI`）；也可按厂商单独导出。火山云列 **TPM 在 RPM 前**。两表**最后一列均为部署时间**，**按部署时间降序（最新在上）**。表头开启列筛选，首行冻结 |
+| **上游信息**   | 采集云厂商资源：**火山云**与 **Azure OpenAI**。可「一键采集全部上游」写入同一工作簿（工作表 `火山云`、`Azure OpenAI`）；也可按厂商单独导出。火山云列 **TPM 在 RPM 前**；新增 **Tokens 查询**，可按项目 / 日期 / Day-Hour / 模型、版本、接入点或 API Key 资源 ID 查询用量并导出 CSV。两表**最后一列均为部署时间**，**按部署时间降序（最新在上）**。表头开启列筛选，首行冻结 |
 | **上游账单**   | 按账期采集火山云费用中心 / Azure Cost Management。可选账期起止，**每月各写一份 Excel**（不把多月并进同一文件，一次最多 24 个月）。可「一键采集全部账单」写入同一工作簿（`火山云-按天` / `火山云-按月` / `Azure-按天` / `Azure-按月`）；也可按厂商单独导出。费用列 `费用（¥）`，另有火山云 `节省计划抵扣总额（¥）`，两者分别汇总，表末 `SUM` 合计。表头开启列筛选（不含合计行） |
 | **一表总览**   | 把数据汇总网关表 + 火山/Azure 合成总览（默认含渠道密钥）。页内**选择**总览/分析/余额文件（下拉默认最新，请求必须带所选 id）。**智能分析**对照上下游。建议表可按级别/站点/类别筛选，**全选 / 反选**后 **预禁用**（宽限期内默认跳过，勾「仍要执行」才纳入）。分析表 `建议处置` 右侧仍有 `批量禁用` 粘贴列。渠道/令牌工作表最后一列写入批量配置。可将所选总览还原为可创建的渠道 / 令牌批量 TXT。写入独立的 `excel/智能分析表格_时间戳.xlsx`（不覆盖总览） |
 | **启动日志**     | 每次启动在 `log/` 生成独立 `.txt`；记录 API 操作、成功/失败/警告、登录限流等（敏感字段脱敏）                           |
@@ -394,7 +394,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 | **NA信息**   | test / uat / prod 的 New API NA渠道、NA令牌列表；分页、悬浮复制、完整记录编辑、测试/启停/删除、批量配置转换 | `static/platform_ui.html`（iframe 经 `/static/platform_ui.html?embed=1` 代理）；hash `#platform` |
 | **数据汇总**   | 多站点采集、渠道余额查询、Excel 导入/导出、历史产物下拉 | `static/summary_ui.html`（iframe `?embed=1`）；hash `#inventory` |
 | **上游创建**   | 火山云 IAM 项目 CRUD、API Key 管理、已开通模型/模型广场与版本选择、推理接入点创建/编辑/启停/删除 | `static/upstream_create_ui.html`（iframe `?embed=1`）；hash `#upstream_create` |
-| **上游信息**   | 云厂商上游采集（一键汇总 / 火山云 / Azure OpenAI）、历史产物下拉；导出表头可筛选 | `static/upstream_ui.html`（iframe `?embed=1`）；hash `#upstream` |
+| **上游信息**   | 云厂商上游采集（一键汇总 / 火山云 / Azure OpenAI）、历史产物下拉；火山云 Tokens 查询与 CSV 导出；导出表头可筛选 | `static/upstream_ui.html`（iframe `?embed=1`）；hash `#upstream` |
 | **上游账单**   | 账期起止采集火山云 / Azure 费用（跨月则每月一份；一键汇总或分厂商）；导出表头可筛选 | `static/bill_ui.html`（iframe `?embed=1`）；hash `#bill` |
 | **一表总览**   | 网关 + 两侧上游合成总览；智能分析；页内建议表（筛选、全选/反选、预禁用）；卫生策略；渠道/令牌批量 TXT 导出；Excel 最后一列批量配置 | `static/overview_ui.html`（iframe `?embed=1`）；hash `#hygiene` |
 | **智能体** | 异步任务、计划画布、提取门禁、取消/重试、连接与站点对齐 | `static/agent_ui.html`（iframe `?embed=1`）；hash `#pipeline` |
@@ -782,6 +782,8 @@ NA_xm_auto_configuration_new/
 Excel **项目方**列按控制台约定写成 `项目名-负责人`（从 IAM `DisplayName` 解析）。控制台只有项目名、没有负责人时填 `N/A`，例如 `demo-research-N/A`。详见 [项目方：项目名-负责人](#项目方项目名-负责人)、[火山云导出列](#火山云导出列)。
 
 凭证获取：<https://console.volcengine.com/iam/keymanage>
+
+**Tokens 查询**：在同一火山云页选择项目、日期、按天 / 按小时，可选按模型、模型版本、推理接入点或 API Key **资源 ID** 筛选。接口使用 IAM AK/SK 调火山方舟 `GetInferenceUsage`；页面展示输入、输出、总 Tokens 与请求数汇总及明细，点「下载 CSV」导出。注意：API Key 资源 ID 不是 API Key 密钥本身。
 
 ### 流程 H：采集 Azure OpenAI 上游
 
@@ -2658,6 +2660,8 @@ python agent/tests/test_pipeline_runner.py
 | `POST` | `/api/upstream/volc/test` | 测试 IAM 连接 |
 | `POST` | `/api/upstream/volc/collect` | 采集并写入 `excel/` |
 | `GET`  | `/api/upstream/volc/download` | 下载最新火山上游 Excel |
+| `POST` | `/api/upstream/volc/tokens` | 查询方舟 `GetInferenceUsage` 用量 |
+| `POST` | `/api/upstream/volc/tokens/download` | 导出 Tokens 用量 CSV |
 | `GET`  | `/api/upstream/azure/info` | Azure 上游 Excel 摘要 |
 | `POST` | `/api/upstream/azure/test` | 测试 ARM 连接（需订阅「读者」） |
 | `POST` | `/api/upstream/azure/collect` | 采集部署 / listKeys 并写入 `excel/` |

@@ -141,6 +141,7 @@ def _load_batch_modules():
         volc_billing = importlib.import_module("lib.volc_billing")
         bill_combined = importlib.import_module("lib.bill_combined")
         volc_openapi = importlib.import_module("lib.volc_openapi")
+        ark_token_usage = importlib.import_module("lib.ark_token_usage")
         env_clusters = importlib.import_module("lib.env_clusters")
         platform_info = importlib.import_module("lib.platform_info")
         modules = {
@@ -278,6 +279,8 @@ def _load_batch_modules():
             "excel_cost_headers": volc_billing.excel_cost_headers,
             "VOLC_BILL_HEADERS": volc_billing.DAY_HEADERS,
             "VolcOpenAPIError": volc_openapi.VolcOpenAPIError,
+            "run_ark_token_usage": ark_token_usage.run_query,
+            "ark_token_usage_csv": ark_token_usage.csv_bytes,
             "AzureARMError": azure_arm.AzureARMError,
             "run_azure_bill_export": azure_billing.run_azure_bill_export,
             "collect_azure_bills": azure_billing.collect_azure_bills,
@@ -1811,6 +1814,50 @@ def api_upstream_volc_test():
         )
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream/volc/tokens")
+def api_upstream_volc_tokens():
+    """查询火山方舟 GetInferenceUsage 用量，密钥只保留在服务端。"""
+    _ensure_batch()
+    body = request.get_json(silent=True) or {}
+    ak, sk, _region = _resolve_volc_credentials(body)
+    if not ak or not sk:
+        return jsonify({"success": False, "message": _missing_volc_cred_message()}), 400
+    try:
+        data = BATCH["run_ark_token_usage"](
+            ak,
+            sk,
+            str(body.get("session_token") or "").strip(),
+            body,
+        )
+        return jsonify({"success": True, "data": data})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream/volc/tokens/download")
+def api_upstream_volc_tokens_download():
+    """导出 Tokens 用量 CSV，文件在浏览器内存中组装后下载。"""
+    _ensure_batch()
+    body = request.get_json(silent=True) or {}
+    ak, sk, _region = _resolve_volc_credentials(body)
+    if not ak or not sk:
+        return jsonify({"success": False, "message": _missing_volc_cred_message()}), 400
+    try:
+        data = BATCH["run_ark_token_usage"](
+            ak,
+            sk,
+            str(body.get("session_token") or "").strip(),
+            body,
+        )
+        content = BATCH["ark_token_usage_csv"](data["fields"], data["rows"])
+        filename = f"ark_token_usage_{data['query']['StartTime']}_{data['query']['EndTime']}.csv"
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+    response = Response(content, content_type="text/csv; charset=utf-8")
+    response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(filename)}"
+    return response
 
 
 @app.post("/api/upstream/volc/collect")

@@ -220,6 +220,54 @@
               <table class="preview-table" id="previewTable"></table>
             </div>
           </div>
+          <hr class="upstream-split" />
+          <h3 class="upstream-subh">Tokens 查询</h3>
+          <p class="na-hint" style="margin-top:0">
+            调用火山方舟 <code>GetInferenceUsage</code>，按项目查询输入、输出、总 Tokens 和请求数。复用上方 IAM 凭证；Session Token 仅临时凭证需要。
+          </p>
+          <div class="cred-grid">
+            <label>项目名称
+              <input id="tokenUsageProject" type="text" value="default" autocomplete="off" />
+            </label>
+            <label>开始日期
+              <input id="tokenUsageStart" type="date" />
+            </label>
+            <label>结束日期
+              <input id="tokenUsageEnd" type="date" />
+            </label>
+            <label>查询粒度
+              <select id="tokenUsageInterval">
+                <option value="day" selected>按天</option>
+                <option value="hour">按小时</option>
+              </select>
+            </label>
+            <label>筛选条件
+              <select id="tokenUsageFilterType">
+                <option value="none" selected>不筛选</option>
+                <option value="model_name">模型名称</option>
+                <option value="model_version">模型版本</option>
+                <option value="endpoint">推理接入点 ID</option>
+                <option value="apikey_id">API Key 资源 ID</option>
+              </select>
+            </label>
+            <label>Session Token（可选）
+              <input id="tokenUsageSession" type="password" autocomplete="off" />
+            </label>
+            <label class="full">筛选值（多个用英文逗号分隔）
+              <input id="tokenUsageFilterValues" type="text" autocomplete="off" placeholder="不筛选时无需填写" />
+            </label>
+          </div>
+          <div class="na-toolbar">
+            <button type="button" class="na-btn na-btn-primary" id="btnTokenUsage"><span class="na-spinner"></span><span class="na-btn-label">查询 Tokens</span></button>
+            <button type="button" class="na-btn na-btn-secondary" id="btnTokenUsageDownload" disabled>下载 CSV</button>
+          </div>
+          <div class="project-chip-list" id="tokenUsageTotals" aria-live="polite"></div>
+          <div id="tokenUsagePreviewWrap" hidden>
+            <h3 style="margin:1rem 0 0.4rem;font-size:0.9rem">用量明细</h3>
+            <div style="overflow:auto">
+              <table class="preview-table" id="tokenUsagePreviewTable"></table>
+            </div>
+          </div>
           <details class="na-log-debug"><summary>详细日志</summary><div class="na-log" id="log" aria-live="polite"></div></details>
         </section>
       </div>
@@ -645,6 +693,107 @@
       }
     });
 
+    function tokenUsageBody() {
+      const payload = { ...credPayload() };
+      const project = ($("tokenUsageProject").value || "").trim();
+      const start = ($("tokenUsageStart").value || "").trim();
+      const end = ($("tokenUsageEnd").value || "").trim();
+      const filterValues = ($("tokenUsageFilterValues").value || "").trim();
+      const sessionToken = ($("tokenUsageSession").value || "").trim();
+      if (project) payload.project_name = project;
+      if (start) payload.start_time = start;
+      if (end) payload.end_time = end;
+      payload.query_interval = $("tokenUsageInterval").value;
+      payload.filter_type = $("tokenUsageFilterType").value;
+      if (filterValues) payload.filter_values = filterValues;
+      if (sessionToken) payload.session_token = sessionToken;
+      return payload;
+    }
+
+    function renderTokenTotals(totals, rows) {
+      const wrap = $("tokenUsageTotals");
+      wrap.replaceChildren();
+      const labels = [
+        ["数据行数", String(rows.length)],
+        ["输入 Tokens", String(totals.InputTokens || 0)],
+        ["输出 Tokens", String(totals.OutputTokens || 0)],
+        ["总 Tokens", String(totals.TotalTokens || 0)],
+        ["请求数", String(totals.ReqCnt || 0)],
+      ];
+      labels.forEach(([label, value]) => {
+        const chip = document.createElement("span");
+        chip.className = "project-chip";
+        chip.textContent = `${label}：${value}`;
+        wrap.append(chip);
+      });
+    }
+
+    $("btnTokenUsage").addEventListener("click", async () => {
+      const btn = $("btnTokenUsage");
+      setLoading(btn, true);
+      $("btnTokenUsageDownload").disabled = true;
+      NAUi.showBanner("userBanner", "正在查询火山方舟 Tokens 用量…", "info");
+      try {
+        const resp = await fetch("/api/upstream/volc/tokens", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(tokenUsageBody()),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) throw new Error(data.message || `HTTP ${resp.status}`);
+        const pack = data.data || {};
+        renderTokenTotals(pack.totals || {}, pack.rows || []);
+        renderPreviewTable("tokenUsagePreviewWrap", "tokenUsagePreviewTable", pack.rows || [], pack.fields || []);
+        $("btnTokenUsageDownload").disabled = true;
+        window.__naTokenUsage = pack;
+        $("btnTokenUsageDownload").disabled = !(pack.rows || []).length;
+        addLog(`Tokens 查询完成：${(pack.rows || []).length} 行`, "ok");
+        NAUi.showBanner("userBanner", "Tokens 查询完成", "ok");
+      } catch (e) {
+        renderTokenTotals({}, []);
+        $("tokenUsagePreviewWrap").hidden = true;
+        window.__naTokenUsage = null;
+        addLog(String(e.message || e), "warn");
+        NAUi.showBanner("userBanner", String(e.message || e), "err");
+        NAUi.toast(String(e.message || e), "err");
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    $("btnTokenUsageDownload").addEventListener("click", async () => {
+      if (!window.__naTokenUsage?.rows?.length) return;
+      const btn = $("btnTokenUsageDownload");
+      setLoading(btn, true);
+      try {
+        const resp = await fetch("/api/upstream/volc/tokens/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(tokenUsageBody()),
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.message || `HTTP ${resp.status}`);
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const start = $("tokenUsageStart").value || "start";
+        const end = $("tokenUsageEnd").value || "end";
+        link.href = url;
+        link.download = `ark_token_usage_${start}_${end}.csv`;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        addLog("已开始下载 Tokens 用量 CSV", "ok");
+      } catch (e) {
+        NAUi.showBanner("userBanner", e.message || "CSV 下载失败", "err");
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
     $("btnDownload").addEventListener("click", async () => {
       if (!fileReady) return;
       try {
@@ -832,6 +981,14 @@
       if (savedClient) $("azClient").value = savedClient;
       if (savedSub) $("azSub").value = savedSub;
     } catch (_) {}
+
+    (() => {
+      const today = new Date();
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const toInput = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      $("tokenUsageStart").value = toInput(monthStart);
+      $("tokenUsageEnd").value = toInput(today);
+    })();
 
     loadCfg().then(() => Promise.all([refreshInfo(), refreshAzureInfo(), refreshCombinedInfo()]));
   </script>
