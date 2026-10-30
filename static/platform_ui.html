@@ -435,14 +435,33 @@
     .platform-pagination .page-btn:hover { border-color: rgba(34, 211, 238, 0.40); color: var(--na-text); }
     .platform-pagination .page-btn.active { background: var(--na-accent-soft); border-color: rgba(34, 211, 238, 0.50); color: var(--na-accent); }
     .platform-pagination .page-size-select {
-      padding: 0.32rem 0.48rem;
+      appearance: none;
+      -webkit-appearance: none;
+      min-width: 82px;
+      padding: 0.44rem 1.7rem 0.44rem 0.9rem;
       border: 1px solid var(--na-border);
-      border-radius: 8px;
+      border-radius: 999px;
       background: rgba(2, 6, 23, 0.32);
       color: var(--na-text);
       font: 650 0.74rem/1 inherit;
       cursor: pointer;
       outline: none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position:
+        calc(100% - 16px) calc(50% - 1px),
+        calc(100% - 11px) calc(50% - 1px);
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .platform-pagination .page-size-select:hover {
+      border-color: rgba(34, 211, 238, 0.45);
+    }
+    .platform-pagination .page-size-select:focus {
+      border-color: rgba(34, 211, 238, 0.7);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
     }
     html[data-theme="light"] .platform-toolbar,
     html[data-theme="light"] .platform-table-wrap,
@@ -587,7 +606,7 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 50, siteEditingEnv: null, siteManageWasOpen: false, search: { name: "", group: "", model: "" } };
+      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 20, siteEditingEnv: null, siteManageWasOpen: false, search: { name: "", group: "", model: "" } };
 
       function cleanNaBaseUrlInput(raw) {
         return String(raw ?? "")
@@ -1069,7 +1088,7 @@
         bar.append(info);
         const right = document.createElement("div"); right.className = "page-right"; bar.append(right);
         const select = document.createElement("select"); select.className = "page-size-select";
-        [[50, "50"], [100, "100"], [200, "200"], [Infinity, "全部"]].forEach(([val, text]) => {
+        [[20, "20 / 页"], [50, "50 / 页"], [100, "100 / 页"], [Infinity, "全部 / 页"]].forEach(([val, text]) => {
           const opt = document.createElement("option"); opt.value = String(val); opt.textContent = text;
           opt.selected = val === state.pageSize; select.append(opt);
         });
