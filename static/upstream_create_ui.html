@@ -237,6 +237,24 @@
       letter-spacing: .04em;
       white-space: nowrap;
     }
+    .creation-table th.sortable {
+      padding: 0;
+    }
+    .sort-button {
+      display: inline-flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      gap: .35rem;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      padding: .68rem .72rem;
+    }
+    .sort-button:hover { color: var(--na-accent); }
+    .sort-button span { font-size: .72rem; line-height: 1; }
     .creation-table tbody tr { transition: background .2s; }
     .creation-table tbody tr:hover { background: color-mix(in srgb, var(--na-accent) 7%, transparent); }
     .creation-table tbody tr.clickable { cursor: pointer; }
@@ -610,7 +628,7 @@
 
         <div class="table-wrap">
         <table class="creation-table project-table">
-          <thead><tr><th>项目名称</th><th>显示名称 / 项目方</th><th>负责人</th><th>父项目</th><th class="wrap">备注</th><th>创建时间</th><th>操作</th></tr></thead>
+          <thead><tr><th>项目名称</th><th>显示名称 / 项目方</th><th>负责人</th><th>父项目</th><th class="wrap">备注</th><th class="sortable"><button id="sortProjectCreated" class="sort-button" type="button" aria-label="按创建时间排序">创建时间<span id="projectCreatedSort">↓</span></button></th><th>操作</th></tr></thead>
           <tbody id="projectRows"><tr><td colspan="7">先加载项目，再新建或选择项目。</td></tr></tbody>
         </table>
         </div>
@@ -754,6 +772,7 @@
     let selectedModelGroup = "";
     let selectedProject = "";
     let editingProject = "";
+    let projectCreatedSort = "desc";
 
     function addLog(msg, cls = "") {
       const box = $("projectLog");
@@ -858,6 +877,19 @@
       return `<span class="pill ${ok ? "ok" : text && text !== "-" ? "warn" : ""}">${esc(text)}</span>`;
     }
 
+    function projectCreatedTimestamp(value) {
+      const timestamp = Date.parse(String(value || "").replace(" ", "T"));
+      return Number.isFinite(timestamp) ? timestamp : 0;
+    }
+
+    function toggleProjectCreatedSort() {
+      projectCreatedSort = projectCreatedSort === "desc" ? "asc" : "desc";
+      const header = $("sortProjectCreated").closest("th");
+      header.setAttribute("aria-sort", projectCreatedSort === "desc" ? "descending" : "ascending");
+      $("projectCreatedSort").textContent = projectCreatedSort === "desc" ? "↓" : "↑";
+      renderProjects();
+    }
+
     function modelGroup(model) {
       const text = `${model?.vendor || ""} ${model?.name || ""} ${model?.display_name || ""}`.toLowerCase();
       if (/字节跳动|bytedance|doubao|豆包/.test(text)) return "字节跳动";
@@ -882,7 +914,11 @@
     function renderProjects() {
       const rows = $("projectRows");
       if (!projects.length) { rows.innerHTML = '<tr><td colspan="7">没有匹配项目。</td></tr>'; return; }
-      rows.innerHTML = projects.map((p) => `
+      const visibleProjects = [...projects].sort((left, right) => {
+        const delta = projectCreatedTimestamp(left.create_date) - projectCreatedTimestamp(right.create_date);
+        return projectCreatedSort === "asc" ? delta : -delta;
+      });
+      rows.innerHTML = visibleProjects.map((p) => `
         <tr class="${p.project_name === selectedProject ? "selected-row" : ""}">
           <td class="wrap">${esc(p.project_name)}</td>
           <td class="wrap">${esc(p.display_name || "-")}</td>
@@ -1427,6 +1463,7 @@
     $("btnTest").addEventListener("click", testConnection);
     $("btnLoadProjects").addEventListener("click", loadProjects);
     $("btnSearchProjects").addEventListener("click", loadProjects);
+    $("sortProjectCreated").addEventListener("click", toggleProjectCreatedSort);
     $("btnShowCreate").addEventListener("click", openCreateForm);
     $("btnSubmitProject").addEventListener("click", submitProject);
     $("btnCancelProject").addEventListener("click", () => $("projectForm").hidden = true);

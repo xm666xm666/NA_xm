@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 from .volc_openapi import VolcOpenAPIError, VolcOpenAPIClient
@@ -218,6 +219,14 @@ def list_projects(
         for item in client.list_projects()
         if isinstance(item, dict)
     ]
+    projects.sort(
+        key=lambda item: datetime.fromisoformat(
+            str(item.get("create_date") or "").replace("Z", "+00:00")
+        ).astimezone(timezone.utc).timestamp()
+        if item.get("create_date")
+        else 0,
+        reverse=True,
+    )
     if not keyword:
         return projects
     return [
