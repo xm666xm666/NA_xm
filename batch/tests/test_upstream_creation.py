@@ -235,6 +235,26 @@ class UpstreamCreationTests(unittest.TestCase):
             upstream_creation.VolcOpenAPIClient = original
         self.assertEqual([row["project_name"] for row in rows], ["new", "old"])
 
+    def test_list_projects_sorts_compact_created_dates(self):
+        class SortedClient:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def list_projects(self):
+                return [
+                    {"ProjectName": "old", "CreateDate": "20260101T000000Z"},
+                    {"ProjectName": "new", "CreateDate": "20261030T015649Z"},
+                ]
+
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = SortedClient
+        try:
+            rows = upstream_creation.list_projects("ak", "sk")
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertEqual([row["project_name"] for row in rows], ["new", "old"])
+        self.assertEqual(rows[0]["create_date"], "2026-10-30T01:56:49Z")
+
     def test_list_models_and_versions(self):
         fake = FakeClient("ak", "sk")
         original = upstream_creation.VolcOpenAPIClient

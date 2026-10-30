@@ -20,6 +20,24 @@ def build_project_display_name(project_name: str, owner: str = "") -> str:
 
 
 PROJECT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_COMPACT_DATETIME_PATTERN = re.compile(
+    r"^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$"
+)
+
+
+def normalize_project_datetime(value: Any) -> str:
+    """标准化火山返回的紧凑时间，确保排序和前端解析一致。"""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    match = _COMPACT_DATETIME_PATTERN.fullmatch(text)
+    if not match:
+        return text
+    year, month, day, hour, minute, second, fraction, zone = match.groups()
+    return (
+        f"{year}-{month}-{day}T{hour}:{minute}:{second}"
+        f"{f'.{fraction}' if fraction else ''}{zone or 'Z'}"
+    )
 
 
 def normalize_project(item: dict[str, Any]) -> dict[str, Any]:
@@ -33,8 +51,8 @@ def normalize_project(item: dict[str, Any]) -> dict[str, Any]:
         "description": str(item.get("Description") or "").strip(),
         "parent_project_name": str(item.get("ParentProjectName") or "").strip(),
         "status": str(item.get("Status") or "").strip(),
-        "create_date": str(item.get("CreateDate") or "").strip(),
-        "update_date": str(item.get("UpdateDate") or "").strip(),
+        "create_date": normalize_project_datetime(item.get("CreateDate")),
+        "update_date": normalize_project_datetime(item.get("UpdateDate")),
     }
 
 

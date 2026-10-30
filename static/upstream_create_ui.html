@@ -940,6 +940,14 @@
     function projectCreatedTimestamp(value) {
       const raw = String(value || "").trim();
       if (!raw) return 0;
+      const compact = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$/);
+      if (compact) {
+        const [, year, month, day, hour, minute, second, fraction, zone] = compact;
+        const timestamp = Date.parse(
+          `${year}-${month}-${day}T${hour}:${minute}:${second}${fraction ? `.${fraction}` : ""}${zone || "Z"}`
+        );
+        if (Number.isFinite(timestamp)) return timestamp;
+      }
       const candidates = [
         raw,
         raw.replace(" ", "T"),
