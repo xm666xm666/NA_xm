@@ -92,7 +92,7 @@ BATCH_DISABLE_HEADERS = [
     "prod渠道",
     "prod令牌",
 ]
-BATCH_DISABLE_CATEGORIES = {"下游无上游", "渠道余额", "令牌对照"}
+BATCH_DISABLE_CATEGORIES = {"下游无上游", "渠道余额", "渠道活跃", "令牌对照"}
 BATCH_DISABLE_LEVELS = {"高", "中"}
 DOWN_HEADERS = [
     "站点",
@@ -768,7 +768,7 @@ def build_batch_disable_rows(
             continue
         if "不禁用" in str(row.get("建议") or "") or "不据此禁用" in str(row.get("建议") or ""):
             continue
-        if category == "渠道余额" and not activity_allows_disable(row.get("近一月活跃")):
+        if category in {"渠道余额", "渠道活跃"} and not activity_allows_disable(row.get("近一月活跃")):
             continue
         envs = _envs_from_action_site(row.get("站点"))
         if not envs:
@@ -1368,6 +1368,51 @@ def analyze_overview_workbook(
                 )
 
     _fill_action_token_names(actions, tokens_by_env)
+
+    if include_activity:
+        existing_channels = {
+            (str(row.get("站点") or "").strip(), str(row.get("渠道名称") or "").strip())
+            for row in actions
+            if row.get("渠道名称")
+        }
+        for env, channels in channels_by_env.items():
+            for channel in channels:
+                name = _cell(channel, "名称")
+                status = _cell(channel, "状态") or "未知"
+                if not name or status == "已禁用":
+                    continue
+                activity_label = _cell(channel, "近一月活跃")
+                parsed = parse_activity_label(activity_label)
+                if parsed.get("legacy") or parsed.get("verdict") != "all_idle":
+                    continue
+                if (env, name) in existing_channels:
+                    continue
+                deploy_time = _cell(channel, "部署时间")
+                actions.append(
+                    relax_for_new_deploy(
+                        {
+                            "级别": "中",
+                            "类别": "渠道活跃",
+                            "站点": env,
+                            "渠道名称": name,
+                            "分组": _cell(channel, "分组"),
+                            "类型": _cell(channel, "类型"),
+                            "状态": status,
+                            "上游类型": classify_vendor(channel),
+                            "问题": "近一月全部模型无活跃",
+                            "建议": f"建议在 {env} 禁用或删除该渠道",
+                            "匹配线索": "近一月活跃",
+                            "密钥摘要": _mask_secret(_cell(channel, "密钥")),
+                            "base_url": _cell(channel, "base_url"),
+                            "模型列表": _cell(channel, "模型列表"),
+                            "近一月活跃": activity_label,
+                        },
+                        deploy_time,
+                        now=clock,
+                    )
+                )
+                existing_channels.add((env, name))
+
     actions, disabled_actions = partition_disabled_actions(actions, tokens_by_env)
     disable_rows = build_batch_disable_rows(actions, tokens_by_env, channels_by_env)
     level_rank = {"高": 0, "中": 1, "低": 2, "信息": 3}
@@ -1401,6 +1446,7 @@ def analyze_overview_workbook(
         "balance_rows": len(balance_out),
         "balance_unused": unused_count,
         "balance_uncommon": uncommon_count,
+        "activity_idle": sum(1 for row in actions if row.get("类别") == "渠道活跃"),
         "relaxed_new_deploy": sum(
             1 for row in actions if "评估已放宽" in str(row.get("问题") or "")
         )
@@ -1499,6 +1545,11 @@ def _write_summary(ws, stats: dict[str, Any], policy: dict[str, Any] | None = No
                 f"有余额表时：${unused_usd:g} < 已用 < ${uncommon_usd:g} 视为不常用；"
                 "同时近一月无活跃则建议级别为中"
             ),
+        },
+        {
+            "指标": "NA近一月无活跃渠道",
+            "数量": f"=COUNTIF('{SHEET_ACTIONS}'!B:B,{chr(34)}渠道活跃{chr(34)})",
+            "说明": "开启NA近一月活跃后，全部模型近一月无活跃的渠道为中级别建议",
         },
     ]
     _write_sheet(ws, headers, rows)

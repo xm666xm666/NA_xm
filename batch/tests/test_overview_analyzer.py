@@ -585,6 +585,55 @@ class OverviewAnalyzerTests(unittest.TestCase):
             self.assertEqual(payload["balance_rows"], [])
             self.assertEqual(payload["stats"]["balance_unused"], 0)
 
+    def test_idle_activity_creates_action_without_used_column(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dest = root / "excel" / f"{OVERVIEW_STEM}_idle.xlsx"
+            save_workbook_data(
+                dest,
+                channel_env_rows={
+                    "test": [
+                        {
+                            "名称": "idle-month",
+                            "分组": "g",
+                            "类型": "自定义渠道",
+                            "状态": "已启用",
+                            "模型列表": "m",
+                            "模型重定向": "",
+                            "base_url": "https://chat.example.com",
+                            "密钥": "k1",
+                            "部署时间": "",
+                            "近一月活跃": "m: 近一月无活跃",
+                        }
+                    ],
+                    "uat": [],
+                    "prod": [],
+                },
+                token_env_rows={"test": [], "uat": [], "prod": []},
+                channel_headers=CHANNEL_HEADERS_WITH_KEY,
+            )
+            save_overview_workbook(dest, gateway_path=dest, volc_rows=[], azure_rows=[])
+            data, _ = export_channel_balance_xlsx(
+                [_balance_item("test", "idle-month", "$0", "已启用")],
+                include_used=False,
+                include_activity=True,
+            )
+            (root / "excel" / "渠道余额_20260825120005.xlsx").write_bytes(data)
+            payload = analyze_overview_workbook(
+                dest,
+                root_dir=root,
+                policy={"na_channel_activity_enabled": True},
+            )
+            action = next(
+                row
+                for row in payload["actions"]
+                if row.get("类别") == "渠道活跃"
+                and row.get("渠道名称") == "idle-month"
+            )
+            self.assertEqual(action["级别"], "中")
+            self.assertEqual(action["问题"], "近一月全部模型无活跃")
+            self.assertEqual(payload["stats"]["activity_idle"], 1)
+
     def test_is_new_deploy_window(self):
         now = datetime(2026, 8, 25, 16, 0, 0)
         self.assertTrue(is_new_deploy("2026-08-20 10:00:00", now=now))
