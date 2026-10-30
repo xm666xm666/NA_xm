@@ -407,6 +407,7 @@ def attach_activity_to_rows(client: Any, rows: list[dict[str, Any]]) -> None:
         row["activity_label"] = fill["activity_label"]
         row["activity_verdict"] = fill["activity_verdict"]
         row["activity_details"] = fill["details"]
+        row["近一月活跃"] = fill["activity_label"]
 
 
 def run_channel_balance_query(

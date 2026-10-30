@@ -732,6 +732,8 @@ def fetch_site_data(
     from .channel_balance_query import attach_activity_to_rows
 
     attach_activity_to_rows(client, channels)
+    for row in channels:
+        row[ACTIVITY_HEADER] = str(row.get("activity_label") or "")
     meta = {
         "keys_fetched": len(key_map),
         "keys_failed": max(0, int(key_meta.get("keys_total") or 0) - len(key_map)) if include_keys else 0,

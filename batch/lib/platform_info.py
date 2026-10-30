@@ -171,15 +171,13 @@ def list_models(client: NewAPIClient, page_size: int = 100) -> list[dict[str, An
 
 def list_channels(client: NewAPIClient) -> list[dict[str, Any]]:
     """拉取渠道管理列表（不含明文密钥），附带近一月活跃统计。"""
+    from .channel_activity import parse_channel_model_names
+
     rows = client.list_all_channels()
     pairs: list[dict[str, Any]] = []
     seen: set[tuple[int, str]] = set()
     for row in rows:
-        models_raw = str(row.get("models") or "")
-        for model_name in models_raw.split(","):
-            model_name = model_name.strip()
-            if not model_name:
-                continue
+        for model_name in parse_channel_model_names(row):
             key = (int(row.get("id") or 0), model_name)
             if key in seen:
                 continue

@@ -330,7 +330,13 @@ def _row_cell_values(headers: list[str], row: dict[str, Any]) -> list[str]:
     if headers == TOKEN_HEADERS:
         normalized = normalize_token_row(row)
         return [normalized[header] for header in headers]
-    return ["" if row.get(header) is None else str(row.get(header, "")) for header in headers]
+    values: list[str] = []
+    for header in headers:
+        value = row.get(header)
+        if header == ACTIVITY_HEADER and value in (None, ""):
+            value = row.get("activity_label")
+        values.append("" if value is None else str(value))
+    return values
 
 
 def _write_sheet(
