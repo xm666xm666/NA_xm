@@ -113,24 +113,6 @@ def test_token_editor_proxy_converts_v103_fields_for_old_gateway(monkeypatch):
     assert sent_bodies[0]["unlimited_quota"] is False
 
 
-def test_token_quota_capability_probe_forces_refresh(monkeypatch):
-    client = NewAPIClient("https://upstream.example")
-    calls = []
-    monkeypatch.setattr(
-        client,
-        "supports_token_input_quota",
-        lambda *, force_refresh: calls.append(force_refresh) or False,
-    )
-    monkeypatch.setattr(server, "_platform_site_client", lambda env: (env, {}, client))
-
-    with server.app.test_request_context("/api/platform/test/token-quota-capability"):
-        response = server.api_platform_token_quota_capability("test")
-
-    assert response.status_code == 200
-    payload = response.get_json()
-    assert payload["success"] is True
-    assert payload["data"]["token_quota_capabilities"] is False
-    assert calls == [True]
 
 
 def test_status_proxy_is_allowed_for_editor(monkeypatch):
@@ -152,3 +134,28 @@ def test_status_proxy_is_allowed_for_editor(monkeypatch):
 
     assert response.status_code == 200
     assert json.loads(response.get_data(as_text=True))["data"]["quota_per_unit"] == 500000
+
+
+def test_group_proxy_falls_back_to_user_groups(monkeypatch):
+    client = NewAPIClient("https://upstream.example")
+
+    def request(method, url, **kwargs):
+        assert method == "GET"
+        assert url == "https://upstream.example/api/group/"
+        response = _response(404, {"success": False})
+        response.headers = {"Content-Type": "application/json"}
+        response.content = b'{"success":false}'
+        return response
+
+    client.session = SimpleNamespace(request=request)
+    monkeypatch.setattr(client, "list_user_groups", lambda: ["default", "vip"])
+    monkeypatch.setattr(server, "_platform_site_client", lambda env: (env, {}, client))
+
+    with server.app.test_request_context(
+        "/api/platform/test/upstream/api/group/",
+        method="GET",
+    ):
+        response = server.api_platform_upstream_proxy("test", "api/group/")
+
+    assert response.status_code == 200
+    assert json.loads(response.get_data(as_text=True))["data"] == ["default", "vip"]

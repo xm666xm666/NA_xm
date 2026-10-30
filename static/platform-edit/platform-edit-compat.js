@@ -4,6 +4,9 @@
   const kind = params.get("kind") || "channels";
   let tokenQuotaLegacy = kind === "tokens";
   let observer;
+  if (kind !== "tokens" || !env) {
+    tokenQuotaLegacy = false;
+  }
 
   const applyLegacyTokenQuotaUi = () => {
     if (kind !== "tokens" || !document.body) return;
@@ -41,7 +44,7 @@
 
   try {
     const response = await fetch(
-      `/api/platform/${encodeURIComponent(env)}/token-quota-capability`,
+      `/api/platform/${encodeURIComponent(env)}/capabilities?refresh=1`,
       { cache: "no-store", credentials: "same-origin" },
     );
     const result = await response.json();

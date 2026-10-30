@@ -1017,21 +1017,6 @@ def api_platform_capabilities(env: str):
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
-@app.get("/api/platform/<env>/token-quota-capability")
-def api_platform_token_quota_capability(env: str):
-    """令牌编辑器打开时按需探测，识别新版 Token 额度或老版无限额度协议。"""
-    try:
-        env_key, _site, client = _platform_site_client(env)
-        supported = bool(client.supports_token_input_quota(force_refresh=True))
-        return jsonify({
-            "success": True,
-            "env": env_key,
-            "data": {"token_quota_capabilities": supported},
-        })
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
-
-
 @app.get("/api/platform/<env>/channels")
 def api_platform_channels(env: str):
     try:
@@ -1177,7 +1162,7 @@ def api_platform_token_delete(env: str, token_id: int):
 
 _PLATFORM_UPSTREAM_ALLOWED_PREFIXES = (
     "api/channel",
-    "api/group/",
+    "api/group",
     "api/models",
     "api/model_quota",
     "api/status",
@@ -1227,6 +1212,19 @@ def api_platform_upstream_proxy(env: str, upstream_path: str):
             upstream = client.session.request(request.method, target, **request_kwargs)
     except requests.RequestException as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 502
+    if upstream.status_code == 404 and request.method == "GET":
+        try:
+            if path == "api/group":
+                groups = client.list_user_groups()
+                return Response(
+                    json.dumps({"success": True, "data": groups}, ensure_ascii=False),
+                    status=200,
+                    content_type="application/json; charset=utf-8",
+                )
+            if path == "api/token/model_quota_candidates":
+                return jsonify({"success": True, "data": {"candidates": []}})
+        except Exception:
+            pass
     if (path == "api/token" or path.startswith("api/token/")) and upstream.status_code == 200:
         try:
             payload = upstream.json()
