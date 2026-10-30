@@ -428,7 +428,10 @@
       const cols = headers || Object.keys(rows[0]);
       const thead = "<tr>" + cols.map((h) => `<th>${h}</th>`).join("") + "</tr>";
       const body = rows.map((row) => (
-        "<tr>" + cols.map((h) => `<td>${String(row[h] ?? "").replace(/</g, "&lt;")}</td>`).join("") + "</tr>"
+        "<tr>" + cols.map((h, index) => {
+          const value = Array.isArray(row) ? row[index] : row[h];
+          return `<td>${String(value ?? "").replace(/</g, "&lt;")}</td>`;
+        }).join("") + "</tr>"
       )).join("");
       table.innerHTML = thead + body;
       wrap.hidden = false;

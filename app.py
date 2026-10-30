@@ -5752,6 +5752,9 @@ def channel_balance_query():
         end_timestamp=end_timestamp,
         sort_by=str(body.get("sort_by") or "used_usd").strip() or "used_usd",
         sort_desc=bool(body.get("sort_desc", True)),
+        include_activity=bool(
+            BATCH["load_policy"](NEW_DIR).get("na_channel_activity_enabled")
+        ),
     )
 
     raw_sites = body.get("sites")
@@ -5861,6 +5864,9 @@ def channel_balance_export():
             items,
             include_used=include_used,
             include_remain=include_remain,
+            include_activity=bool(
+                BATCH["load_policy"](NEW_DIR).get("na_channel_activity_enabled")
+            ),
             by_env=by_env,
         )
         path = _store_excel_bytes(filename, data)

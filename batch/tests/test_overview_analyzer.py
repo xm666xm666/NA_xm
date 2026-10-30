@@ -256,9 +256,13 @@ class OverviewAnalyzerTests(unittest.TestCase):
                 _balance_item("test", "hot-ch", "$12.00", "已启用"),
                 _balance_item("test", "off-ch", "$0", "已禁用"),
             ]
-            data, _ = export_channel_balance_xlsx(items)
+            data, _ = export_channel_balance_xlsx(items, include_activity=True)
             (root / "excel" / "渠道余额_20260825120000.xlsx").write_bytes(data)
-            payload = analyze_overview_workbook(dest, root_dir=root)
+            payload = analyze_overview_workbook(
+                dest,
+                root_dir=root,
+                policy={"na_channel_activity_enabled": True},
+            )
             by_name = {row["渠道名称"]: row for row in payload["balance_rows"]}
             self.assertEqual(by_name["idle-ch"]["判定"], USAGE_UNUSED)
             self.assertEqual(by_name["rare-ch"]["判定"], USAGE_UNCOMMON)
@@ -367,9 +371,13 @@ class OverviewAnalyzerTests(unittest.TestCase):
                     activity_label="x: N/A",
                 ),
             ]
-            data, _ = export_channel_balance_xlsx(items)
+            data, _ = export_channel_balance_xlsx(items, include_activity=True)
             (root / "excel" / "渠道余额_20260825120001.xlsx").write_bytes(data)
-            payload = analyze_overview_workbook(dest, root_dir=root)
+            payload = analyze_overview_workbook(
+                dest,
+                root_dir=root,
+                policy={"na_channel_activity_enabled": True},
+            )
             by_name = {row["渠道名称"]: row for row in payload["balance_rows"]}
             self.assertIn("不禁用", by_name["mixed-act"]["建议"])
             self.assertIn("不据此禁用", by_name["na-act"]["建议"])
@@ -432,9 +440,13 @@ class OverviewAnalyzerTests(unittest.TestCase):
                 ),
                 _balance_item("test", "rare-legacy", "$0.50", "已启用"),
             ]
-            data, _ = export_channel_balance_xlsx(items)
+            data, _ = export_channel_balance_xlsx(items, include_activity=True)
             (root / "excel" / "渠道余额_20260825120002.xlsx").write_bytes(data)
-            payload = analyze_overview_workbook(dest, root_dir=root)
+            payload = analyze_overview_workbook(
+                dest,
+                root_dir=root,
+                policy={"na_channel_activity_enabled": True},
+            )
             action_by_name = {
                 row["渠道名称"]: row
                 for row in payload["actions"]
@@ -448,6 +460,94 @@ class OverviewAnalyzerTests(unittest.TestCase):
             )
             self.assertIn("rare-idle", disable_text)
             self.assertNotIn("rare-legacy", disable_text)
+
+    def test_activity_disabled_keeps_legacy_usage_rules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dest = root / "excel" / f"{OVERVIEW_STEM}_legacy.xlsx"
+            save_workbook_data(
+                dest,
+                channel_env_rows={
+                    "test": [
+                        {
+                            "名称": "rare-legacy",
+                            "分组": "g",
+                            "类型": "自定义渠道",
+                            "状态": "已启用",
+                            "模型列表": "only",
+                            "模型重定向": "",
+                            "base_url": "https://chat.example.com",
+                            "密钥": "k1",
+                            "部署时间": "",
+                        }
+                    ],
+                    "uat": [],
+                    "prod": [],
+                },
+                token_env_rows={"test": [], "uat": [], "prod": []},
+                channel_headers=CHANNEL_HEADERS_WITH_KEY,
+            )
+            save_overview_workbook(dest, gateway_path=dest, volc_rows=[], azure_rows=[])
+            data, _ = export_channel_balance_xlsx(
+                [_balance_item("test", "rare-legacy", "$0.50", "已启用")],
+                include_activity=True,
+            )
+            (root / "excel" / "渠道余额_20260825120003.xlsx").write_bytes(data)
+            payload = analyze_overview_workbook(dest, root_dir=root)
+            action = next(
+                row
+                for row in payload["actions"]
+                if row.get("类别") == "渠道余额" and row.get("渠道名称") == "rare-legacy"
+            )
+            self.assertEqual(action["级别"], "低")
+            self.assertNotIn("近一月无活跃", action["问题"])
+
+    def test_channel_sheet_activity_feeds_analysis(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dest = root / "excel" / f"{OVERVIEW_STEM}_channel-activity.xlsx"
+            save_workbook_data(
+                dest,
+                channel_env_rows={
+                    "test": [
+                        {
+                            "名称": "rare-channel-activity",
+                            "分组": "g",
+                            "类型": "自定义渠道",
+                            "状态": "已启用",
+                            "模型列表": "only",
+                            "模型重定向": "",
+                            "base_url": "https://chat.example.com",
+                            "密钥": "k1",
+                            "部署时间": "",
+                            "近一月活跃": "only: 近一月无活跃",
+                        }
+                    ],
+                    "uat": [],
+                    "prod": [],
+                },
+                token_env_rows={"test": [], "uat": [], "prod": []},
+                channel_headers=CHANNEL_HEADERS_WITH_KEY,
+            )
+            save_overview_workbook(dest, gateway_path=dest, volc_rows=[], azure_rows=[])
+            data, _ = export_channel_balance_xlsx(
+                [_balance_item("test", "rare-channel-activity", "$0.50", "已启用")],
+                include_activity=False,
+            )
+            (root / "excel" / "渠道余额_20260825120004.xlsx").write_bytes(data)
+            payload = analyze_overview_workbook(
+                dest,
+                root_dir=root,
+                policy={"na_channel_activity_enabled": True},
+            )
+            action = next(
+                row
+                for row in payload["actions"]
+                if row.get("类别") == "渠道余额"
+                and row.get("渠道名称") == "rare-channel-activity"
+            )
+            self.assertEqual(action["级别"], "中")
+            self.assertEqual(action["近一月活跃"], "only: 近一月无活跃")
 
     def test_no_used_column_skips_usage(self):
         with tempfile.TemporaryDirectory() as tmp:

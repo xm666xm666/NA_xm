@@ -853,6 +853,7 @@ def analyze_overview_workbook(
     unused_usd = float(policy_data["unused_used_usd"])
     uncommon_usd = float(policy_data["uncommon_used_usd"])
     include_external = bool(policy_data["external_vendors_in_scope"])
+    include_activity = bool(policy_data.get("na_channel_activity_enabled"))
     _apply_relax = globals()["relax_for_new_deploy"]
 
     def _relax(row: dict[str, Any], deploy_time: str, *, now: datetime | None = None, days: int | None = None) -> dict[str, Any]:
@@ -1290,7 +1291,9 @@ def analyze_overview_workbook(
                 group = _cell(channel, "分组") or _cell(row, "分组")
                 type_name = _cell(channel, "类型") or _cell(row, "类型")
                 used_label = _cell(row, "已用(USD)", "已用") or f"${usd:g}"
-                activity_label = _cell(row, "近一月活跃")
+                activity_label = _cell(row, "近一月活跃") if include_activity else ""
+                if include_activity and not activity_label:
+                    activity_label = _cell(channel, "近一月活跃")
                 activity_parsed = parse_activity_label(activity_label)
                 allow_disable = activity_allows_disable(activity_label)
                 block_note = ""
@@ -1540,6 +1543,14 @@ def save_analysis_workbook(path: Path, payload: dict[str, Any]) -> Path:
         if title in {SHEET_ACTIONS, SHEET_DISABLED_ACTIONS}:
             _color_level_column(ws)
 
+    activity_note = (
+        (
+            "近一月活跃按模型逐项评估：全部无活跃才允许用量类禁用；不常用且近一月无活跃升为中。"
+            "任一模型有活跃或 N/A 则不禁用渠道/令牌。旧表无该列时不常用仍为低。"
+        )
+        if policy.get("na_channel_activity_enabled")
+        else "近一月活跃统计未开启，不读取该列；保持旧版用量规则。"
+    )
     note = wb.create_sheet("说明")
     _write_sheet(
         note,
@@ -1574,9 +1585,8 @@ def save_analysis_workbook(path: Path, payload: dict[str, Any]) -> Path:
                     "读取 excel/ 下最新一份 渠道余额_时间戳.xlsx。没有该文件则不识别用量。"
                     f"已用 ≤ ${float(policy['unused_used_usd']):g} 视为不用（中）；"
                     f"{float(policy['unused_used_usd']):g} < 已用 < ${float(policy['uncommon_used_usd']):g} 视为不常用。"
-                    "近一月活跃按模型逐项评估：全部无活跃才允许用量类禁用；不常用且近一月无活跃升为中。"
-                    "任一模型有活跃或 N/A 则不禁用渠道/令牌。旧表无该列时不常用仍为低。"
-                    "渠道和相关令牌均已禁用时不进建议处置，改写入「已禁用建议」"
+                    + activity_note
+                    + "渠道和相关令牌均已禁用时不进建议处置，改写入「已禁用建议」"
                 ),
             },
             {"项": "建议处置列", "说明": "渠道名称右侧为引用该渠道的令牌名称（按该环境令牌「包含渠道」匹配；无限制且分组相同也列出），令牌旁为密钥摘要。渠道及列出的令牌均已禁用时不写本表"},

@@ -12,6 +12,7 @@ if str(BATCH_DIR) not in sys.path:
 from openpyxl import load_workbook  # noqa: E402
 
 from lib.data_summary import (  # noqa: E402
+    ACTIVITY_HEADER,
     CHANNEL_HEADERS,
     DUP_CHANNEL_HEADERS,
     ENVS,
@@ -189,6 +190,26 @@ def test_disabled_row_uses_red_font_not_red_fill(tmp_path: Path):
     fill_rgb = str(ws["A3"].fill.fgColor.rgb or "")
     assert "FF0000" not in fill_rgb.upper()
     assert fill_rgb.upper() not in {"FFFF0000", "FFCC4125", "FFEA9999", "FFF4CCCC"}
+    wb.close()
+
+
+def test_channel_activity_column_is_after_batch_config(tmp_path: Path):
+    excel_path = tmp_path / "activity.xlsx"
+    save_workbook_data(
+        excel_path,
+        channel_env_rows={
+            "test": [{"名称": "ch-a", "分组": "g", "近一月活跃": "m: 近一月无活跃"}],
+            "uat": [],
+            "prod": [],
+        },
+        token_env_rows={env: [] for env in ENVS},
+    )
+    wb = load_workbook(excel_path)
+    ws = wb[SHEET_CHANNELS["test"]]
+    headers = [cell.value for cell in ws[1]]
+    assert headers[-2] == "批量配置"
+    assert headers[-1] == ACTIVITY_HEADER
+    assert ws.cell(2, headers.index(ACTIVITY_HEADER) + 1).value == "m: 近一月无活跃"
     wb.close()
 
 

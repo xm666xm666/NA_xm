@@ -191,6 +191,14 @@
               <input type="checkbox" id="polExternal" />
               <span class="na-toggle-track" aria-hidden="true"></span>
             </label>
+            <label class="na-switch-row">
+              <span class="na-switch-copy">
+                <span class="na-switch-title">NA近一月活跃统计</span>
+                <span class="na-switch-hint">手动开启后采集识别；全部无活跃才进入中级别</span>
+              </span>
+              <input type="checkbox" id="polActivity" />
+              <span class="na-toggle-track" aria-hidden="true"></span>
+            </label>
           </div>
           <div class="na-policy-actions">
             <button type="button" class="na-btn na-btn-primary" id="btnSavePolicy">
@@ -418,6 +426,7 @@
       $("polUncommon").value = policy.uncommon_used_usd;
       $("polRelax").checked = Boolean(policy.relax_on_new_deploy);
       $("polExternal").checked = Boolean(policy.external_vendors_in_scope);
+      $("polActivity").checked = Boolean(policy.na_channel_activity_enabled);
       $("policySummaryHead").textContent = policy.summary || "";
       const meta = $("balanceMeta");
       if (meta && meta.textContent.includes("已找到")) {
@@ -1147,6 +1156,7 @@
             uncommon_used_usd: Number($("polUncommon").value),
             relax_on_new_deploy: $("polRelax").checked,
             external_vendors_in_scope: $("polExternal").checked,
+            na_channel_activity_enabled: $("polActivity").checked,
           }),
         });
         const data = await resp.json();

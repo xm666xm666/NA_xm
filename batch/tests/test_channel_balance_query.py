@@ -95,7 +95,7 @@ class ChannelBalanceQueryTests(unittest.TestCase):
             )
         ]
         items[0]["activity_label"] = "gpt-4: 有活跃\nglm-5: 近一月无活跃"
-        data, filename = export_channel_balance_xlsx(items)
+        data, filename = export_channel_balance_xlsx(items, include_activity=True)
         self.assertTrue(filename.startswith(f"{BALANCE_EXCEL_STEM}_"))
         self.assertTrue(filename.endswith(".xlsx"))
         self.assertGreater(len(data), 100)

@@ -15,6 +15,7 @@ DEFAULT_POLICY: dict[str, Any] = {
     "uncommon_used_usd": 1.0,
     "relax_on_new_deploy": True,
     "external_vendors_in_scope": False,
+    "na_channel_activity_enabled": False,
 }
 
 
@@ -53,6 +54,8 @@ def normalize_policy(raw: Any | None) -> dict[str, Any]:
         data["relax_on_new_deploy"] = bool(raw["relax_on_new_deploy"])
     if "external_vendors_in_scope" in raw:
         data["external_vendors_in_scope"] = bool(raw["external_vendors_in_scope"])
+    if "na_channel_activity_enabled" in raw:
+        data["na_channel_activity_enabled"] = bool(raw["na_channel_activity_enabled"])
     return data
 
 
@@ -98,4 +101,5 @@ def policy_summary_text(policy: dict[str, Any] | None = None) -> str:
         f"宽限 {data['new_deploy_days']} 天"
         f" · 不用 ≤ {format_usd(data['unused_used_usd'])}"
         f" · 不常用 < {format_usd(data['uncommon_used_usd'])}"
+        + (" · NA近一月活跃已开启" if data["na_channel_activity_enabled"] else "")
     )

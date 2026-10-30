@@ -377,7 +377,9 @@ def attach_activity_to_rows(client: Any, rows: list[dict[str, Any]]) -> None:
     pairs: list[dict[str, Any]] = []
     seen: set[tuple[int, str]] = set()
     for row in rows:
-        channel_id = int(row.get("id") or 0)
+        from .channel_activity import channel_row_id
+
+        channel_id = channel_row_id(row)
         for model in parse_channel_model_names(row):
             key = (channel_id, model)
             if channel_id <= 0 or key in seen:
@@ -408,7 +410,6 @@ def attach_activity_to_rows(client: Any, rows: list[dict[str, Any]]) -> None:
 
 
 def run_channel_balance_query(
-    *,
     base_url: str,
     auth: dict[str, Any],
     query_used: bool = True,
@@ -426,6 +427,8 @@ def run_channel_balance_query(
     time_preset: str = "all",
     start_timestamp: int | None = None,
     end_timestamp: int | None = None,
+    *,
+    include_activity: bool = False,
     sort_by: str = "used_usd",
     sort_desc: bool = True,
 ) -> ChannelBalanceQueryResult:
@@ -522,15 +525,16 @@ def run_channel_balance_query(
     if sort_key in {"name"} and sort_desc:
         matched.reverse()
 
-    try:
-        attach_activity_to_rows(client, matched)
-    except Exception:  # noqa: BLE001
-        from .channel_activity import apply_na_fill
+    if include_activity:
+        try:
+            attach_activity_to_rows(client, matched)
+        except Exception:  # noqa: BLE001
+            from .channel_activity import apply_na_fill
 
-        for row in matched:
-            fill = apply_na_fill(row)
-            row["activity_label"] = fill["activity_label"]
-            row["activity_verdict"] = fill["activity_verdict"]
+            for row in matched:
+                fill = apply_na_fill(row)
+                row["activity_label"] = fill["activity_label"]
+                row["activity_verdict"] = fill["activity_verdict"]
 
     return ChannelBalanceQueryResult(
         total=len(channels),
@@ -592,12 +596,15 @@ def build_export_table(
     *,
     include_used: bool = True,
     include_remain: bool = True,
+    include_activity: bool = False,
 ) -> tuple[list[str], list[list[Any]]]:
     cols = []
     for header, key in EXPORT_COLUMNS:
         if key == "used_usd_label" and not include_used:
             continue
         if key == "remain_usd_label" and not include_remain:
+            continue
+        if key == "activity_label" and not include_activity:
             continue
         cols.append((header, key))
     headers = [h for h, _ in cols]
@@ -636,6 +643,7 @@ def export_channel_balance_xlsx(
     *,
     include_used: bool = True,
     include_remain: bool = True,
+    include_activity: bool = False,
     sheet_title: str = "渠道余额",
     by_env: bool = True,
 ) -> tuple[bytes, str]:
@@ -679,7 +687,10 @@ def export_channel_balance_xlsx(
 
     def _write_sheet(ws, sheet_items: list[dict[str, Any]]) -> None:
         headers, rows = build_export_table(
-            sheet_items, include_used=include_used, include_remain=include_remain
+            sheet_items,
+            include_used=include_used,
+            include_remain=include_remain,
+            include_activity=include_activity,
         )
         # 单环境表可去掉「环境」列以更干净；多环境合并表保留
         envs_in_sheet = {str(x.get("env") or "") for x in sheet_items}
@@ -781,6 +792,7 @@ def run_multi_site_channel_balance_query(
     end_timestamp: int | None = None,
     sort_by: str = "used_usd",
     sort_desc: bool = True,
+    include_activity: bool = False,
 ) -> MultiSiteBalanceQueryResult:
     """对多个 NA 站点执行渠道余额查询，结果按环境归类。"""
     from .data_summary import SiteConfig, detect_env, enrich_site_from_env
@@ -870,6 +882,7 @@ def run_multi_site_channel_balance_query(
                 end_timestamp=end_timestamp,
                 sort_by=sort_by,
                 sort_desc=sort_desc,
+                include_activity=include_activity,
             )
             for item in result.items:
                 enriched = dict(item)

@@ -23,6 +23,7 @@ from .data_summary import (
     SHEET_DUP_TOKENS,
     TOKEN_HEADERS,
     BATCH_CONFIG_HEADER,
+    ACTIVITY_HEADER,
     build_duplicate_channels,
     build_duplicate_tokens,
     channel_sheet_title,
@@ -395,7 +396,7 @@ def save_workbook_data(
         token_rows = token_env_rows.get(env, [])
         _write_sheet(
             _ensure_sheet(wb, channel_sheet_title(env), ch_headers),
-            ch_headers + [BATCH_CONFIG_HEADER],
+            ch_headers + [BATCH_CONFIG_HEADER, ACTIVITY_HEADER],
             rows_with_batch_config(channel_rows, "channels"),
             color_by="分组",
         )

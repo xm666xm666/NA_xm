@@ -39,6 +39,7 @@ OVERVIEW_STEM_LEGACY = "一表总览"
 SHEET_INDEX = "总览"
 TIMESTAMP_FORMAT = "%Y%m%d%H%M%S"
 INDEX_HEADERS = ["分类", "工作表", "行数", "说明"]
+_UPSTREAM_SHEET_ORDER = (SHEET_VOLC, SHEET_AZURE, SHEET_AZURE_LEGACY)
 
 
 def build_overview_filename(when: datetime | None = None) -> str:
@@ -219,6 +220,21 @@ def _write_index_sheet(wb) -> None:
     _write_sheet(ws, INDEX_HEADERS, rows)
 
 
+def _order_overview_sheets(wb) -> None:
+    """总览页固定第一，上游表固定排在所有环境表之后。"""
+    existing = {ws.title: ws for ws in wb._sheets}
+    ordered = []
+    if SHEET_INDEX in existing:
+        ordered.append(existing[SHEET_INDEX])
+    ordered.extend(
+        ws
+        for title, ws in existing.items()
+        if title not in {SHEET_INDEX, *_UPSTREAM_SHEET_ORDER}
+    )
+    ordered.extend(existing[title] for title in _UPSTREAM_SHEET_ORDER if title in existing)
+    wb._sheets = ordered
+
+
 def _ensure_channel_remark_columns(wb) -> None:
     """兼容旧版网关汇总：总览渠道表始终在 base_url 后保留备注列。"""
     for title in [*SHEET_CHANNELS.values(), SHEET_DUP_CHANNELS]:
@@ -282,6 +298,7 @@ def save_overview_workbook(
     ws_azure = wb.create_sheet(SHEET_AZURE)
     _write_sheet(ws_azure, list(AZURE_HEADERS), sort_rows_by_deploy_time_desc(azure_rows))
     _write_index_sheet(wb)
+    _order_overview_sheets(wb)
 
     if not wb.sheetnames:
         ws = wb.create_sheet(SHEET_INDEX)
@@ -300,6 +317,7 @@ def refresh_overview_index(path: Path) -> None:
     wb = load_workbook(target)
     try:
         _write_index_sheet(wb)
+        _order_overview_sheets(wb)
         wb.save(target)
     finally:
         wb.close()

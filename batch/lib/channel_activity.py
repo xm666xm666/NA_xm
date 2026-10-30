@@ -54,6 +54,14 @@ def stat_has_activity(stat: Any) -> bool:
     return False
 
 
+def channel_row_id(row: Any) -> int:
+    """兼容 API 行 id 与汇总表内部 _sort_id。"""
+    try:
+        return int((row or {}).get("id") or (row or {}).get("_sort_id") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def classify_model_activity(stat: Any, *, fetch_ok: bool) -> str:
     if not fetch_ok:
         return ACTIVITY_NA
@@ -127,7 +135,7 @@ def build_activity_fill(
     fetch_ok: bool,
 ) -> dict[str, Any]:
     models = parse_channel_model_names(channel)
-    channel_id = int((channel or {}).get("id") or 0)
+    channel_id = channel_row_id(channel)
     if not models:
         return {
             "details": [],

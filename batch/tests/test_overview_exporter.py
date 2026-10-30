@@ -65,6 +65,8 @@ class OverviewWorkbookTests(unittest.TestCase):
                 self.assertEqual(wb.sheetnames[0], SHEET_INDEX)
                 self.assertIn(SHEET_VOLC, wb.sheetnames)
                 self.assertIn(SHEET_AZURE, wb.sheetnames)
+                self.assertEqual(wb.sheetnames[-2], SHEET_VOLC)
+                self.assertEqual(wb.sheetnames[-1], SHEET_AZURE)
                 headers = [cell.value for cell in next(wb[SHEET_AZURE].iter_rows(min_row=1, max_row=1))]
                 self.assertEqual(headers, AZURE_HEADERS)
                 values = [cell.value for cell in next(wb[SHEET_AZURE].iter_rows(min_row=2, max_row=2))]

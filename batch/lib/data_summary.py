@@ -28,6 +28,7 @@ DEFAULT_EXCEL_NAME = f"{EXCEL_STEM}.xlsx"  # 无时间戳的旧文件名，兼�
 AZURE_API_VERSION_HEADER = "默认API版本"
 TOKEN_HEADERS = ["名称", "项目环境", "状态", "剩余额度", "分组", "可用模型", "包含渠道", "IP限制", "创建时间", "过期时间"]
 BATCH_CONFIG_HEADER = "批量配置"
+ACTIVITY_HEADER = "近一月活跃"
 
 CHANNEL_HEADERS = [
     "名称", "分组", "类型", "状态", "响应时间", "模型列表", "模型重定向",
@@ -728,6 +729,9 @@ def fetch_site_data(
     tokens = [token_to_row(item, channels_raw) for item in tokens_raw]
     channels = [row for row in channels if row.get("名称") or row.get("_sort_id")]
     tokens = [row for row in tokens if row.get("名称") or row.get("_sort_id")]
+    from .channel_balance_query import attach_activity_to_rows
+
+    attach_activity_to_rows(client, channels)
     meta = {
         "keys_fetched": len(key_map),
         "keys_failed": max(0, int(key_meta.get("keys_total") or 0) - len(key_map)) if include_keys else 0,

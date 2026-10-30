@@ -290,6 +290,7 @@ class UpstreamVolcFormatTests(unittest.TestCase):
         self.assertEqual(row[COL_API_KEY_CATALOG], "")
         self.assertEqual(row["RPM"], 15000)
         self.assertEqual(row["TPM"], 1500000)
+        self.assertEqual(row["项目名称"], "phivb")
         self.assertEqual(row["项目方"], "phivb-N/A")
         self.assertEqual(row["联系人"], "N/A")
         self.assertEqual(row["部署时间"], "2026-04-24 14:26:38")
