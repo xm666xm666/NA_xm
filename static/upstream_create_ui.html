@@ -255,6 +255,49 @@
     }
     .sort-button:hover { color: var(--na-accent); }
     .sort-button span { font-size: .72rem; line-height: 1; }
+    .table-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .8rem;
+      flex-wrap: wrap;
+      margin-top: .8rem;
+      font-size: .74rem;
+      color: var(--na-text-muted);
+    }
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: .32rem;
+      flex-wrap: wrap;
+    }
+    .page-numbers { display: flex; align-items: center; gap: .32rem; flex-wrap: wrap; }
+    .pagination select,
+    .pagination button,
+    .page-number {
+      min-height: 2rem;
+      min-width: 2rem;
+      border: 1px solid var(--na-border);
+      border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 76%, transparent);
+      color: var(--na-text-muted);
+      font-size: .72rem;
+      font-weight: 650;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .pagination select { padding: 0 .45rem; }
+    .pagination button,
+    .page-number { display: inline-flex; align-items: center; justify-content: center; padding: 0 .45rem; }
+    .pagination button:hover:not(:disabled),
+    .page-number:hover { color: var(--na-text); border-color: var(--na-border-bright); background: var(--na-accent-soft); }
+    .pagination button:disabled { opacity: .38; cursor: not-allowed; }
+    .page-number.active {
+      color: var(--na-text);
+      border-color: var(--na-border-bright);
+      background: var(--na-accent-soft);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--na-accent) 18%, transparent);
+    }
     .creation-table tbody tr { transition: background .2s; }
     .creation-table tbody tr:hover { background: color-mix(in srgb, var(--na-accent) 7%, transparent); }
     .creation-table tbody tr.clickable { cursor: pointer; }
@@ -632,6 +675,21 @@
           <tbody id="projectRows"><tr><td colspan="7">先加载项目，再新建或选择项目。</td></tr></tbody>
         </table>
         </div>
+        <div class="table-footer">
+          <span id="projectPaginationInfo">未加载项目</span>
+          <div class="pagination">
+            <select id="projectPageSize" aria-label="每页显示数量">
+              <option value="20" selected>20 / 页</option>
+              <option value="50">50 / 页</option>
+              <option value="100">100 / 页</option>
+            </select>
+            <button id="btnProjectFirst" type="button" aria-label="第一页">«</button>
+            <button id="btnProjectPrev" type="button" aria-label="上一页">‹</button>
+            <div id="projectPageNumbers" class="page-numbers"></div>
+            <button id="btnProjectNext" type="button" aria-label="下一页">›</button>
+            <button id="btnProjectLast" type="button" aria-label="最后一页">»</button>
+          </div>
+        </div>
         <div id="projectLog" class="na-log" aria-live="polite"></div>
       </section>
     </div>
@@ -773,6 +831,8 @@
     let selectedProject = "";
     let editingProject = "";
     let projectCreatedSort = "desc";
+    let projectPage = 1;
+    let projectPageSize = 20;
 
     function addLog(msg, cls = "") {
       const box = $("projectLog");
@@ -890,6 +950,36 @@
       renderProjects();
     }
 
+    function sortedProjects() {
+      return [...projects].sort((left, right) => {
+        const delta = projectCreatedTimestamp(left.create_date) - projectCreatedTimestamp(right.create_date);
+        return projectCreatedSort === "asc" ? delta : -delta;
+      });
+    }
+
+    function renderProjectPagination(total) {
+      const totalPages = Math.max(1, Math.ceil(total / projectPageSize));
+      projectPage = Math.min(Math.max(1, projectPage), totalPages);
+      const startItem = total ? (projectPage - 1) * projectPageSize + 1 : 0;
+      const endItem = Math.min(total, projectPage * projectPageSize);
+      $("projectPaginationInfo").textContent = total
+        ? `第 ${startItem}-${endItem} 项，共 ${total} 项`
+        : "未加载项目";
+      $("btnProjectFirst").disabled = projectPage === 1;
+      $("btnProjectPrev").disabled = projectPage === 1;
+      $("btnProjectNext").disabled = projectPage === totalPages;
+      $("btnProjectLast").disabled = projectPage === totalPages;
+      const startPage = Math.max(1, Math.min(projectPage - 2, totalPages - 4));
+      const endPage = Math.min(totalPages, startPage + 4);
+      $("projectPageNumbers").innerHTML = Array.from(
+        { length: endPage - startPage + 1 },
+        (_, index) => {
+          const pageNumber = startPage + index;
+          return `<button type="button" class="page-number ${pageNumber === projectPage ? "active" : ""}" data-page="${pageNumber}" aria-label="第 ${pageNumber} 页">${pageNumber}</button>`;
+        }
+      ).join("");
+    }
+
     function modelGroup(model) {
       const text = `${model?.vendor || ""} ${model?.name || ""} ${model?.display_name || ""}`.toLowerCase();
       if (/字节跳动|bytedance|doubao|豆包/.test(text)) return "字节跳动";
@@ -913,11 +1003,12 @@
 
     function renderProjects() {
       const rows = $("projectRows");
+      renderProjectPagination(projects.length);
       if (!projects.length) { rows.innerHTML = '<tr><td colspan="7">没有匹配项目。</td></tr>'; return; }
-      const visibleProjects = [...projects].sort((left, right) => {
-        const delta = projectCreatedTimestamp(left.create_date) - projectCreatedTimestamp(right.create_date);
-        return projectCreatedSort === "asc" ? delta : -delta;
-      });
+      const visibleProjects = sortedProjects().slice(
+        (projectPage - 1) * projectPageSize,
+        projectPage * projectPageSize
+      );
       rows.innerHTML = visibleProjects.map((p) => `
         <tr class="${p.project_name === selectedProject ? "selected-row" : ""}">
           <td class="wrap">${esc(p.project_name)}</td>
@@ -975,6 +1066,7 @@
           body: { ...credPayload(), search: $("projectSearch").value.trim() },
         });
         projects = data.data?.items || [];
+        projectPage = 1;
         renderParentOptions();
         renderProjects();
         NAUi.showBanner("userBanner", `已加载 ${projects.length} 个项目`, "ok");
@@ -1464,6 +1556,21 @@
     $("btnLoadProjects").addEventListener("click", loadProjects);
     $("btnSearchProjects").addEventListener("click", loadProjects);
     $("sortProjectCreated").addEventListener("click", toggleProjectCreatedSort);
+    $("projectPageSize").addEventListener("change", () => {
+      projectPageSize = Number($("projectPageSize").value) || 20;
+      projectPage = 1;
+      renderProjects();
+    });
+    $("btnProjectFirst").addEventListener("click", () => { projectPage = 1; renderProjects(); });
+    $("btnProjectPrev").addEventListener("click", () => { projectPage -= 1; renderProjects(); });
+    $("projectPageNumbers").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-page]");
+      if (!button?.dataset.page) return;
+      projectPage = Number(button.dataset.page);
+      renderProjects();
+    });
+    $("btnProjectNext").addEventListener("click", () => { projectPage += 1; renderProjects(); });
+    $("btnProjectLast").addEventListener("click", () => { projectPage = Number.MAX_SAFE_INTEGER; renderProjects(); });
     $("btnShowCreate").addEventListener("click", openCreateForm);
     $("btnSubmitProject").addEventListener("click", submitProject);
     $("btnCancelProject").addEventListener("click", () => $("projectForm").hidden = true);
