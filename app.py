@@ -3186,7 +3186,7 @@ def api_overview_collect():
             warnings.append("正在按 test/uat/prod 补拉渠道密钥（遇 429 会停下，可稍后继续）")
             key_fills = _fill_overview_channel_keys(excel_path, sites, warnings)
         elif pending and not sites:
-            warnings.append("渠道密钥仍缺，但 env/sites.json 无站点，无法连网补拉。请配置后点「继续补全密钥」。")
+            warnings.append("渠道密钥仍缺，但 env/sites.json 无站点，无法连网补拉。请配置后点「继续补全缺失项」。")
 
     stats = BATCH["overview_workbook_stats"](excel_path)
     key_status = BATCH["scan_channel_key_status"](excel_path)
@@ -3201,7 +3201,7 @@ def api_overview_collect():
     if include_keys:
         msg += f"；密钥 {key_status.get('filled_total') or 0}/{key_status.get('channels_total') or 0}"
         if key_status.get("pending_total"):
-            msg += f"，仍缺 {key_status.get('pending_total')}（可点「继续补全密钥」）"
+            msg += f"，仍缺 {key_status.get('pending_total')}（可点「继续补全缺失项」）"
     if warnings:
         msg += f"；附带说明 {len(warnings)} 条"
     return jsonify(
@@ -3236,7 +3236,7 @@ def api_overview_fill_keys():
     body = request.get_json(silent=True) or {}
     sites = BATCH["parse_summary_sites"](_merge_overview_sites(body))
     if len(sites) != 1:
-        return jsonify({"success": False, "message": "继续补全密钥请每次只选 1 个站点（test / uat / prod）"}), 400
+        return jsonify({"success": False, "message": "继续补全缺失项请每次只选 1 个站点（test / uat / prod）"}), 400
     site = sites[0]
     if not BATCH["has_otp_source"](getattr(site, "otp_code", ""), totp_secret=getattr(site, "totp_secret", "")):
         return jsonify({"success": False, "message": "请填写该站点的二次验证码，或在 env/sites.json 预置 totp_secret"}), 400
@@ -5012,7 +5012,7 @@ def data_summary_fill_keys():
     body = request.get_json(silent=True) or {}
     sites = BATCH["parse_summary_sites"](body.get("sites") or [])
     if len(sites) != 1:
-        return jsonify({"success": False, "message": "继续补全密钥请每次只选 1 个站点"}), 400
+        return jsonify({"success": False, "message": "继续补全缺失项请每次只选 1 个站点"}), 400
     site = sites[0]
     if not BATCH["has_otp_source"](getattr(site, "otp_code", ""), totp_secret=getattr(site, "totp_secret", "")):
         return jsonify({"success": False, "message": "请填写该站点的二次验证码，或在 env/sites.json 预置 totp_secret"}), 400

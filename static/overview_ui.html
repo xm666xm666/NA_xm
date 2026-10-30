@@ -134,7 +134,7 @@
         <button type="button" class="na-btn na-btn-primary" id="btnCollect"><span class="na-spinner"></span><span class="na-btn-label">一键生成总览表</span></button>
         <button type="button" class="na-btn na-btn-secondary" id="btnFillKeys" disabled title="对最新总览补拉空密钥；遇 429 后等待窗口恢复再点">
           <span class="na-spinner" aria-hidden="true"></span>
-          <span class="na-btn-label">继续补全密钥</span>
+          <span class="na-btn-label">继续补全缺失项</span>
         </button>
         <button type="button" class="na-btn na-btn-secondary" id="btnAnalyze" disabled title="对照所选总览与余额表；按当前卫生策略判定不用/不常用与宽限">
           <span class="na-spinner" aria-hidden="true"></span>
@@ -586,7 +586,7 @@
         addLog(msg, cls);
       });
       const pending = Number(status && status.pending_total) || 0;
-      if (pending) addLog(`合计仍缺密钥 ${pending} 条。遇 429 请等待约 15～20 分钟后再点「继续补全密钥」。`, "warn");
+      if (pending) addLog(`合计仍缺密钥 ${pending} 条。遇 429 请等待约 15～20 分钟后再点「继续补全缺失项」。`, "warn");
       else if ((status && status.channels_total) > 0) addLog("三站渠道密钥已齐", "ok");
     }
 
@@ -948,8 +948,8 @@
         const rateLimited = /429|限流|Too Many Requests/i.test(JSON.stringify(pack.warnings || []));
         addLog(data.message || "总览已生成", data.success ? "ok" : "warn");
         let banner = (data.message || "总览已生成") + "。请点「下载 Excel」";
-        if (pending && rateLimited) banner = `密钥未拉完（429）。请等待约 15～20 分钟后点「继续补全密钥」。`;
-        else if (pending) banner += `。仍缺 ${pending} 条密钥，可点「继续补全密钥」。`;
+        if (pending && rateLimited) banner = `密钥未拉完（429）。请等待约 15～20 分钟后点「继续补全缺失项」。`;
+        else if (pending) banner += `。仍缺 ${pending} 条密钥，可点「继续补全缺失项」。`;
         NAUi.showBanner("userBanner", banner, pending ? "warn" : (data.success ? "ok" : "warn"));
         NAUi.toast(pending ? "总览已生成，密钥未齐" : "总览已生成，请点「下载 Excel」", pending ? "warn" : "ok");
       } catch (e) {
@@ -990,7 +990,7 @@
         let lastStatus = null;
         for (const site of ready) {
           const envLabel = String(site.env || "站点").toUpperCase();
-          addLog(`[${envLabel}] 继续补全密钥…`);
+          addLog(`[${envLabel}] 继续补全缺失项…`);
           NAUi.showBanner("userBanner", `正在补全 ${envLabel} 缺失密钥…`, "info");
           try {
             const resp = await fetch("/api/overview/fill-keys", {
@@ -1008,7 +1008,7 @@
             if (data.success) okCount += 1;
             else failCount += 1;
             if (/429|限流|Too Many Requests/i.test(String(data.message || ""))) {
-              addLog(`[${envLabel}] 遇到 429，停止后续环境。请等待窗口恢复后再点「继续补全密钥」。`, "warn");
+              addLog(`[${envLabel}] 遇到 429，停止后续环境。请等待窗口恢复后再点「继续补全缺失项」。`, "warn");
               break;
             }
           } catch (e) {
