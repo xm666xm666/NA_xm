@@ -623,7 +623,7 @@
       const pending = Number(status && status.pending_total) || 0;
       lastKeyStatus = status;
       const fillSource = fillSourceSelection();
-      canFillKeys = Boolean(fillSource) && (fillSource.kind === "summary" || pending > 0);
+      canFillKeys = Boolean(fillSource);
       $("btnFillKeys").disabled = !canFillKeys;
       if (fillSource && fillSource.kind === "summary") {
         $("keyMeta").textContent = "密钥：已选择盘点表。点击后按该表补全缺失项。";
@@ -636,7 +636,7 @@
       const text = formatKeyStatus(status);
       $("keyMeta").textContent = pending
         ? `密钥：${text}，仍缺 ${pending}（可继续补全）`
-        : `密钥：${text}` + ((status.channels_total || 0) ? "，已齐" : "");
+        : `密钥：${text}` + ((status.channels_total || 0) ? "，已齐；仍可点击补近一月活跃" : "");
     }
 
     function payloadSites() {
