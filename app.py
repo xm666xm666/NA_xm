@@ -3282,6 +3282,45 @@ def api_overview_fill_keys():
         return jsonify({"success": False, "message": str(exc)}), 400
 
 
+@app.get("/api/overview/fill-source-status")
+def api_overview_fill_source_status():
+    """读取所选总览或盘点 Excel 的密钥/近一月活跃缺失状态。"""
+    _ensure_batch()
+    kind = str(request.args.get("source_kind") or "").strip().lower()
+    if kind not in {"summary", "overview"}:
+        return jsonify({"success": False, "message": "继续补全来源仅支持盘点表或总览表"}), 400
+    try:
+        if kind == "summary":
+            excel_path = _excel_query_path(
+                "source",
+                "file",
+                fallback=BATCH["latest_excel_path"](NEW_DIR),
+                expected_kind="summary",
+            )
+        else:
+            excel_path = _excel_query_path(
+                "source",
+                "file",
+                fallback=BATCH["latest_overview_excel_path"](NEW_DIR),
+                expected_kind="overview",
+            )
+    except (ValueError, FileNotFoundError) as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+    if not excel_path or not excel_path.exists():
+        return jsonify({"success": False, "message": "请选择总览表或盘点表"}), 404
+    return jsonify(
+        {
+            "success": True,
+            "data": {
+                "source_kind": kind,
+                "file": _rel_to_root(excel_path),
+                "filename": excel_path.name,
+                "key_status": BATCH["scan_channel_key_status"](excel_path),
+            },
+        }
+    )
+
+
 @app.get("/api/overview/download")
 def api_overview_download():
     _ensure_batch()

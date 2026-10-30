@@ -292,10 +292,20 @@
       if (changedId === "selSummary" && summary.value) overview.value = "";
       if (changedId === "selOverview" && overview.value) summary.value = "";
       updateFillAvailability();
+      loadFillSourceStatus().catch((e) => addLog(String(e.message || e), "warn"));
     }
 
     function updateFillAvailability() {
       applyKeyStatus(lastKeyStatus);
+    }
+
+    async function loadFillSourceStatus() {
+      const source = fillSourceSelection();
+      if (!source) return;
+      const params = new URLSearchParams({ source_kind: source.kind, source: source.file });
+      const resp = await fetch(`/api/overview/fill-source-status?${params}`);
+      const data = await resp.json();
+      if (data.data?.key_status) applyKeyStatus(data.data.key_status);
     }
 
     function fillSelect(id, items, preferred) {
@@ -347,6 +357,7 @@
       $("btnAnalyze").disabled = !fileReady;
       $("btnDownloadAnalysis").disabled = !analysisReady;
       updateFillAvailability();
+      await loadFillSourceStatus();
     }
 
     function esc(v) {
@@ -615,6 +626,8 @@
         addLog(msg, cls);
       });
       const pending = Number(status && status.pending_total) || 0;
+      const activityPending = Number(status && status.activity_missing_total) || 0;
+      if (activityPending) addLog(`合计仍缺近一月活跃 ${activityPending} 行。`, "warn");
       if (pending) addLog(`合计仍缺密钥 ${pending} 条。遇 429 请等待约 15～20 分钟后再点「继续补全缺失项」。`, "warn");
       else if ((status && status.channels_total) > 0) addLog("三站渠道密钥已齐", "ok");
     }
@@ -625,18 +638,18 @@
       const fillSource = fillSourceSelection();
       canFillKeys = Boolean(fillSource);
       $("btnFillKeys").disabled = !canFillKeys;
-      if (fillSource && fillSource.kind === "summary") {
-        $("keyMeta").textContent = "密钥：已选择盘点表。点击后按该表补全缺失项。";
-        return;
-      }
       if (!status || !status.exists) {
         $("keyMeta").textContent = "密钥：尚未生成总览。生成时默认拉取 test / uat / prod 渠道密钥。";
         return;
       }
       const text = formatKeyStatus(status);
+      const activityPending = Number(status.activity_missing_total) || 0;
+      const activityText = activityPending
+        ? `近一月活跃仍缺 ${activityPending} 行`
+        : "近一月活跃已齐";
       $("keyMeta").textContent = pending
-        ? `密钥：${text}，仍缺 ${pending}（可继续补全）`
-        : `密钥：${text}` + ((status.channels_total || 0) ? "，已齐；仍可点击补近一月活跃" : "");
+        ? `密钥：${text}，仍缺 ${pending}；${activityText}（可继续补全）`
+        : `密钥：${text}；${activityText}`;
     }
 
     function payloadSites() {

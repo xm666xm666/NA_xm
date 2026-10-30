@@ -270,6 +270,39 @@ class OverviewWorkbookTests(unittest.TestCase):
             self.assertEqual(status["envs"]["test"]["keys_filled"], 0)
             self.assertEqual(status["pending_total"], 1)
 
+    def test_scan_activity_missing_status(self):
+        from lib.data_summary import ACTIVITY_HEADER, CHANNEL_HEADERS_WITH_KEY, scan_channel_key_status
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dest = root / "excel" / f"{OVERVIEW_STEM}_activity.xlsx"
+            save_overview_workbook(
+                dest,
+                volc_rows=[{"接入点名称": "ep-keep"}],
+                azure_rows=[],
+            )
+            save_workbook_data(
+                dest,
+                channel_env_rows={
+                    "test": [
+                        {"名称": "ch-a", "分组": "g", "密钥": "sk-a", ACTIVITY_HEADER: "m: 有活跃"},
+                        {"名称": "ch-b", "分组": "g", "密钥": "sk-b", ACTIVITY_HEADER: ""},
+                    ],
+                    "uat": [],
+                    "prod": [],
+                },
+                token_env_rows={"test": [], "uat": [], "prod": []},
+                channel_headers=CHANNEL_HEADERS_WITH_KEY,
+            )
+            status = scan_channel_key_status(dest)
+            self.assertEqual(status["envs"]["test"]["keys_filled"], 2)
+            self.assertEqual(status["envs"]["test"]["activity_filled"], 1)
+            self.assertEqual(status["envs"]["test"]["activity_missing"], 1)
+            self.assertEqual(status["pending_total"], 0)
+            self.assertEqual(status["activity_missing_total"], 1)
+            self.assertEqual(status["missing_total"], 1)
+            self.assertTrue(status["can_continue"])
+
 
 if __name__ == "__main__":
     unittest.main()

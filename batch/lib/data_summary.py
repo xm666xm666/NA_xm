@@ -783,6 +783,8 @@ def scan_channel_key_status(path: Path | None) -> dict[str, Any]:
         "channels": 0,
         "keys_filled": 0,
         "keys_missing": 0,
+        "activity_filled": 0,
+        "activity_missing": 0,
         "has_key_column": False,
         "complete": False,
         "empty": True,
@@ -794,6 +796,8 @@ def scan_channel_key_status(path: Path | None) -> dict[str, Any]:
             "pending_total": 0,
             "filled_total": 0,
             "channels_total": 0,
+            "activity_missing_total": 0,
+            "missing_total": 0,
             "complete": False,
             "has_key_column": False,
             "can_continue": False,
@@ -808,6 +812,7 @@ def scan_channel_key_status(path: Path | None) -> dict[str, Any]:
     pending_total = 0
     filled_total = 0
     channels_total = 0
+    activity_missing_total = 0
     has_key_column = False
     for env in env_keys:
         headers, rows = _try_read_channel_sheet_with_keys(src, env)
@@ -817,10 +822,14 @@ def scan_channel_key_status(path: Path | None) -> dict[str, Any]:
             has_key_column = True
         filled = sum(1 for row in named if str(row.get("密钥") or "").strip()) if has_col else 0
         missing = max(0, len(named) - filled)
+        activity_filled = sum(1 for row in named if str(row.get(ACTIVITY_HEADER) or "").strip())
+        activity_missing = max(0, len(named) - activity_filled)
         envs[env] = {
             "channels": len(named),
             "keys_filled": filled,
             "keys_missing": missing,
+            "activity_filled": activity_filled,
+            "activity_missing": activity_missing,
             "has_key_column": has_col,
             "complete": bool(named) and missing == 0,
             "empty": not named,
@@ -828,15 +837,18 @@ def scan_channel_key_status(path: Path | None) -> dict[str, Any]:
         pending_total += missing
         filled_total += filled
         channels_total += len(named)
+        activity_missing_total += activity_missing
     return {
         "exists": True,
         "envs": envs,
         "pending_total": pending_total,
         "filled_total": filled_total,
         "channels_total": channels_total,
+        "activity_missing_total": activity_missing_total,
+        "missing_total": pending_total + activity_missing_total,
         "complete": channels_total > 0 and pending_total == 0,
         "has_key_column": has_key_column,
-        "can_continue": pending_total > 0,
+        "can_continue": pending_total > 0 or activity_missing_total > 0,
     }
 
 
@@ -964,6 +976,7 @@ def fill_missing_channel_keys(
         if str(r.get("名称") or "").strip() and not str(r.get("密钥") or "").strip()
     ]
     missing_activity = any(not str(r.get(ACTIVITY_HEADER) or "").strip() for r in rows)
+    activity_missing_before = sum(1 for r in rows if not str(r.get(ACTIVITY_HEADER) or "").strip())
     if not missing_names and not missing_activity:
         return {
             "env": env,
@@ -1005,6 +1018,8 @@ def fill_missing_channel_keys(
     from .channel_balance_query import attach_activity_to_rows
 
     attach_activity_to_rows(client, rows)
+    activity_missing_after = sum(1 for r in rows if not str(r.get(ACTIVITY_HEADER) or "").strip())
+    activity_filled_count = max(0, activity_missing_before - activity_missing_after)
     if missing_names:
         key_map, fetch_warnings, key_meta = _fetch_channel_keys(
             client, subset, otp_code=otp, totp_secret=str(site.totp_secret or "")
@@ -1044,6 +1059,11 @@ def fill_missing_channel_keys(
     wait_minutes = int(key_meta.get("wait_minutes") or 0)
     can_retry_soon = bool(key_meta.get("can_retry_soon"))
     msg = f"[{env}] 补全密钥 {filled}/{len(missing_names)}"
+    if activity_filled_count or (not missing_names and activity_missing_before):
+        if not missing_names:
+            msg = f"[{env}] 补全近一月活跃 {activity_filled_count}/{activity_missing_before}"
+        else:
+            msg += f"，近一月活跃 {activity_filled_count}/{activity_missing_before}"
     if pending:
         if stop_reason == "verify_expired" or can_retry_soon:
             msg += f"，仍缺 {pending}（可立即换新验证码再续，不必等 20 分钟）"
@@ -1062,6 +1082,9 @@ def fill_missing_channel_keys(
         "keys_fetched": filled,
         "keys_pending": pending,
         "keys_total_missing": len(missing_names),
+        "activity_total_missing": activity_missing_before,
+        "activity_filled_count": activity_filled_count,
+        "activity_pending": activity_missing_after,
         "activity_filled": activity_filled,
         "stop_reason": stop_reason,
         "can_retry_soon": can_retry_soon,
