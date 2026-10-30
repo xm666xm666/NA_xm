@@ -3231,7 +3231,7 @@ def api_overview_collect():
 
 @app.post("/api/overview/fill-keys")
 def api_overview_fill_keys():
-    """对最新一份⑥ 总览 Excel 补全某一环境渠道密钥（应对 429）。"""
+    """按所选总览或盘点 Excel 补全某一环境缺失项（应对 429）。"""
     _ensure_batch()
     body = request.get_json(silent=True) or {}
     sites = BATCH["parse_summary_sites"](_merge_overview_sites(body))
@@ -3240,16 +3240,31 @@ def api_overview_fill_keys():
     site = sites[0]
     if not BATCH["has_otp_source"](getattr(site, "otp_code", ""), totp_secret=getattr(site, "totp_secret", "")):
         return jsonify({"success": False, "message": "请填写该站点的二次验证码，或在 env/sites.json 预置 totp_secret"}), 400
-    excel_path = BATCH["latest_overview_excel_path"](NEW_DIR)
+    requested_kind = str(body.get("source_kind") or "").strip().lower()
+    if requested_kind and requested_kind not in {"summary", "overview"}:
+        return jsonify({"success": False, "message": "继续补全来源仅支持盘点表或总览表"}), 400
+    excel_path = _optional_source_excel(body.get("source") or body.get("file"))
+    if excel_path:
+        actual_kind = BATCH["artifact_kind_for_filename"](NEW_DIR, excel_path.name)
+        if actual_kind not in {"summary", "overview"}:
+            return jsonify({"success": False, "message": "继续补全来源仅支持盘点表或总览表"}), 400
+        if requested_kind and requested_kind != actual_kind:
+            return jsonify({"success": False, "message": "继续补全来源类型与所选文件不一致"}), 400
+    elif requested_kind == "summary":
+        excel_path = BATCH["latest_excel_path"](NEW_DIR)
+    else:
+        excel_path = BATCH["latest_overview_excel_path"](NEW_DIR)
     if not excel_path or not excel_path.exists():
-        return jsonify({"success": False, "message": "尚未生成一表总览，请先点「一键生成总览表」"}), 404
+        return jsonify({"success": False, "message": "请选择总览表或盘点表后再继续补全"}), 404
     try:
         result, saved_path = BATCH["fill_missing_channel_keys"](
             site=site,
             root_dir=NEW_DIR,
             excel_path=excel_path,
         )
-        BATCH["refresh_overview_index"](saved_path)
+        saved_kind = BATCH["artifact_kind_for_filename"](NEW_DIR, saved_path.name)
+        if saved_kind == "overview":
+            BATCH["refresh_overview_index"](saved_path)
         key_status = BATCH["scan_channel_key_status"](saved_path)
         return jsonify(
             {

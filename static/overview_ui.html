@@ -113,6 +113,7 @@
       <h2>同步范围</h2>
       <p class="na-hint">
         请在下方<strong>明确选择</strong>盘点表、上游表、总览与分析表。未选择时不会静默取最新一份。
+        继续补全只认<strong>盘点表或总览表</strong>其中一个来源，两个不能同时选择。
         test / uat / prod 默认拉渠道密钥（需 Root + 二次验证）。
         分析按当前卫生策略判定不用 / 不常用 / 新部署宽限。建议表在页内勾选即可预禁用，不必先打开 Excel。
       </p>
@@ -132,7 +133,7 @@
       <div class="na-toolbar">
         <button type="button" class="na-btn na-btn-ghost" id="btnRefreshFiles" title="其它页导出后点此同步文件列表">刷新文件列表</button>
         <button type="button" class="na-btn na-btn-primary" id="btnCollect"><span class="na-spinner"></span><span class="na-btn-label">一键生成总览表</span></button>
-        <button type="button" class="na-btn na-btn-secondary" id="btnFillKeys" disabled title="对最新总览补拉空密钥；遇 429 后等待窗口恢复再点">
+        <button type="button" class="na-btn na-btn-secondary" id="btnFillKeys" disabled title="按所选总览或盘点表补拉；遇 429 后等待窗口恢复再点">
           <span class="na-spinner" aria-hidden="true"></span>
           <span class="na-btn-label">继续补全缺失项</span>
         </button>
@@ -264,6 +265,7 @@
     let fileReady = false;
     let analysisReady = false;
     let canFillKeys = false;
+    let lastKeyStatus = null;
     let envSites = [];
     let selectedEnvs = new Set(ENV_ORDER);
     let hygienePayload = { actions: [], disabled_actions: [] };
@@ -272,6 +274,28 @@
 
     function selectedFile(id) {
       return String($(id)?.value || "").trim();
+    }
+
+    function fillSourceSelection() {
+      const summary = selectedFile("selSummary");
+      const overview = selectedFile("selOverview");
+      if (summary && overview) return null;
+      if (overview) return { kind: "overview", file: overview };
+      if (summary) return { kind: "summary", file: summary };
+      return null;
+    }
+
+    function applyFillSourceExclusivity(changedId) {
+      const summary = $("selSummary");
+      const overview = $("selOverview");
+      if (!summary || !overview) return;
+      if (changedId === "selSummary" && summary.value) overview.value = "";
+      if (changedId === "selOverview" && overview.value) summary.value = "";
+      updateFillAvailability();
+    }
+
+    function updateFillAvailability() {
+      applyKeyStatus(lastKeyStatus);
     }
 
     function fillSelect(id, items, preferred) {
@@ -313,11 +337,16 @@
       fillSelect("selOverview", overview, preferred && preferred.overview);
       fillSelect("selAnalysis", analysis, preferred && preferred.analysis);
       fillSelect("selBalance", balance, preferred && preferred.balance);
+      if (selectedFile("selSummary") && selectedFile("selOverview")) {
+        if (preferred && preferred.summary) $("selOverview").value = "";
+        else $("selSummary").value = "";
+      }
       fileReady = Boolean(selectedFile("selOverview"));
       analysisReady = Boolean(selectedFile("selAnalysis"));
       $("btnDownload").disabled = !fileReady;
       $("btnAnalyze").disabled = !fileReady;
       $("btnDownloadAnalysis").disabled = !analysisReady;
+      updateFillAvailability();
     }
 
     function esc(v) {
@@ -592,8 +621,14 @@
 
     function applyKeyStatus(status) {
       const pending = Number(status && status.pending_total) || 0;
-      canFillKeys = fileReady && pending > 0;
+      lastKeyStatus = status;
+      const fillSource = fillSourceSelection();
+      canFillKeys = Boolean(fillSource) && (fillSource.kind === "summary" || pending > 0);
       $("btnFillKeys").disabled = !canFillKeys;
+      if (fillSource && fillSource.kind === "summary") {
+        $("keyMeta").textContent = "密钥：已选择盘点表。点击后按该表补全缺失项。";
+        return;
+      }
       if (!status || !status.exists) {
         $("keyMeta").textContent = "密钥：尚未生成总览。生成时默认拉取 test / uat / prod 渠道密钥。";
         return;
@@ -815,7 +850,7 @@
         const resp = await fetch("/api/overview/info");
         const data = await resp.json();
         const info = data.data || {};
-        fileReady = !!info.exists;
+        fileReady = Boolean(selectedFile("selOverview"));
         analysisReady = !!info.analysis_exists;
         $("btnDownload").disabled = !fileReady;
         $("btnAnalyze").disabled = !fileReady;
@@ -965,8 +1000,9 @@
     $("btnFillKeys").addEventListener("click", async () => {
       const btn = $("btnFillKeys");
       openLog();
-      if (!fileReady) {
-        NAUi.showBanner("userBanner", "请先生成总览表", "warn");
+      const fillSource = fillSourceSelection();
+      if (!fillSource) {
+        NAUi.showBanner("userBanner", "请选择总览表或盘点表（二选一）", "warn");
         return;
       }
       setLoading(btn, true);
@@ -996,7 +1032,7 @@
             const resp = await fetch("/api/overview/fill-keys", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sites: [site], site_envs: [site.env] }),
+              body: JSON.stringify({ sites: [site], site_envs: [site.env], source: fillSource.file, source_kind: fillSource.kind }),
             });
             const data = await resp.json();
             (data.data?.warnings || []).forEach((w) => addLog(`[${envLabel}] ${w}`, "warn"));
@@ -1017,6 +1053,7 @@
           }
         }
         await refreshInfo();
+        await loadArtifactSelects({ [fillSource.kind]: fillSource.file });
         if (lastStatus) applyKeyStatus(lastStatus);
         const pending = Number(lastStatus?.pending_total);
         NAUi.showBanner(
@@ -1117,11 +1154,15 @@
       loadHygieneActions(selectedFile("selAnalysis")).catch((e) => NAUi.showBanner("userBanner", e.message || String(e), "err"));
     });
     $("selOverview").addEventListener("change", () => {
+      applyFillSourceExclusivity("selOverview");
       fileReady = Boolean(selectedFile("selOverview"));
       $("btnDownload").disabled = !fileReady;
       $("btnAnalyze").disabled = !fileReady;
       $("btnExportChannels").disabled = !fileReady;
       $("btnExportTokens").disabled = !fileReady;
+    });
+    $("selSummary").addEventListener("change", () => {
+      applyFillSourceExclusivity("selSummary");
     });
 
     async function downloadBatchExport(kind) {
