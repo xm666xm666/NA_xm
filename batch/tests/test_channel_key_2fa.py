@@ -12,9 +12,13 @@ if str(BATCH_DIR) not in sys.path:
 
 from lib.api_client import SecureVerificationError  # noqa: E402
 from lib.data_summary import (  # noqa: E402
+    ACTIVITY_HEADER,
     CHANNEL_HEADERS_WITH_KEY,
     channel_to_row,
     _fetch_channel_keys,
+    _read_channel_sheet_with_keys,
+    fill_missing_channel_keys,
+    SiteConfig,
 )
 from lib import rate_budget as rb  # noqa: E402
 
@@ -208,6 +212,77 @@ def test_fill_missing_bootstraps_empty_env_into_existing_workbook():
         assert test_rows[0]["密钥"] == "k-test"
 
 
+def test_fill_missing_keys_and_activity_uses_one_channel_list():
+    import tempfile
+
+    from lib.data_summary_exporter import save_workbook_data
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "excel").mkdir()
+        path = root / "excel" / "ai网关令牌及渠道列表_20260824120000.xlsx"
+        save_workbook_data(
+            path,
+            channel_env_rows={"test": [{"名称": "ch", "分组": "g", "模型列表": "m"}], "uat": [], "prod": []},
+            token_env_rows={"test": [], "uat": [], "prod": []},
+            channel_headers=CHANNEL_HEADERS_WITH_KEY,
+        )
+        site = SiteConfig(base_url="https://ai-cloud-test.example.com", username="root", password="secret", env="test", otp_code="123456")
+        client = MagicMock()
+        client.list_all_channels.return_value = [{"id": 7, "name": "ch", "models": "m"}]
+        client.fetch_channel_activity_stats.return_value = [
+            {"channel_id": 7, "model_name": "m", "total_requests": 2, "active_minutes": 1, "avg_rpm": 1, "avg_tpm": 2}
+        ]
+        with patch("lib.data_summary.NewAPIClient", return_value=client), patch(
+            "lib.data_summary._authenticate_for_key_export", return_value={}
+        ), patch(
+            "lib.data_summary._fetch_channel_keys", return_value=({7: "secret-key"}, [], {"stop_reason": "done"})
+        ), patch("lib.data_summary.refresh_auth_session_cache"):
+            result, saved = fill_missing_channel_keys(site=site, root_dir=root, excel_path=path)
+
+        client.list_all_channels.assert_called_once()
+        assert saved == path
+        assert result["keys_fetched"] == 1
+        assert result["activity_filled"] is True
+        _, rows = _read_channel_sheet_with_keys(path, "test")
+        assert rows[0]["密钥"] == "secret-key"
+        assert rows[0][ACTIVITY_HEADER] == "m: 有活跃"
+
+
+def test_fill_missing_activity_without_key_fetch():
+    import tempfile
+
+    from lib.data_summary_exporter import save_workbook_data
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "excel").mkdir()
+        path = root / "excel" / "ai网关令牌及渠道列表_20260824130000.xlsx"
+        save_workbook_data(
+            path,
+            channel_env_rows={"test": [{"名称": "ch", "分组": "g", "模型列表": "m", "密钥": "secret-key"}], "uat": [], "prod": []},
+            token_env_rows={"test": [], "uat": [], "prod": []},
+            channel_headers=CHANNEL_HEADERS_WITH_KEY,
+        )
+        site = SiteConfig(base_url="https://ai-cloud-test.example.com", username="root", password="secret", env="test", otp_code="123456")
+        client = MagicMock()
+        client.list_all_channels.return_value = [{"id": 8, "name": "ch", "models": "m"}]
+        client.fetch_channel_activity_stats.return_value = []
+        fetch_keys = MagicMock()
+        with patch("lib.data_summary.NewAPIClient", return_value=client), patch(
+            "lib.data_summary._authenticate_for_key_export", return_value={}
+        ), patch("lib.data_summary._fetch_channel_keys", fetch_keys), patch("lib.data_summary.refresh_auth_session_cache"):
+            result, saved = fill_missing_channel_keys(site=site, root_dir=root, excel_path=path)
+
+        client.list_all_channels.assert_called_once()
+        fetch_keys.assert_not_called()
+        assert saved == path
+        assert result["keys_fetched"] == 0
+        assert result["activity_filled"] is True
+        _, rows = _read_channel_sheet_with_keys(path, "test")
+        assert rows[0][ACTIVITY_HEADER] == "m: 近一月无活跃"
+
+
 if __name__ == "__main__":
     test_channel_to_row_optional_key()
     test_fetch_force_verifies()
@@ -218,4 +293,6 @@ if __name__ == "__main__":
     test_fetch_channel_keys_stops_on_rate_limit()
     test_fill_missing_requires_auth()
     test_fill_missing_bootstraps_empty_env_into_existing_workbook()
+    test_fill_missing_keys_and_activity_uses_one_channel_list()
+    test_fill_missing_activity_without_key_fetch()
     print("ok")

@@ -963,12 +963,14 @@ def fill_missing_channel_keys(
         for r in rows
         if str(r.get("名称") or "").strip() and not str(r.get("密钥") or "").strip()
     ]
-    if not missing_names:
+    missing_activity = any(not str(r.get(ACTIVITY_HEADER) or "").strip() for r in rows)
+    if not missing_names and not missing_activity:
         return {
             "env": env,
             "keys_fetched": 0,
             "keys_pending": 0,
-            "message": f"[{env}] 没有缺失的密钥",
+            "activity_filled": False,
+            "message": f"[{env}] 没有缺失的密钥或近一月活跃",
             "warnings": [],
         }, src
 
@@ -981,6 +983,12 @@ def fill_missing_channel_keys(
         for ch in channels_raw
         if str(ch.get("name") or "").strip()
     }
+    for row in rows:
+        raw_channel = name_to_ch.get(str(row.get("名称") or "").strip())
+        if raw_channel:
+            row["_sort_id"] = int(raw_channel.get("id") or 0)
+            if not str(row.get("模型列表") or "").strip():
+                row["模型列表"] = _format_models_list(raw_channel.get("models"))
     subset = [name_to_ch[n] for n in missing_names if n in name_to_ch]
     unmatched = [n for n in missing_names if n not in name_to_ch]
     warnings: list[str] = []
@@ -988,17 +996,24 @@ def fill_missing_channel_keys(
         sample = "、".join(unmatched[:5])
         more = f" 等 {len(unmatched)} 个" if len(unmatched) > 5 else ""
         warnings.append(f"Excel 中有 {len(unmatched)} 个渠道名称在站点上未找到：{sample}{more}")
-    if not subset:
+    if missing_names and not subset:
         raise ValueError(
             f"[{env}] 有 {len(missing_names)} 条空密钥，但无法在站点匹配到同名渠道。"
             "请先对该环境重新「一键采集」同步渠道名称后再补全。"
         )
 
-    key_map, fetch_warnings, key_meta = _fetch_channel_keys(
-        client, subset, otp_code=otp, totp_secret=str(site.totp_secret or "")
-    )
-    refresh_auth_session_cache(client, auth)
-    warnings.extend(fetch_warnings)
+    from .channel_balance_query import attach_activity_to_rows
+
+    attach_activity_to_rows(client, rows)
+    if missing_names:
+        key_map, fetch_warnings, key_meta = _fetch_channel_keys(
+            client, subset, otp_code=otp, totp_secret=str(site.totp_secret or "")
+        )
+        refresh_auth_session_cache(client, auth)
+        warnings.extend(fetch_warnings)
+    else:
+        key_map = {}
+        key_meta = {"stop_reason": "done"}
     id_to_name = {
         int(ch.get("id") or 0): str(ch.get("name") or "").strip()
         for ch in subset
@@ -1023,6 +1038,7 @@ def fill_missing_channel_keys(
     save_path = src
     _save_summary_workbook_with_keys(save_path, channel_env_rows, token_env_rows)
     pending = max(0, len(missing_names) - filled)
+    activity_filled = any(str(r.get(ACTIVITY_HEADER) or "").strip() for r in rows)
     stopped = bool(key_meta.get("stopped_early"))
     stop_reason = str(key_meta.get("stop_reason") or "")
     wait_minutes = int(key_meta.get("wait_minutes") or 0)
@@ -1046,6 +1062,7 @@ def fill_missing_channel_keys(
         "keys_fetched": filled,
         "keys_pending": pending,
         "keys_total_missing": len(missing_names),
+        "activity_filled": activity_filled,
         "stop_reason": stop_reason,
         "can_retry_soon": can_retry_soon,
         "wait_minutes": wait_minutes,
@@ -1120,6 +1137,7 @@ def _exclude_duplicate_names(
         return env_rows, 0
 
     skipped = 0
+    filtered: dict[str, list[dict[str, Any]]] = {}
     for env in ordered_summary_envs(env_rows):
         filtered.setdefault(env, [])
         for row in env_rows.get(env, []):

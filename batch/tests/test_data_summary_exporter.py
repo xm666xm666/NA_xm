@@ -198,7 +198,7 @@ def test_channel_activity_column_is_after_batch_config(tmp_path: Path):
     save_workbook_data(
         excel_path,
         channel_env_rows={
-            "test": [{"名称": "ch-a", "分组": "g", "近一月活跃": "m: 近一月无活跃"}],
+            "test": [{"名称": "ch-a", "分组": "g", "activity_label": "m: 近一月无活跃"}],
             "uat": [],
             "prod": [],
         },
