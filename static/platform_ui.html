@@ -38,19 +38,33 @@
     .platform-meta { min-height:1.35rem; color:var(--na-text-muted); font-size:.8rem; }
     .platform-table-wrap { overflow:auto; max-height:calc(100vh - 360px); min-height:260px; border:1px solid var(--na-border); border-radius:10px; }
     .platform-table { width:100%; border-collapse:collapse; font-size:.8rem; }
-    .platform-pagination { display:flex; align-items:center; gap:.5rem; flex-wrap:nowrap; padding:.7rem 0 .3rem; font-size:.76rem; color:var(--na-text-muted); overflow-x:auto; }
-    .platform-pagination .page-right { display:flex; align-items:center; gap:.35rem; margin-left:auto; flex-shrink:0; }
-    .platform-pagination .page-btn { min-width:26px; padding:.26rem .45rem; border:1px solid var(--na-border); border-radius:6px; background:transparent; color:var(--na-text-muted); font:600 .72rem/1 inherit; cursor:pointer; transition:border-color .12s, background .12s, color .12s; }
-    .platform-pagination .page-btn:hover { border-color:rgba(34,211,238,.4); color:var(--na-text); }
-    .platform-pagination .page-btn.active { background:var(--na-accent-soft); border-color:rgba(34,211,238,.5); color:var(--na-accent); }
-    .platform-pagination .page-btn:disabled { opacity:.3; cursor:not-allowed; }
-    .platform-pagination .page-ellipsis { min-width:30px; padding:.3rem .55rem; text-align:center; color:var(--na-text-muted); font:600 .74rem/1 inherit; cursor:pointer; border-radius:6px; transition:background .12s; }
-    .platform-pagination .page-ellipsis:hover { background:var(--na-accent-soft); }
-    .platform-pagination .page-ellipsis-pop { position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); display:flex; flex-wrap:wrap; gap:3px; padding:.45rem; border:1px solid rgba(34,211,238,.25); border-radius:8px; background:var(--na-panel-solid,#0f172a); box-shadow:0 8px 24px rgba(0,0,0,.4); z-index:50; max-width:280px; opacity:0; pointer-events:none; transition:opacity .12s, transform .12s; }
-    .platform-pagination .page-ellipsis-wrap { position:relative; display:inline-block; }
-    .platform-pagination .page-ellipsis-wrap:hover .page-ellipsis-pop, .platform-pagination .page-ellipsis-wrap:focus-within .page-ellipsis-pop { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(-2px); }
-    .platform-pagination .page-ellipsis-pop .page-btn { min-width:26px; padding:.22rem .4rem; font-size:.68rem; }
-    .platform-pagination .page-size-select { padding:.3rem .45rem; border:1px solid var(--na-border); border-radius:6px; background:rgba(2,6,23,.38); color:var(--na-text); font:600 .74rem/1 inherit; cursor:pointer; outline:none; }
+    .platform-pagination { display:flex; align-items:center; gap:.55rem; flex-wrap:nowrap; padding:.65rem 0 .3rem; font-size:.78rem; color:var(--na-text-muted); overflow-x:visible; }
+    .platform-pagination .page-right { display:flex; align-items:center; gap:.2rem; margin-left:auto; flex-shrink:0; }
+    .platform-pagination .page-btn {
+      min-width:32px; height:32px; padding:0 .5rem; border:1px solid transparent; border-radius:8px;
+      background:transparent; color:var(--na-text-muted); font:650 .78rem/1 inherit;
+      cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+      transition:background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
+    }
+    .platform-pagination .page-btn:hover { border-color:transparent; background:var(--na-accent-soft); color:var(--na-text); }
+    .platform-pagination .page-btn.active {
+      background:var(--na-accent-soft); border-color:transparent; color:var(--na-accent);
+      box-shadow:0 1px 6px rgba(34,211,238,.14);
+    }
+    .platform-pagination .page-btn:disabled { opacity:.34; cursor:not-allowed; }
+    .platform-pagination .page-ellipsis { min-width:32px; height:32px; padding:0 .48rem; border:0; background:transparent; color:var(--na-text-muted); font:700 .78rem/1 inherit; cursor:pointer; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; transition:background .15s ease, color .15s ease; }
+    .platform-pagination .page-ellipsis:hover, .platform-pagination .page-ellipsis-wrap.open .page-ellipsis { background:var(--na-accent-soft); color:var(--na-accent); }
+    .platform-pagination .page-ellipsis-pop {
+      position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%) translateY(-3px);
+      display:flex; flex-direction:column; gap:2px; width:72px; max-height:238px; overflow-y:auto; overscroll-behavior:contain;
+      padding:.42rem; border:1px solid var(--na-border); border-radius:10px;
+      background:var(--na-panel-solid,#0f172a); box-shadow:0 14px 36px rgba(0,0,0,.24);
+      z-index:80; opacity:0; pointer-events:none; transition:opacity .16s ease, transform .16s ease;
+    }
+    .platform-pagination .page-ellipsis-wrap { position:relative; display:inline-flex; }
+    .platform-pagination .page-ellipsis-wrap.open .page-ellipsis-pop { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+    .platform-pagination .page-ellipsis-pop .page-btn { width:100%; height:30px; font-size:.74rem; }
+    .platform-pagination .page-size-select { margin-right:.55rem; }
     .platform-pagination .page-info { font-size:.74rem; white-space:nowrap; flex-shrink:0; }
     .platform-table th, .platform-table td { padding:.68rem .75rem; text-align:left; border-bottom:1px solid var(--na-border); white-space:nowrap; }
     .platform-table th { position:sticky; top:0; z-index:1; background:var(--na-panel-solid,#101827); color:var(--na-text-muted); font-size:.7rem; letter-spacing:.035em; }
@@ -421,19 +435,6 @@
       font-size: 0.76rem;
       color: var(--na-text-muted);
     }
-    .platform-pagination .page-btn {
-      min-width: 28px;
-      padding: 0.28rem 0.48rem;
-      border: 1px solid var(--na-border);
-      border-radius: 8px;
-      background: rgba(2, 6, 23, 0.22);
-      color: var(--na-text-muted);
-      font: 650 0.73rem/1 inherit;
-      cursor: pointer;
-      transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-    }
-    .platform-pagination .page-btn:hover { border-color: rgba(34, 211, 238, 0.40); color: var(--na-text); }
-    .platform-pagination .page-btn.active { background: var(--na-accent-soft); border-color: rgba(34, 211, 238, 0.50); color: var(--na-accent); }
     .platform-pagination .page-size-select {
       appearance: none;
       -webkit-appearance: none;
@@ -1093,7 +1094,7 @@
           opt.selected = val === state.pageSize; select.append(opt);
         });
         select.addEventListener("change", () => { state.pageSize = Number(select.value); state.page = 1; renderTable(); });
-        right.append(select);
+        bar.append(select);
         if (totalPages > 1) {
           const prev = document.createElement("button"); prev.className = "page-btn"; prev.textContent = "‹";
           prev.disabled = state.page <= 1;
@@ -1103,19 +1104,34 @@
           nums.forEach((n) => {
             if (n === "...") {
               const wrap = document.createElement("span"); wrap.className = "page-ellipsis-wrap";
-              const dots = document.createElement("span"); dots.className = "page-ellipsis"; dots.textContent = "···";
-              dots.tabIndex = 0;
+              const dots = document.createElement("button"); dots.type = "button"; dots.className = "page-ellipsis"; dots.textContent = "···";
+              dots.setAttribute("aria-label", "展开页码列表");
+              dots.setAttribute("aria-haspopup", "true");
+              dots.setAttribute("aria-expanded", "false");
               const pop = document.createElement("div"); pop.className = "page-ellipsis-pop";
               const start = nums.indexOf(n) === 0 ? 3 : nums[nums.indexOf(n) - 1] + 1;
               const end = nums.indexOf(n) === nums.length - 1 ? totalPages : nums[nums.indexOf(n) + 1] - 1;
               for (let i = start; i <= end; i++) {
-                const btn = document.createElement("button"); btn.className = "page-btn" + (i === state.page ? " active" : ""); btn.textContent = i;
+                const btn = document.createElement("button"); btn.type = "button"; btn.className = "page-btn" + (i === state.page ? " active" : ""); btn.textContent = i;
                 btn.addEventListener("click", () => { state.page = i; renderTable(); });
                 pop.append(btn);
               }
               wrap.append(dots); wrap.append(pop); right.append(wrap);
+              dots.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const opened = wrap.classList.contains("open");
+                document.querySelectorAll(".page-ellipsis-wrap.open").forEach((item) => {
+                  item.classList.remove("open");
+                  item.querySelector(".page-ellipsis")?.setAttribute("aria-expanded", "false");
+                });
+                if (!opened) {
+                  wrap.classList.add("open");
+                  dots.setAttribute("aria-expanded", "true");
+                  requestAnimationFrame(() => pop.querySelector(".page-btn.active")?.scrollIntoView({ block: "nearest" }));
+                }
+              });
             } else {
-              const btn = document.createElement("button"); btn.className = "page-btn" + (n === state.page ? " active" : ""); btn.textContent = n;
+              const btn = document.createElement("button"); btn.type = "button"; btn.className = "page-btn" + (n === state.page ? " active" : ""); btn.textContent = n;
               btn.addEventListener("click", () => { state.page = n; renderTable(); });
               right.append(btn);
             }
@@ -1473,6 +1489,22 @@
       $("saveEdit").addEventListener("click", saveEditor);
       $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
       document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("editorBackdrop").hidden) closeEditor(); });
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest(".page-ellipsis-wrap")) {
+          document.querySelectorAll(".page-ellipsis-wrap.open").forEach((item) => {
+            item.classList.remove("open");
+            item.querySelector(".page-ellipsis")?.setAttribute("aria-expanded", "false");
+          });
+        }
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          document.querySelectorAll(".page-ellipsis-wrap.open").forEach((item) => {
+            item.classList.remove("open");
+            item.querySelector(".page-ellipsis")?.setAttribute("aria-expanded", "false");
+          });
+        }
+      });
       window.addEventListener("message", (event) => {
         if (event.data?.type === "na-platform-edit-result") {
           const ok = event.data.status === "success";
