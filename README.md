@@ -435,6 +435,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 | 任务卡 | **新项目接入** → 智能提取；**例行盘点** → 数据汇总；**上游采集** → 上游信息；**上游账单** → 账单页；**卫生清理** → 一表总览（可带分析表 id）；**智能体跑通** → 智能体 |
 | 认证与策略 | **全局站点认证**（见下）；卫生策略可在此编辑，或跳到总览 |
 | 环境芯片 | 按 `env/sites.json` **已配置站点**显示。标签用集群名（**生产** / **非生产**）；历史 key 仍可能是 test / uat / prod。芯片：已认证 / 需临时验证码 / TOTP 已预置 / 需手填验证码 |
+| 预设列表 | 在「站点认证」中打开，可新增、编辑或删除共享站点配置，与 NA信息使用同一份 `env/sites.json`；编辑时密码 / TOTP 留空则保持原值 |
 | 顶栏短句 | Tab 右侧一句 5–10 字，刷新随机换一条，不重复上一句 |
 
 数据接口：`GET /api/workspace/summary`（`env_sites[]` 含 `session_ready`、`cluster`）。卫生策略摘要一并返回，完整读写见 [工作台 / 产物 / 卫生策略 API](#工作台--产物--卫生策略-api)。
@@ -2580,7 +2581,7 @@ python agent/tests/test_pipeline_runner.py
 
 | 方法 | 路径 | 说明 |
 | ---- | ---- | ---- |
-| `GET` | `/api/platform/sites` | 返回全部已配置站点及其地址，不返回账号、密码或 TOTP |
+| `GET` | `/api/platform/sites` | 返回全部已配置站点及其地址，供工作台与 NA信息共用；不返回账号、密码或 TOTP |
 | `POST` | `/api/platform/sites` | 新增自定义站点；不返回密码或 TOTP 密钥 |
 | `PUT` | `/api/platform/sites/<env>` | 编辑指定站点；不返回密码或 TOTP 密钥 |
 | `DELETE` | `/api/platform/sites/<env>` | 删除指定站点；保留其他站点与 upstream 配置 |

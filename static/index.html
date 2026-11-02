@@ -102,6 +102,18 @@
     .na-auth-menu a, .na-auth-menu button { padding: .45rem .55rem; color: var(--na-text-muted); text-decoration: none; background: transparent; border: 0; text-align: left; font: inherit; cursor: pointer; border-radius: .35rem; }
     .na-auth-menu > div a .na-auth-count { display: inline-grid; min-width: 1.2rem; min-height: 1.2rem; place-items: center; margin-inline-start: .35rem; padding: 0 .3rem; border-radius: 999px; color: #fff; background: #dc2626; font-size: .65rem; font-weight: 750; }
     .na-auth-menu a:hover, .na-auth-menu button:hover { background: var(--na-panel-hover); color: var(--na-text); }
+    .ws-site-manage-modal { width: min(640px, 100%); min-height: 420px; max-height: min(780px, calc(100dvh - 2rem)); display: flex; flex-direction: column; gap: 0.65rem; }
+    .ws-site-manage-list { flex: 1; overflow: auto; display: grid; gap: 0.45rem; }
+    .ws-site-manage-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.65rem;
+      padding: 0.6rem 0.7rem; border: 1px solid var(--na-border); border-radius: 10px;
+      background: rgba(15, 23, 42, 0.24);
+    }
+    .ws-site-manage-main { display: flex; flex-direction: column; min-width: 0; }
+    .ws-site-manage-main strong { font-size: 0.85rem; }
+    .ws-site-manage-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--na-text-muted); font-size: 0.74rem; }
+    .ws-site-manage-actions { display: flex; gap: 0.35rem; flex-shrink: 0; }
+    .ws-site-modal { display: flex; flex-direction: column; gap: 0.7rem; }
     html.na-permissions-pending .na-nav-tabs,
     html.na-permissions-pending .na-view,
     html.na-permissions-pending .na-no-permissions { visibility: hidden; pointer-events: none; }
@@ -189,6 +201,7 @@
           <p class="na-hint" id="wsPolicyHint" data-permission="overview"></p>
           <div class="na-ws-auth-actions">
             <button type="button" class="na-btn na-btn-secondary" id="btnWsAuth">全局站点认证</button>
+            <button type="button" class="na-btn na-btn-ghost" id="btnWsSiteManage">预设列表</button>
             <button type="button" class="na-btn na-btn-ghost" id="btnWsPolicy" data-permission="overview">去总览改策略</button>
           </div>
           <details class="na-policy-edit" id="wsPolicyEdit" data-permission="overview">
@@ -218,6 +231,33 @@
         <button type="button" class="na-btn na-btn-primary" id="btnWsAuthRun">认证全部</button>
         <button type="button" class="na-btn na-btn-ghost" id="btnWsAuthGoBatch">去批量配置</button>
         <button type="button" class="na-btn na-btn-secondary" id="btnWsAuthClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="na-modal-backdrop" id="wsSiteManage" hidden>
+    <div class="na-modal ws-site-manage-modal" role="dialog" aria-modal="true" aria-labelledby="wsSiteManageTitle">
+      <h3 id="wsSiteManageTitle">预设列表</h3>
+      <p class="na-hint">与 NA信息共用站点配置；可编辑名称、地址、账号和 TOTP。密码留空则保持原值。</p>
+      <div class="ws-site-manage-list" id="wsSiteManageList"></div>
+      <div class="na-toolbar">
+        <button type="button" class="na-btn na-btn-ghost" id="btnWsSiteManageClose">取消</button>
+        <button type="button" class="na-btn na-btn-primary" id="btnWsNewSite">新增站点</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="na-modal-backdrop" id="wsSiteConfig" hidden>
+    <div class="na-modal ws-site-modal" role="dialog" aria-modal="true" aria-labelledby="wsSiteConfigTitle">
+      <h3 id="wsSiteConfigTitle">新增站点配置</h3>
+      <label class="na-field"><span class="na-field-label">站点名称</span><input id="wsSiteLabel" autocomplete="off" placeholder="例如：生产站 / 测试站" /></label>
+      <label class="na-field"><span class="na-field-label">登录网址</span><input id="wsSiteBaseUrl" autocomplete="off" placeholder="https://..." /></label>
+      <label class="na-field"><span class="na-field-label">账号</span><input id="wsSiteUsername" autocomplete="off" placeholder="请输入账号" /></label>
+      <label class="na-field"><span class="na-field-label">密码</span><input id="wsSitePassword" type="password" autocomplete="new-password" placeholder="编辑时留空则保持原密码" /></label>
+      <label class="na-field"><span class="na-field-label">TOTP 密钥</span><input id="wsSiteTotp" autocomplete="off" placeholder="Base32 密钥或 otpauth://…；编辑时留空则保持原值" /></label>
+      <div class="na-toolbar">
+        <button type="button" class="na-btn na-btn-ghost" id="btnWsSiteConfigClose">取消</button>
+        <button type="button" class="na-btn na-btn-primary" id="btnWsSiteSave">保存站点</button>
       </div>
     </div>
   </div>
@@ -568,6 +608,9 @@
     };
     let hashLock = false;
     let workspaceSummary = {};
+    let wsSites = [];
+    let wsSiteEditingEnv = null;
+    let wsSiteManageWasOpen = false;
     let permissionFeatures = Array.isArray(window.NAIdentity?.features) ? new Set(window.NAIdentity.features) : null;
     let permissionsReady = Boolean(permissionFeatures);
 
@@ -875,6 +918,124 @@
       if (el) el.hidden = true;
     }
 
+    function requestJson(url, options = {}) {
+      return fetch(url, options).then(async (resp) => {
+        const payload = await resp.json().catch(() => ({}));
+        if (!resp.ok || payload.success === false) throw new Error(payload.message || `HTTP ${resp.status}`);
+        return payload;
+      });
+    }
+
+    async function loadWsSites() {
+      const payload = await requestJson("/api/platform/sites");
+      wsSites = Array.isArray(payload.data) ? payload.data : [];
+      return wsSites;
+    }
+
+    function renderWsSiteManage() {
+      const wrap = $("wsSiteManageList");
+      if (!wrap) return;
+      wrap.replaceChildren();
+      if (!wsSites.length) {
+        const empty = document.createElement("p");
+        empty.className = "na-hint";
+        empty.textContent = "暂无站点配置";
+        wrap.append(empty);
+        return;
+      }
+      wsSites.forEach((site) => {
+        const row = document.createElement("div");
+        row.className = "ws-site-manage-item";
+        const main = document.createElement("div");
+        main.className = "ws-site-manage-main";
+        main.innerHTML = `<strong>${escapeHtml(site.label || site.env)}</strong><span>${escapeHtml(site.base_url || "")} · ${escapeHtml(site.username || "")}</span>`;
+        const actions = document.createElement("div");
+        actions.className = "ws-site-manage-actions";
+        const edit = document.createElement("button");
+        edit.type = "button"; edit.className = "na-btn na-btn-secondary"; edit.textContent = "编辑";
+        edit.addEventListener("click", () => openWsSiteConfig(site));
+        const remove = document.createElement("button");
+        remove.type = "button"; remove.className = "na-btn na-btn-ghost na-btn-danger"; remove.textContent = "删除";
+        remove.addEventListener("click", () => deleteWsSite(site));
+        actions.append(edit, remove);
+        row.append(main, actions);
+        wrap.append(row);
+      });
+    }
+
+    async function openWsSiteManage() {
+      if (!hasPermission("workspace")) return;
+      await loadWsSites();
+      renderWsSiteManage();
+      $("wsSiteManage").hidden = false;
+    }
+
+    function openWsSiteConfig(site) {
+      wsSiteEditingEnv = site ? String(site.env || "") : null;
+      wsSiteManageWasOpen = !$("wsSiteManage").hidden;
+      $("wsSiteManage").hidden = true;
+      $("wsSiteConfigTitle").textContent = site ? "编辑站点配置" : "新增站点配置";
+      $("wsSiteLabel").value = site?.label || "";
+      $("wsSiteBaseUrl").value = site?.base_url || "";
+      $("wsSiteUsername").value = site?.username || "";
+      $("wsSitePassword").value = "";
+      $("wsSiteTotp").value = "";
+      $("wsSiteConfig").hidden = false;
+      $("wsSiteLabel").focus();
+    }
+
+    function closeWsSiteConfig() {
+      $("wsSiteConfig").hidden = true;
+      $("wsSitePassword").value = "";
+      $("wsSiteTotp").value = "";
+      wsSiteEditingEnv = null;
+      if (wsSiteManageWasOpen) {
+        wsSiteManageWasOpen = false;
+        $("wsSiteManage").hidden = false;
+      }
+    }
+
+    async function saveWsSite() {
+      const body = {
+        label: $("wsSiteLabel").value.trim(),
+        base_url: $("wsSiteBaseUrl").value.trim(),
+        username: $("wsSiteUsername").value.trim(),
+        password: $("wsSitePassword").value,
+        totp_secret: $("wsSiteTotp").value.trim(),
+      };
+      const btn = $("btnWsSiteSave");
+      btn.disabled = true; btn.classList.add("loading");
+      try {
+        await requestJson(wsSiteEditingEnv ? `/api/platform/sites/${encodeURIComponent(wsSiteEditingEnv)}` : "/api/platform/sites", {
+          method: wsSiteEditingEnv ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        NAUi.toast(wsSiteEditingEnv ? "站点已更新" : "站点已新增", "ok");
+        closeWsSiteConfig();
+        await Promise.all([loadWsSites(), loadWorkspaceSummary()]);
+        renderWsSiteManage();
+        try { NAUi.broadcastToFrames({ type: "na-auth-changed", kinds: [] }); } catch (_) {}
+      } catch (e) {
+        NAUi.toast(e.message || String(e), "err");
+      } finally {
+        btn.disabled = false; btn.classList.remove("loading");
+      }
+    }
+
+    async function deleteWsSite(site) {
+      if (!confirm(`确定删除 ${site.label || site.env} 吗？此操作不可撤销。`)) return;
+      try {
+        await requestJson(`/api/platform/sites/${encodeURIComponent(site.env)}`, { method: "DELETE" });
+        NAUi.toast("站点已删除", "ok");
+        await Promise.all([loadWsSites(), loadWorkspaceSummary()]);
+        renderWsSiteManage();
+        try { NAUi.broadcastToFrames({ type: "na-auth-changed", kinds: [] }); } catch (_) {}
+      } catch (e) {
+        NAUi.toast(e.message || String(e), "err");
+      }
+    }
+
     function renderWorkspace(data) {
       data = data || {};
       workspaceSummary = data;
@@ -1150,6 +1311,13 @@
       if (hasPermission("overview")) switchView("overview", { analysis: workspaceSummary.analysis_file || "" });
     });
     $("btnWsSavePolicy")?.addEventListener("click", () => saveWsPolicy());
+    $("btnWsSiteManage")?.addEventListener("click", openWsSiteManage);
+    $("btnWsSiteManageClose")?.addEventListener("click", () => { $("wsSiteManage").hidden = true; });
+    $("btnWsNewSite")?.addEventListener("click", () => openWsSiteConfig());
+    $("btnWsSiteConfigClose")?.addEventListener("click", closeWsSiteConfig);
+    $("btnWsSiteSave")?.addEventListener("click", saveWsSite);
+    $("wsSiteManage")?.addEventListener("click", (ev) => { if (ev.target === $("wsSiteManage")) $("wsSiteManage").hidden = true; });
+    $("wsSiteConfig")?.addEventListener("click", (ev) => { if (ev.target === $("wsSiteConfig")) closeWsSiteConfig(); });
     $("wsAuthDrawer")?.addEventListener("click", (ev) => {
       if (ev.target === $("wsAuthDrawer")) closeWsAuthDrawer();
     });
