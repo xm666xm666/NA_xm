@@ -53,7 +53,7 @@
     }
     .platform-pagination .page-btn:disabled { opacity:.34; cursor:not-allowed; }
     .platform-pagination .page-ellipsis { min-width:32px; height:32px; padding:0 .48rem; border:0; background:transparent; color:var(--na-text-muted); font:700 .78rem/1 inherit; cursor:pointer; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; transition:background .15s ease, color .15s ease; }
-    .platform-pagination .page-ellipsis:hover, .platform-pagination .page-ellipsis-wrap.open .page-ellipsis { background:var(--na-accent-soft); color:var(--na-accent); }
+    .platform-pagination .page-ellipsis:hover, .platform-pagination .page-ellipsis-wrap:hover .page-ellipsis, .platform-pagination .page-ellipsis-wrap:focus-within .page-ellipsis { background:var(--na-accent-soft); color:var(--na-accent); }
     .platform-pagination .page-ellipsis-pop {
       position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%) translateY(-3px);
       display:flex; flex-direction:column; gap:2px; width:72px; max-height:238px; overflow-y:auto; overscroll-behavior:contain;
@@ -62,7 +62,7 @@
       z-index:80; opacity:0; pointer-events:none; transition:opacity .16s ease, transform .16s ease;
     }
     .platform-pagination .page-ellipsis-wrap { position:relative; display:inline-flex; }
-    .platform-pagination .page-ellipsis-wrap.open .page-ellipsis-pop { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+    .platform-pagination .page-ellipsis-wrap:hover .page-ellipsis-pop, .platform-pagination .page-ellipsis-wrap:focus-within .page-ellipsis-pop { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
     .platform-pagination .page-ellipsis-pop .page-btn { width:100%; height:30px; font-size:.74rem; }
     .platform-pagination .page-size-select { margin-right:.55rem; }
     .platform-pagination .page-info { font-size:.74rem; white-space:nowrap; flex-shrink:0; }
@@ -1104,10 +1104,9 @@
           nums.forEach((n) => {
             if (n === "...") {
               const wrap = document.createElement("span"); wrap.className = "page-ellipsis-wrap";
-              const dots = document.createElement("button"); dots.type = "button"; dots.className = "page-ellipsis"; dots.textContent = "···";
+              const dots = document.createElement("span"); dots.className = "page-ellipsis"; dots.textContent = "···";
+              dots.tabIndex = 0;
               dots.setAttribute("aria-label", "展开页码列表");
-              dots.setAttribute("aria-haspopup", "true");
-              dots.setAttribute("aria-expanded", "false");
               const pop = document.createElement("div"); pop.className = "page-ellipsis-pop";
               const start = nums.indexOf(n) === 0 ? 3 : nums[nums.indexOf(n) - 1] + 1;
               const end = nums.indexOf(n) === nums.length - 1 ? totalPages : nums[nums.indexOf(n) + 1] - 1;
@@ -1117,19 +1116,6 @@
                 pop.append(btn);
               }
               wrap.append(dots); wrap.append(pop); right.append(wrap);
-              dots.addEventListener("click", (event) => {
-                event.stopPropagation();
-                const opened = wrap.classList.contains("open");
-                document.querySelectorAll(".page-ellipsis-wrap.open").forEach((item) => {
-                  item.classList.remove("open");
-                  item.querySelector(".page-ellipsis")?.setAttribute("aria-expanded", "false");
-                });
-                if (!opened) {
-                  wrap.classList.add("open");
-                  dots.setAttribute("aria-expanded", "true");
-                  requestAnimationFrame(() => pop.querySelector(".page-btn.active")?.scrollIntoView({ block: "nearest" }));
-                }
-              });
             } else {
               const btn = document.createElement("button"); btn.type = "button"; btn.className = "page-btn" + (n === state.page ? " active" : ""); btn.textContent = n;
               btn.addEventListener("click", () => { state.page = n; renderTable(); });
@@ -1489,22 +1475,6 @@
       $("saveEdit").addEventListener("click", saveEditor);
       $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
       document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("editorBackdrop").hidden) closeEditor(); });
-      document.addEventListener("click", (event) => {
-        if (!event.target.closest(".page-ellipsis-wrap")) {
-          document.querySelectorAll(".page-ellipsis-wrap.open").forEach((item) => {
-            item.classList.remove("open");
-            item.querySelector(".page-ellipsis")?.setAttribute("aria-expanded", "false");
-          });
-        }
-      });
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          document.querySelectorAll(".page-ellipsis-wrap.open").forEach((item) => {
-            item.classList.remove("open");
-            item.querySelector(".page-ellipsis")?.setAttribute("aria-expanded", "false");
-          });
-        }
-      });
       window.addEventListener("message", (event) => {
         if (event.data?.type === "na-platform-edit-result") {
           const ok = event.data.status === "success";
