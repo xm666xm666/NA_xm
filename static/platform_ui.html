@@ -39,7 +39,7 @@
     .platform-table-wrap { overflow:auto; max-height:calc(100vh - 360px); min-height:260px; border:1px solid var(--na-border); border-radius:10px; }
     .platform-table { width:100%; border-collapse:collapse; font-size:.8rem; }
     .platform-pagination { display:flex; align-items:center; gap:.55rem; flex-wrap:nowrap; padding:.65rem 0 .3rem; font-size:.78rem; color:var(--na-text-muted); overflow-x:visible; }
-    .platform-pagination .page-right { display:flex; align-items:center; gap:.2rem; margin-left:auto; flex-shrink:0; }
+    .platform-pagination .page-right { display:flex; align-items:center; gap:.28rem; margin-left:auto; flex-shrink:0; }
     .platform-pagination .page-btn {
       min-width:32px; height:32px; padding:0 .5rem; border:1px solid transparent; border-radius:8px;
       background:transparent; color:var(--na-text-muted); font:650 .78rem/1 inherit;
@@ -64,7 +64,6 @@
     .platform-pagination .page-ellipsis-wrap { position:relative; display:inline-flex; }
     .platform-pagination .page-ellipsis-wrap:hover .page-ellipsis-pop, .platform-pagination .page-ellipsis-wrap:focus-within .page-ellipsis-pop { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
     .platform-pagination .page-ellipsis-pop .page-btn { width:100%; height:30px; font-size:.74rem; }
-    .platform-pagination .page-size-select { margin-right:.55rem; }
     .platform-pagination .page-info { font-size:.74rem; white-space:nowrap; flex-shrink:0; }
     .platform-table th, .platform-table td { padding:.68rem .75rem; text-align:left; border-bottom:1px solid var(--na-border); white-space:nowrap; }
     .platform-table th { position:sticky; top:0; z-index:1; background:var(--na-panel-solid,#101827); color:var(--na-text-muted); font-size:.7rem; letter-spacing:.035em; }
@@ -438,7 +437,10 @@
     .platform-pagination .page-size-select {
       appearance: none;
       -webkit-appearance: none;
-      min-width: 82px;
+      width: 88px;
+      flex: 0 0 auto;
+      height: 32px;
+      box-sizing: border-box;
       padding: 0.44rem 1.7rem 0.44rem 0.9rem;
       border: 1px solid var(--na-border);
       border-radius: 999px;
@@ -1094,7 +1096,6 @@
           opt.selected = val === state.pageSize; select.append(opt);
         });
         select.addEventListener("change", () => { state.pageSize = Number(select.value); state.page = 1; renderTable(); });
-        bar.append(select);
         if (totalPages > 1) {
           const prev = document.createElement("button"); prev.className = "page-btn"; prev.textContent = "‹";
           prev.disabled = state.page <= 1;
@@ -1127,6 +1128,7 @@
           next.addEventListener("click", () => { if (state.page < totalPages) { state.page++; renderTable(); } });
           right.append(next);
         }
+        right.append(select);
 
       }
       function renderTable() {
