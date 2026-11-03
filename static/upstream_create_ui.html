@@ -68,6 +68,29 @@
       line-height: 1.65;
       color: var(--na-text-muted);
     }
+    .mode-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: .28rem;
+      margin-right: .65rem;
+    }
+    .mode-btn {
+      border: 1px solid var(--na-border);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--na-panel-solid) 72%, transparent);
+      color: var(--na-text-muted);
+      font: 650 .72rem/1 var(--na-font-body);
+      padding: .34rem .68rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color .18s ease, background .18s ease, color .18s ease;
+    }
+    .mode-btn:hover { color: var(--na-text); border-color: var(--na-border-bright); }
+    .mode-btn.active {
+      color: var(--na-accent);
+      border-color: color-mix(in srgb, var(--na-accent) 45%, transparent);
+      background: var(--na-accent-soft);
+    }
     .creation-stack {
       display: grid;
       grid-template-columns: 1fr;
@@ -554,7 +577,6 @@
     #projectDetail.endpoint-info .api-key-block,
     #projectDetail.api-key-only .detail-grid,
     #projectDetail.api-key-only > .table-wrap,
-    #projectDetail.api-key-only > .na-card-head .actions,
     .api-key-only #endpointTableWrap { display: none; }
     @media (max-width: 1160px) {
       .detail-grid { grid-template-columns: 1fr; }
@@ -698,6 +720,11 @@
       <div class="na-card-head">
         <div><h2 class="na-card-title"><span id="detailModeTitle">推理接入点</span> · <span id="selectedProject"></span></h2><p class="na-card-desc" id="detailModeDesc">点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。</p></div>
         <div class="actions">
+          <div class="mode-switch" aria-label="当前项目功能区切换">
+            <button type="button" class="mode-btn active" data-detail-mode="model">创建接入点</button>
+            <button type="button" class="mode-btn" data-detail-mode="api-keys">API Key</button>
+            <button type="button" class="mode-btn" data-detail-mode="endpoint-info">接入点信息</button>
+          </div>
           <button id="btnChangeProject" class="na-btn na-btn-secondary" type="button">切换项目</button>
           <button id="btnLoadEndpoints" class="na-btn na-btn-ghost" type="button">刷新接入点</button>
         </div>
@@ -829,6 +856,7 @@
     let editingApiKey = "";
     let selectedModelGroup = "";
     let selectedProject = "";
+    let currentDetailMode = "model";
     let editingProject = "";
     let projectCreatedSort = "desc";
     let projectPage = 1;
@@ -1137,6 +1165,7 @@
       const apiKeyMode = mode === "api-keys";
       const endpointInfoMode = mode === "endpoint-info";
       const modelMode = mode === "model";
+      currentDetailMode = modelMode ? "model" : apiKeyMode ? "api-keys" : endpointInfoMode ? "endpoint-info" : currentDetailMode;
       $("projectDetail").classList.remove("model-only", "endpoint-info", "api-key-only");
       if (modelMode) $("projectDetail").classList.add("model-only");
       if (endpointInfoMode) $("projectDetail").classList.add("endpoint-info");
@@ -1147,7 +1176,26 @@
         : endpointInfoMode
           ? "查看并编辑当前项目的推理接入点，停止后才能删除。"
           : "点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。";
-      $("btnLoadEndpoints").hidden = apiKeyMode;
+      $("btnLoadEndpoints").hidden = !endpointInfoMode;
+      document.querySelectorAll("#projectDetail [data-detail-mode]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.detailMode === currentDetailMode);
+      });
+    }
+
+    async function switchProjectDetailMode(mode) {
+      if (!selectedProject || mode === currentDetailMode) return;
+      const buttons = [...document.querySelectorAll("#projectDetail [data-detail-mode]")];
+      buttons.forEach((button) => { button.disabled = true; });
+      try {
+        setProjectDetailMode(mode);
+        if (mode === "api-keys") {
+          await loadApiKeys();
+        } else if (mode === "endpoint-info") {
+          await loadEndpoints();
+        }
+      } finally {
+        buttons.forEach((button) => { button.disabled = false; });
+      }
     }
 
     async function selectProject(name, mode = "model") {
@@ -1624,6 +1672,11 @@
       $("projectManager").hidden = false;
       renderProjects();
       $("projectManager").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    $("projectDetail").addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-detail-mode]");
+      if (!button) return;
+      await switchProjectDetailMode(button.dataset.detailMode);
     });
     async function manageProjectApiKeys(name) {
       await selectProject(name, "api-keys");
