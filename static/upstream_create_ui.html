@@ -1065,7 +1065,7 @@
           <td>${esc(p.owner || "N/A")}</td>
           <td>${esc(p.parent_project_name || "-")}</td>
           <td class="wrap" title="${esc(p.description)}">${esc(p.description || "-")}</td>
-          <td>${esc(p.create_date || "-")}</td>
+          <td>${esc(formatDateTime(p.create_date))}</td>
           <td><div class="row-actions">
             <button type="button" class="primary" data-select="${esc(p.project_name)}">创建</button>
             <button type="button" class="primary" data-view-endpoints="${esc(p.project_name)}">接入点信息</button>
@@ -1312,7 +1312,7 @@
       $("endpointRows").innerHTML = rows.length ? rows.map((row) => `
         <tr><td class="wrap">${esc(row.name)}</td><td class="wrap">${esc(row.id)}</td>
         <td>${esc(row.model_service || "-")}</td><td>${statusPill(row.status)}</td>
-        <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(row.create_time || "-")}</td>
+        <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(formatDateTime(row.create_time))}</td>
         <td><div class="row-actions">
           <button type="button" class="primary" data-edit-endpoint="${esc(row.id)}" ${pendingEndpointOperations.has(row.id) ? "disabled" : ""}>编辑信息</button>
           ${(() => {
@@ -1347,10 +1347,8 @@
       if (!raw) return "--";
       const date = new Date(raw);
       if (Number.isNaN(date.getTime())) return raw;
-      return date.toLocaleString("zh-CN", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
-      });
+      const pad = (value) => String(value).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     }
 
     function renderApiKeys() {
