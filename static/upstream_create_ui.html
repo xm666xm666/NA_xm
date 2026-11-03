@@ -1208,6 +1208,13 @@
     }
 
     async function selectModel(modelName) {
+      $("versionPanel").hidden = true;
+      $("versionRows").innerHTML = "";
+      $("versionModelName").textContent = "";
+      $("endpointModel").value = "";
+      $("endpointVersion").value = "";
+      $("endpointName").value = "";
+      $("endpointDescription").value = "";
       await loadVersions(modelName);
     }
 
@@ -1248,7 +1255,7 @@
       $("endpointModel").value = modelName;
       $("endpointVersion").value = version;
       $("endpointName").value = `${modelName}-${version}`.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
-      if (!$("endpointDescription").value.trim()) $("endpointDescription").value = model?.display_name || "";
+      $("endpointDescription").value = model?.display_name || "";
       NAUi.toast(`已选择 ${modelName}｜${version}`, "ok");
     }
 
