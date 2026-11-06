@@ -1367,8 +1367,6 @@ def analyze_overview_workbook(
                     )
                 )
 
-    _fill_action_token_names(actions, tokens_by_env)
-
     if include_activity:
         existing_channels = {
             (str(row.get("站点") or "").strip(), str(row.get("渠道名称") or "").strip())
@@ -1412,6 +1410,8 @@ def analyze_overview_workbook(
                     )
                 )
                 existing_channels.add((env, name))
+
+    _fill_action_token_names(actions, tokens_by_env)
 
     actions, disabled_actions = partition_disabled_actions(actions, tokens_by_env)
     disable_rows = build_batch_disable_rows(actions, tokens_by_env, channels_by_env)

@@ -218,10 +218,12 @@
         <select id="fltLevel" class="na-select" aria-label="级别"><option value="">全部级别</option><option>高</option><option>中</option><option>低</option></select>
         <select id="fltSite" class="na-select" aria-label="站点"><option value="">全部站点</option></select>
         <select id="fltCategory" class="na-select" aria-label="类别"><option value="">全部类别</option></select>
+        <input id="fltProblem" class="na-input" type="search" placeholder="问题筛选，如：近一月" aria-label="问题关键词" />
         <select id="fltStatus" class="na-select" aria-label="状态"><option value="open">仅未处理</option><option value="held">宽限期</option><option value="all">全部</option></select>
         <label class="na-check"><input type="checkbox" id="forceHold" /> 仍要执行宽限期项</label>
         <button type="button" class="na-btn na-btn-ghost" id="btnActionSelectAll">全选</button>
         <button type="button" class="na-btn na-btn-ghost" id="btnActionInvert">反选</button>
+        <button type="button" class="na-btn na-btn-secondary" id="btnPreviewFiltered">按筛选预禁用</button>
         <button type="button" class="na-btn na-btn-primary" id="btnPreviewDisable">按勾选预禁用</button>
       </div>
       <div class="na-hygiene-table-wrap">
@@ -371,15 +373,17 @@
       return "";
     }
 
-    function filteredActions() {
+    function filteredActions(rows = hygienePayload.actions || []) {
       const level = $("fltLevel").value;
       const site = $("fltSite").value;
       const category = $("fltCategory").value;
+      const problem = $("fltProblem").value.trim().toLowerCase();
       const status = $("fltStatus").value;
-      return (hygienePayload.actions || []).filter((row) => {
+      return rows.filter((row) => {
         if (level && String(row["级别"] || "") !== level) return false;
         if (site && String(row["站点"] || "") !== site) return false;
         if (category && String(row["类别"] || "") !== category) return false;
+        if (problem && !String(row["问题"] || "").toLowerCase().includes(problem)) return false;
         if (status === "open" && row.status !== "open") return false;
         if (status === "held" && row.status !== "held") return false;
         return true;
@@ -430,7 +434,7 @@
       if (cur && sites.includes(cur)) siteSel.value = cur;
       if (curCat && cats.includes(curCat)) catSel.value = curCat;
       renderActionRows("actionsTable", filteredActions(), true);
-      renderActionRows("disabledTable", hygienePayload.disabled_actions || [], false);
+      renderActionRows("disabledTable", filteredActions(hygienePayload.disabled_actions || []), false);
       const open = hygienePayload.open_count ?? (hygienePayload.actions || []).filter((r) => r.status === "open").length;
       $("actionsHint").textContent = `${hygienePayload.filename || ""} · 未处理 ${open} · 宽限 ${hygienePayload.hold_count || 0} · 高优先级 ${hygienePayload.pending_high || 0}`;
     }
@@ -484,6 +488,14 @@
       return [...document.querySelectorAll("#actionsTable .act-check:checked")].map((el) => el.value);
     }
 
+    function filteredPreviewableKeys() {
+      const forceHold = $("forceHold").checked;
+      return filteredActions()
+        .filter((row) => row.status !== "done" && (!row.hold || forceHold))
+        .map((row) => row.key)
+        .filter(Boolean);
+    }
+
     function enabledActionChecks() {
       return [...document.querySelectorAll("#actionsTable .act-check")].filter((el) => !el.disabled);
     }
@@ -513,6 +525,20 @@
       const data = await resp.json();
       if (!resp.ok || !data.success) throw new Error(data.message || `HTTP ${resp.status}`);
       return data;
+    }
+
+    async function previewActions(file, keys) {
+      const resp = await fetch("/api/hygiene/preview-disable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file, keys, force_hold: $("forceHold").checked }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+      pendingDisable = { keys, force_hold: $("forceHold").checked, file, dryOk: false };
+      $("disableConfirm").disabled = true;
+      renderDisablePreview(data.data || {});
+      $("disableModal").hidden = false;
     }
 
     function openLog() {
@@ -1160,7 +1186,7 @@
       }
     });
 
-    ["fltLevel", "fltSite", "fltCategory", "fltStatus", "forceHold"].forEach((id) => {
+    ["fltLevel", "fltSite", "fltCategory", "fltProblem", "fltStatus", "forceHold"].forEach((id) => {
       $(id).addEventListener("change", renderHygieneTables);
     });
     $("selAnalysis").addEventListener("change", () => {
@@ -1241,6 +1267,20 @@
       }
       boxes.forEach((el) => { el.checked = !el.checked; });
     });
+    $("btnPreviewFiltered").addEventListener("click", async () => {
+      const file = selectedFile("selAnalysis");
+      const keys = filteredPreviewableKeys();
+      if (!file) {
+        NAUi.showBanner("userBanner", "请选择分析表", "warn");
+        return;
+      }
+      if (!keys.length) {
+        NAUi.showBanner("userBanner", "当前筛选下没有可禁用建议", "warn");
+        return;
+      }
+      try { await previewActions(file, keys); }
+      catch (e) { NAUi.showBanner("userBanner", e.message || String(e), "err"); }
+    });
     $("btnPreviewDisable").addEventListener("click", async () => {
       const file = selectedFile("selAnalysis");
       const keys = selectedActionKeys();
@@ -1253,17 +1293,7 @@
         return;
       }
       try {
-        const resp = await fetch("/api/hygiene/preview-disable", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file, keys, force_hold: $("forceHold").checked }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
-        pendingDisable = { keys, force_hold: $("forceHold").checked, file, dryOk: false };
-        $("disableConfirm").disabled = true;
-        renderDisablePreview(data.data || {});
-        $("disableModal").hidden = false;
+        await previewActions(file, keys);
       } catch (e) {
         NAUi.showBanner("userBanner", e.message || String(e), "err");
       }

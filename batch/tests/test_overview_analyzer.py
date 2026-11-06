@@ -609,7 +609,18 @@ class OverviewAnalyzerTests(unittest.TestCase):
                     "uat": [],
                     "prod": [],
                 },
-                token_env_rows={"test": [], "uat": [], "prod": []},
+                token_env_rows={
+                    "test": [
+                        {
+                            "名称": "idle-token",
+                            "分组": "g",
+                            "包含渠道": "idle-month",
+                            "状态": "已启用",
+                        }
+                    ],
+                    "uat": [],
+                    "prod": [],
+                },
                 channel_headers=CHANNEL_HEADERS_WITH_KEY,
             )
             save_overview_workbook(dest, gateway_path=dest, volc_rows=[], azure_rows=[])
@@ -632,6 +643,7 @@ class OverviewAnalyzerTests(unittest.TestCase):
             )
             self.assertEqual(action["级别"], "中")
             self.assertEqual(action["问题"], "近一月全部模型无活跃")
+            self.assertEqual(action["令牌名称"], "idle-token")
             self.assertEqual(payload["stats"]["activity_idle"], 1)
 
     def test_is_new_deploy_window(self):
