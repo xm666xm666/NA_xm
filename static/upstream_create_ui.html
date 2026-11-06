@@ -580,6 +580,17 @@
       outline: none; border-color: var(--na-border-bright);
       box-shadow: 0 0 0 3px var(--na-accent-soft);
     }
+    .rolling-form-grid > label > select {
+      width: 100%; box-sizing: border-box;
+      border: 1px solid var(--na-border); border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 78%, transparent);
+      color: var(--na-text); padding: .62rem .7rem;
+      font: 500 .82rem/1.45 var(--na-font-body);
+    }
+    .rolling-form-grid > label > select:focus {
+      outline: none; border-color: var(--na-border-bright);
+      box-shadow: 0 0 0 3px var(--na-accent-soft);
+    }
     .rolling-select-row {
       display: grid; grid-template-columns: minmax(0, 1fr) auto;
       gap: .55rem; align-items: center;
@@ -780,7 +791,10 @@
           <div class="rolling-form-grid">
             <label>旧模型<input id="rollingOldModel" value="deepseek-v4-pro" autocomplete="off" /></label>
             <label>旧版本<input id="rollingOldVersion" value="260425" autocomplete="off" /></label>
-            <label>目标模型<input id="rollingNewModel" placeholder="留空使用旧模型" autocomplete="off" /></label>
+            <label>
+              目标模型
+              <select id="rollingNewModel"><option value="">加载模型</option></select>
+            </label>
             <label>
               目标版本
               <div class="rolling-select-row">
@@ -789,7 +803,7 @@
               </div>
             </label>
           </div>
-          <p class="hint">目标版本自动拉取火山模型目录，只列出 Available 状态；默认选择最新可用版本，可手动更换。</p>
+          <p class="hint">目标模型来自创建页已出现的模型；选择模型后自动联动版本，只列出 Available 状态，可切换不同模型和版本。</p>
           <div id="rollingSummary" class="rolling-summary" hidden></div>
           <div class="table-wrap rolling-table">
             <table class="creation-table">
@@ -951,6 +965,7 @@
     let projectPage = 1;
     let projectPageSize = 20;
     let rollingUpgradeCandidates = 0;
+    let rollingModels = [];
 
     function addLog(msg, cls = "") {
       const box = $("projectLog");
@@ -1273,15 +1288,81 @@
       }).join("");
     }
 
+    function renderRollingModelOptions(preferredModel = "") {
+      const select = $("rollingNewModel");
+      const modelMap = new Map(rollingModels.map((model) => [model.name, model]));
+      const groups = [
+        { key: "字节跳动", label: "字节跳动" },
+        { key: "深度求索", label: "深度求索" },
+        { key: "通义千问", label: "通义千问" },
+        { key: "其他", label: "其他" },
+      ];
+      const grouped = groups.map(({ key, label }) => ({
+        key,
+        label,
+        models: rollingModels.filter((model) => modelGroup(model) === key),
+      })).filter((group) => group.models.length);
+      select.innerHTML = '<option value="">选择模型</option>';
+      grouped.forEach((group) => {
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = group.label;
+        group.models.forEach((model) => {
+          const option = document.createElement("option");
+          option.value = model.name;
+          option.textContent = model.display_name && model.display_name !== model.name
+            ? `${model.name} · ${model.display_name}`
+            : model.name;
+          optgroup.appendChild(option);
+        });
+        select.appendChild(optgroup);
+      });
+      const selected = preferredModel && modelMap.has(preferredModel)
+        ? preferredModel
+        : select.value;
+      select.value = modelMap.has(selected) ? selected : "";
+    }
+
+    async function loadRollingModels({ silent = false } = {}) {
+      try {
+        const data = await requestJson("/api/upstream-create/volc/models/enabled", {
+          method: "POST",
+          body: credPayload(),
+        });
+        rollingModels = data.data?.items || [];
+        const oldModel = $("rollingOldModel").value.trim();
+        const matchedOldModel = rollingModels.find((model) => model.name.toLowerCase() === oldModel.toLowerCase());
+        renderRollingModelOptions(matchedOldModel?.name || "");
+        if (!rollingModels.length) {
+          $("rollingNewVersion").innerHTML = '<option value="">无可用模型</option>';
+          if (!silent) NAUi.showBanner("userBanner", "没有可用的目标模型", "err");
+          return;
+        }
+        if ($("rollingNewModel").value) await loadRollingVersions({ silent });
+      } catch (e) {
+        rollingModels = [];
+        renderRollingModelOptions();
+        $("rollingNewVersion").innerHTML = '<option value="">拉取失败</option>';
+        if (!silent) NAUi.showBanner("userBanner", e.message, "err");
+      }
+    }
+
     async function loadRollingVersions({ silent = false } = {}) {
-      const oldModel = $("rollingOldModel").value.trim();
-      const newModel = $("rollingNewModel").value.trim();
-      const sourceModel = newModel || oldModel;
+      const sourceModel = $("rollingNewModel").value.trim();
       const select = $("rollingNewVersion");
       const button = $("btnPullRollingVersions");
       if (!sourceModel) {
-        select.innerHTML = '<option value="">先填写模型</option>';
-        if (!silent) NAUi.showBanner("userBanner", "请填写旧模型或目标模型", "warn");
+        select.innerHTML = '<option value="">先选择模型</option>';
+        if (!silent) NAUi.showBanner("userBanner", "请选择目标模型", "warn");
+        return;
+      }
+      const model = rollingModels.find((item) => item.name === sourceModel);
+      if (model?.versions?.length) {
+        const versions = model.versions.filter((version) => version.model_version);
+        select.innerHTML = versions.map((version) => {
+          const label = [version.model_version, version.display_name].filter(Boolean).join(" · ");
+          return `<option value="${esc(version.model_version)}">${esc(label)}</option>`;
+        }).join("");
+        select.value = versions[0]?.model_version || "";
         return;
       }
       const originalText = button.textContent;
@@ -1384,14 +1465,15 @@
       rollingUpgradeCandidates = 0;
       $("rollingOldModel").value = "deepseek-v4-pro";
       $("rollingOldVersion").value = "260425";
-      $("rollingNewModel").value = "";
+      rollingModels = [];
+      $("rollingNewModel").innerHTML = '<option value="">加载模型</option>';
       $("rollingNewVersion").innerHTML = '<option value="">自动拉取</option>';
       $("rollingSummary").hidden = true;
       $("rollingRows").innerHTML = '<tr><td colspan="5">先扫描，再确认执行。</td></tr>';
       $("btnSubmitRollingUpgrade").disabled = true;
       $("btnSubmitRollingUpgrade").textContent = "确认执行";
       $("rollingUpgradeOverlay").hidden = false;
-      loadRollingVersions({ silent: true });
+      loadRollingModels({ silent: true });
     }
 
     function setProjectDetailMode(mode) {
@@ -2041,6 +2123,10 @@
     });
     $("btnRollingUpgrade").addEventListener("click", openRollingUpgrade);
     $("btnCancelRollingUpgrade").addEventListener("click", () => $("rollingUpgradeOverlay").hidden = true);
+    $("rollingNewModel").addEventListener("change", () => {
+      $("rollingNewVersion").innerHTML = '<option value="">加载版本</option>';
+      loadRollingVersions({ silent: true });
+    });
     $("btnPullRollingVersions").addEventListener("click", () => loadRollingVersions());
     $("btnScanRollingUpgrade").addEventListener("click", () => runRollingUpgrade(true));
     $("btnSubmitRollingUpgrade").addEventListener("click", () => runRollingUpgrade(false));
