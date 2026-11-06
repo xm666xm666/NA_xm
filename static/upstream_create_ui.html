@@ -1378,8 +1378,11 @@
         return;
       }
       const model = rollingModels.find((item) => item.name === sourceModel);
-      if (model?.versions?.length) {
-        const versions = model.versions.filter((version) => version.model_version);
+      const catalogVersions = (model?.versions || []).filter((version) => version.model_version);
+      if (catalogVersions.length || model?.primary_version) {
+        const versions = catalogVersions.length
+          ? catalogVersions
+          : [{ model_version: model.primary_version, display_name: "默认版本", state: "Available" }];
         select.innerHTML = versions.map((version) => {
           const label = [version.model_version, version.display_name].filter(Boolean).join(" · ");
           return `<option value="${esc(version.model_version)}">${esc(label)}</option>`;
@@ -1407,7 +1410,15 @@
           .filter((version) => version.model_version)
           .sort((left, right) => String(right.model_version).localeCompare(String(left.model_version), undefined, { numeric: true, sensitivity: "base" }));
         if (!versions.length) {
-          select.innerHTML = '<option value="">无可用版本</option>';
+          const fallbackVersion = model?.primary_version;
+          if (fallbackVersion) {
+            select.innerHTML = `<option value="${esc(fallbackVersion)}">${esc(fallbackVersion)} · 默认版本</option>`;
+            select.value = fallbackVersion;
+            updateRollingScanAvailability();
+            if (!silent) NAUi.showBanner("userBanner", `模型版本目录为空，已使用默认版本 ${fallbackVersion}`, "warn");
+            return;
+          }
+          select.innerHTML = '<option value="">无可用版本，无法切换</option>';
           updateRollingScanAvailability();
           if (!silent) NAUi.showBanner("userBanner", "火山模型目录没有可用版本", "err");
           return;
