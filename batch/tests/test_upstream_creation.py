@@ -352,6 +352,38 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(old["projects"], ["AIOps"])
         self.assertEqual(old["tags"], ["即将下线"])
 
+    def test_list_endpoints_adds_lifecycle_tag_from_model_version(self):
+        class LifecycleClient:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def list_foundation_models(self, **_kwargs):
+                return ([{
+                    "Name": "deepseek-v4-pro",
+                    "FoundationModelVersions": [
+                        {"ModelVersion": "260425", "State": "Retiring"},
+                    ],
+                }], 1)
+
+            def list_endpoints(self, project_name: str, **_kwargs):
+                return [{
+                    "Id": "ep-1",
+                    "Name": "old-endpoint",
+                    "ProjectName": project_name,
+                    "Status": "Running",
+                    "ModelReference": {
+                        "FoundationModel": {"Name": "deepseek-v4-pro", "ModelVersion": "260425"}
+                    },
+                }]
+
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = LifecycleClient
+        try:
+            rows = upstream_creation.list_endpoints("ak", "sk", project_name="AIOps")
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertEqual(rows[0]["tags"], ["即将下线"])
+
     def test_endpoint_tags_hide_system_internal_tags(self):
         endpoint = normalize_endpoint({
             "Id": "ep-1",

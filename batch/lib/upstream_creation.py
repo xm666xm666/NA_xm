@@ -150,6 +150,46 @@ def _endpoint_tags(item: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(normalized_values))
 
 
+def _model_version_status_map(client: VolcOpenAPIClient) -> dict[tuple[str, str], str]:
+    statuses: dict[tuple[str, str], str] = {}
+    page = 1
+    while True:
+        try:
+            items, total = client.list_foundation_models(page_number=page, page_size=100)
+        except Exception:  # noqa: BLE001
+            break
+        for item in items:
+            model_name = str(item.get("Name") or "").strip()
+            versions = item.get("FoundationModelVersions") or item.get("Versions") or []
+            if not model_name or not isinstance(versions, list):
+                continue
+            for version in versions:
+                if not isinstance(version, dict):
+                    continue
+                version_name = str(version.get("ModelVersion") or version.get("Version") or "").strip()
+                state = str(version.get("State") or version.get("Status") or "").strip()
+                if model_name and version_name and state:
+                    statuses[(model_name.casefold(), version_name.casefold())] = state
+        if not items or page * 100 >= total:
+            break
+        page += 1
+        if page > 50:
+            break
+    return statuses
+
+
+def _merge_endpoint_lifecycle_tags(row: dict[str, Any], version_statuses: dict[tuple[str, str], str]) -> dict[str, Any]:
+    state = version_statuses.get((
+        str(row.get("model_name") or "").casefold(),
+        str(row.get("model_version") or "").casefold(),
+    ))
+    if state and re.search(r"retiring|deprecat|offline|eol|下线", state, re.IGNORECASE):
+        tags = row.setdefault("tags", [])
+        if "即将下线" not in tags:
+            tags.append("即将下线")
+    return row
+
+
 def normalize_endpoint(item: dict[str, Any]) -> dict[str, Any]:
     reference = item.get("ModelReference") or {}
     model = reference.get("FoundationModel") or {} if isinstance(reference, dict) else {}
@@ -498,7 +538,13 @@ def list_endpoints(
     if not name:
         raise ValueError("项目名称不能为空")
     client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
-    return [normalize_endpoint(item) for item in client.list_endpoints(name) if isinstance(item, dict)]
+    version_statuses = _model_version_status_map(client)
+    rows = [
+        normalize_endpoint(item)
+        for item in client.list_endpoints(name)
+        if isinstance(item, dict)
+    ]
+    return [_merge_endpoint_lifecycle_tags(row, version_statuses) for row in rows]
 
 
 def list_deployed_models(
@@ -519,11 +565,12 @@ def list_deployed_models(
         ]
 
     deployments: dict[tuple[str, str], dict[str, Any]] = {}
+    version_statuses = _model_version_status_map(client)
     for name in project_names:
         for item in client.list_endpoints(name):
             if not isinstance(item, dict):
                 continue
-            row = normalize_endpoint(item)
+            row = _merge_endpoint_lifecycle_tags(normalize_endpoint(item), version_statuses)
             model_name = row.get("model_name", "")
             model_version = row.get("model_version", "")
             if not model_name or not model_version:
