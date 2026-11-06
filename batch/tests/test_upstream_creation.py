@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from lib import upstream_creation
-from lib.upstream_creation import normalize_endpoint
+from lib.upstream_creation import list_deployed_models, normalize_endpoint
 from lib.volc_openapi import VolcOpenAPIError, VolcOpenAPIClient
 
 
@@ -335,6 +335,22 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(rows[0]["model_service"], "GLM-5.3-Flash｜260828")
         self.assertEqual(rows[1]["tags"], ["即将下线"])
         self.assertEqual(created["endpoint_id"], "ep-new")
+
+    def test_list_deployed_models_scopes_project_and_merges_tags(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            rows = list_deployed_models("ak", "sk", project_name="AIOps")
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertEqual(len(rows["items"]), 2)
+        self.assertEqual(rows["project_count"], 1)
+        old = next(row for row in rows["items"] if row["model_name"] == "deepseek-v4-pro")
+        self.assertEqual(old["model_version"], "260425")
+        self.assertEqual(old["endpoint_count"], 1)
+        self.assertEqual(old["projects"], ["AIOps"])
+        self.assertEqual(old["tags"], ["即将下线"])
 
     def test_endpoint_tags_hide_system_internal_tags(self):
         endpoint = normalize_endpoint({

@@ -817,8 +817,8 @@
         </div>
         <div class="na-modal-body">
           <div class="rolling-form-grid">
-            <label>旧模型<input id="rollingOldModel" value="deepseek-v4-pro" autocomplete="off" /></label>
-            <label>旧版本<input id="rollingOldVersion" value="260425" autocomplete="off" /></label>
+            <label>旧模型<select id="rollingOldModel"><option value="">加载已部署模型</option></select></label>
+            <label>旧版本<select id="rollingOldVersion"><option value="">先选旧模型</option></select></label>
             <label>
               目标模型
               <select id="rollingNewModel"><option value="">加载模型</option></select>
@@ -995,6 +995,7 @@
     let projectPageSize = 20;
     let rollingUpgradeCandidates = 0;
     let rollingModels = [];
+    let rollingDeployedModels = [];
     let rollingUpgradeProjectName = "";
 
     function addLog(msg, cls = "") {
@@ -1370,6 +1371,66 @@
       $("btnSubmitRollingUpgrade").textContent = "确认执行";
     }
 
+    function renderRollingOldModelOptions(preferredModel = "") {
+      const select = $("rollingOldModel");
+      const modelMap = new Map();
+      rollingDeployedModels.forEach((item) => {
+        const name = String(item.model_name || "").trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        const current = modelMap.get(key) || { name, endpoint_count: 0 };
+        current.endpoint_count += Number(item.endpoint_count || 0);
+        modelMap.set(key, current);
+      });
+      const rows = [...modelMap.values()].sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" }));
+      select.innerHTML = rows.length
+        ? rows.map((row) => `<option value="${esc(row.name)}">${esc(row.name)} · ${row.endpoint_count} 个接入点</option>`).join("")
+        : '<option value="">无已部署模型</option>';
+      const selected = preferredModel && modelMap.has(preferredModel.toLowerCase())
+        ? preferredModel
+        : select.value || (rows.length === 1 ? rows[0].name : "");
+      select.value = modelMap.has(String(selected || "").toLowerCase()) ? selected : "";
+      renderRollingOldVersionOptions($("rollingOldVersion").value.trim());
+      updateRollingScanAvailability();
+    }
+
+    function renderRollingOldVersionOptions(preferredVersion = "") {
+      const select = $("rollingOldVersion");
+      const modelName = $("rollingOldModel").value.trim();
+      const rows = rollingDeployedModels
+        .filter((item) => String(item.model_name || "").toLowerCase() === modelName.toLowerCase())
+        .sort((left, right) => String(right.model_version).localeCompare(String(left.model_version), undefined, { numeric: true, sensitivity: "base" }));
+      select.innerHTML = rows.length
+        ? rows.map((row) => {
+          const labels = [row.model_version, ...row.tags || [], `${row.endpoint_count} 个接入点`].filter(Boolean);
+          return `<option value="${esc(row.model_version)}">${esc(labels.join(" · "))}</option>`;
+        }).join("")
+        : '<option value="">先选旧模型</option>';
+      const selected = preferredVersion && rows.some((row) => row.model_version === preferredVersion)
+        ? preferredVersion
+        : rows.length === 1 ? rows[0].model_version : "";
+      select.value = selected;
+      updateRollingScanAvailability();
+    }
+
+    async function loadRollingDeployedModels({ silent = false } = {}) {
+      try {
+        const data = await requestJson("/api/upstream-create/volc/endpoints/deployed-models", {
+          method: "POST",
+          body: { ...credPayload(), project_name: rollingUpgradeProjectName },
+        });
+        rollingDeployedModels = data.data?.items || [];
+        renderRollingOldModelOptions($("rollingOldModel").value.trim());
+        if (!rollingDeployedModels.length && !silent) {
+          NAUi.showBanner("userBanner", rollingUpgradeProjectName ? "当前项目没有已部署模型" : "全局没有已部署模型", "warn");
+        }
+      } catch (e) {
+        rollingDeployedModels = [];
+        renderRollingOldModelOptions();
+        if (!silent) NAUi.showBanner("userBanner", e.message, "err");
+      }
+    }
+
     async function loadRollingModels({ silent = false } = {}) {
       try {
         const data = await requestJson("/api/upstream-create/volc/models/enabled", {
@@ -1544,8 +1605,9 @@
       $("rollingUpgradeScope").textContent = rollingUpgradeProjectName
         ? `作用范围：仅当前项目 ${rollingUpgradeProjectName}`
         : "作用范围：全部项目";
-      $("rollingOldModel").value = "deepseek-v4-pro";
-      $("rollingOldVersion").value = "260425";
+      rollingDeployedModels = [];
+      $("rollingOldModel").innerHTML = '<option value="">加载已部署模型</option>';
+      $("rollingOldVersion").innerHTML = '<option value="">先选旧模型</option>';
       rollingModels = [];
       $("rollingNewModel").innerHTML = '<option value="">加载模型</option>';
       $("rollingNewVersion").innerHTML = '<option value="">自动拉取</option>';
@@ -1555,6 +1617,7 @@
       $("btnSubmitRollingUpgrade").textContent = "确认执行";
       updateRollingScanAvailability();
       $("rollingUpgradeOverlay").hidden = false;
+      loadRollingDeployedModels({ silent: true });
       loadRollingModels({ silent: true });
     }
 
@@ -2224,8 +2287,11 @@
       loadRollingVersions({ silent: true });
     });
     $("rollingNewVersion").addEventListener("change", updateRollingScanAvailability);
-    $("rollingOldModel").addEventListener("input", updateRollingScanAvailability);
-    $("rollingOldVersion").addEventListener("input", updateRollingScanAvailability);
+    $("rollingOldModel").addEventListener("change", () => {
+      renderRollingOldVersionOptions($("rollingOldVersion").value.trim());
+      updateRollingScanAvailability();
+    });
+    $("rollingOldVersion").addEventListener("change", updateRollingScanAvailability);
     $("btnPullRollingVersions").addEventListener("click", () => loadRollingVersions());
     $("btnScanRollingUpgrade").addEventListener("click", () => runRollingUpgrade(true));
     $("btnSubmitRollingUpgrade").addEventListener("click", () => runRollingUpgrade(false));

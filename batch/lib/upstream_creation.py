@@ -501,6 +501,57 @@ def list_endpoints(
     return [normalize_endpoint(item) for item in client.list_endpoints(name) if isinstance(item, dict)]
 
 
+def list_deployed_models(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    project_name: str = "",
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    if project_name:
+        project_names = [project_name]
+    else:
+        project_names = [
+            normalize_project(item)["project_name"]
+            for item in client.list_projects()
+            if isinstance(item, dict) and normalize_project(item)["project_name"]
+        ]
+
+    deployments: dict[tuple[str, str], dict[str, Any]] = {}
+    for name in project_names:
+        for item in client.list_endpoints(name):
+            if not isinstance(item, dict):
+                continue
+            row = normalize_endpoint(item)
+            model_name = row.get("model_name", "")
+            model_version = row.get("model_version", "")
+            if not model_name or not model_version:
+                continue
+            key = (model_name.casefold(), model_version.casefold())
+            deployment = deployments.setdefault(key, {
+                "model_name": model_name,
+                "model_version": model_version,
+                "endpoint_count": 0,
+                "projects": [],
+                "tags": [],
+            })
+            deployment["endpoint_count"] += 1
+            if name not in deployment["projects"]:
+                deployment["projects"].append(name)
+            for tag in row.get("tags", []):
+                if tag not in deployment["tags"]:
+                    deployment["tags"].append(tag)
+
+    items = sorted(
+        deployments.values(),
+        key=lambda row: (row["model_name"].casefold(), row["model_version"].casefold()),
+    )
+    for row in items:
+        row["projects"].sort(key=str.casefold)
+    return {"items": items, "project_count": len(project_names)}
+
+
 def list_api_keys(
     access_key_id: str,
     secret_access_key: str,
