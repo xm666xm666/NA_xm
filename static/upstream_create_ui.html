@@ -565,6 +565,37 @@
       display: flex; justify-content: flex-end; gap: .65rem; padding: 1rem 1.15rem 1.15rem;
       border-top: 1px solid color-mix(in srgb, var(--na-border) 70%, transparent);
     }
+    .rolling-modal { width: min(920px, 100%); }
+    .rolling-form-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem;
+    }
+    .rolling-form-grid input {
+      width: 100%; box-sizing: border-box;
+      border: 1px solid var(--na-border); border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 78%, transparent);
+      color: var(--na-text); padding: .62rem .75rem;
+      font: 500 .82rem/1.45 var(--na-font-body);
+    }
+    .rolling-form-grid input:focus {
+      outline: none; border-color: var(--na-border-bright);
+      box-shadow: 0 0 0 3px var(--na-accent-soft);
+    }
+    .rolling-summary {
+      border: 1px solid color-mix(in srgb, var(--na-accent) 28%, var(--na-border));
+      border-radius: .6rem; padding: .7rem .85rem;
+      background: color-mix(in srgb, var(--na-accent-soft) 35%, transparent);
+      font-size: .76rem; color: var(--na-text);
+    }
+    .rolling-table {
+      max-height: 300px; overflow: auto;
+      border: 1px solid color-mix(in srgb, var(--na-border) 75%, transparent);
+      border-radius: .7rem;
+    }
+    .rolling-row.updated { background: color-mix(in srgb, var(--na-ok, #16a34a) 8%, transparent); }
+    .rolling-row.failed { background: color-mix(in srgb, var(--na-danger, #dc2626) 8%, transparent); }
+    @media (max-width: 700px) {
+      .rolling-form-grid { grid-template-columns: 1fr; }
+    }
     @media (max-width: 900px) {
       .api-key-row { grid-template-columns: 1fr; align-items: stretch; }
       .api-key-actions { justify-content: flex-start; }
@@ -634,6 +665,7 @@
           <input id="projectSearch" placeholder="搜索项目 / 显示名称 / 备注" aria-label="搜索项目" />
           <button id="btnSearchProjects" class="na-btn na-btn-secondary" type="button">搜索</button>
           <button id="btnShowCreate" class="na-btn na-btn-primary" type="button">新建项目</button>
+          <button id="btnRollingUpgrade" class="na-btn na-btn-secondary" type="button">一键升级模型</button>
         </div>
       <div id="projectForm" hidden>
         <hr class="na-divider" />
@@ -714,6 +746,38 @@
         </div>
         <div id="projectLog" class="na-log" aria-live="polite"></div>
       </section>
+    </div>
+
+    <div id="rollingUpgradeOverlay" class="na-modal-overlay" hidden>
+      <div class="na-modal rolling-modal" role="dialog" aria-modal="true" aria-labelledby="rollingUpgradeTitle">
+        <div class="na-modal-head">
+          <div>
+            <h3 id="rollingUpgradeTitle">一键升级模型</h3>
+            <p>通过 CreateEndpointRolling 平滑切换，接入点 ID 保持不变。</p>
+          </div>
+          <button id="btnCancelRollingUpgrade" class="na-btn na-btn-ghost" type="button">关闭</button>
+        </div>
+        <div class="na-modal-body">
+          <div class="rolling-form-grid">
+            <label>旧模型<input id="rollingOldModel" value="deepseek-v4-pro" autocomplete="off" /></label>
+            <label>旧版本<input id="rollingOldVersion" value="260425" autocomplete="off" /></label>
+            <label>目标模型<input id="rollingNewModel" placeholder="例如 deepseek-v4-pro" autocomplete="off" /></label>
+            <label>目标版本<input id="rollingNewVersion" placeholder="目标版本必须确认后填写" autocomplete="off" /></label>
+          </div>
+          <p class="hint">目标版本以上游公告或控制台为准，系统不会自动猜测版本。</p>
+          <div id="rollingSummary" class="rolling-summary" hidden></div>
+          <div class="table-wrap rolling-table">
+            <table class="creation-table">
+              <thead><tr><th>项目</th><th>接入点</th><th>当前模型 / 版本</th><th>状态</th><th class="wrap">结果</th></tr></thead>
+              <tbody id="rollingRows"><tr><td colspan="5">先扫描，再确认执行。</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="na-modal-footer">
+          <button id="btnScanRollingUpgrade" class="na-btn na-btn-secondary" type="button">扫描可升级项</button>
+          <button id="btnSubmitRollingUpgrade" class="na-btn na-btn-primary" type="button" disabled>确认执行</button>
+        </div>
+      </div>
     </div>
 
     <section class="na-card na-animate-in" id="projectDetail" hidden>
@@ -861,6 +925,7 @@
     let projectCreatedSort = "desc";
     let projectPage = 1;
     let projectPageSize = 20;
+    let rollingUpgradeCandidates = 0;
 
     function addLog(msg, cls = "") {
       const box = $("projectLog");
@@ -1159,6 +1224,100 @@
         NAUi.showBanner("userBanner", "项目删除成功", "ok");
         await loadProjects();
       } catch (e) { NAUi.showBanner("userBanner", e.message, "err"); }
+    }
+
+    function renderRollingUpgrade(items) {
+      const rows = $("rollingRows");
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="5">未发现可升级接入点。</td></tr>';
+        return;
+      }
+      rows.innerHTML = items.map((item) => {
+        const actionLabels = { candidate: "可升级", updated: "已提交", skipped: "跳过", failed: "失败" };
+        const model = item.model_name
+          ? `${item.model_name} / ${item.model_version || "-"}`
+          : "-";
+        return `
+          <tr class="rolling-row ${esc(item.action)}">
+            <td class="wrap">${esc(item.project_name || "-")}</td>
+            <td class="wrap">${esc(item.endpoint_name || "-")}${item.endpoint_id ? `<small>${esc(item.endpoint_id)}</small>` : ""}</td>
+            <td class="wrap">${esc(model)}</td>
+            <td>${esc(item.endpoint_status || "-")}</td>
+            <td class="wrap">${esc(actionLabels[item.action] || item.action)}：${esc(item.message || "-")}</td>
+          </tr>`;
+      }).join("");
+    }
+
+    async function runRollingUpgrade(dryRun) {
+      const oldModel = $("rollingOldModel").value.trim();
+      const oldVersion = $("rollingOldVersion").value.trim();
+      const newModel = $("rollingNewModel").value.trim();
+      const newVersion = $("rollingNewVersion").value.trim();
+      if (!oldModel || !oldVersion || !newModel || !newVersion) {
+        NAUi.showBanner("userBanner", "请填写旧模型/版本和目标模型/版本", "warn");
+        return;
+      }
+      if (!dryRun) {
+        const confirmed = confirm(
+          `将对扫描通过的接入点提交平滑版本切换。\n当前任务约 1 小时，可回滚且接入点 ID 不变。\n目标：${newModel} / ${newVersion}`
+        );
+        if (!confirmed) return;
+      }
+      const scanButton = $("btnScanRollingUpgrade");
+      const submitButton = $("btnSubmitRollingUpgrade");
+      const button = dryRun ? scanButton : submitButton;
+      const originalText = button.textContent;
+      let submitted = false;
+      button.disabled = true;
+      button.textContent = dryRun ? "扫描中" : "提交中";
+      try {
+        const result = await requestJson("/api/upstream-create/volc/endpoints/rolling-update-all", {
+          method: "POST",
+          body: {
+            ...credPayload(),
+            old_model_name: oldModel,
+            old_model_version: oldVersion,
+            new_model_name: newModel,
+            new_model_version: newVersion,
+            dry_run: dryRun,
+          },
+        });
+        const data = result.data || {};
+        const items = data.items || [];
+        rollingUpgradeCandidates = Number(data.candidate_total || 0);
+        renderRollingUpgrade(items);
+        const summary = $("rollingSummary");
+        summary.hidden = false;
+        summary.textContent = data.dry_run
+          ? `扫描 ${data.project_total || 0} 个项目，候选 ${rollingUpgradeCandidates} 个，跳过 ${data.skipped_total || 0} 个，失败 ${data.failed_total || 0} 个。`
+          : `已提交 ${data.updated_total || 0} 个滚动切换，跳过 ${data.skipped_total || 0} 个，失败 ${data.failed_total || 0} 个。`;
+        NAUi.showBanner("userBanner", result.message, data.failed_total ? "warn" : "ok");
+        submitButton.disabled = !dryRun || !rollingUpgradeCandidates;
+        if (!dryRun) {
+          submitButton.textContent = "已提交";
+          submitted = true;
+        }
+      } catch (e) {
+        NAUi.showBanner("userBanner", e.message, "err");
+      } finally {
+        if (dryRun || !submitted) {
+          button.textContent = originalText;
+          button.disabled = false;
+        }
+      }
+    }
+
+    function openRollingUpgrade() {
+      rollingUpgradeCandidates = 0;
+      $("rollingOldModel").value = "deepseek-v4-pro";
+      $("rollingOldVersion").value = "260425";
+      $("rollingNewModel").value = "";
+      $("rollingNewVersion").value = "";
+      $("rollingSummary").hidden = true;
+      $("rollingRows").innerHTML = '<tr><td colspan="5">先扫描，再确认执行。</td></tr>';
+      $("btnSubmitRollingUpgrade").disabled = true;
+      $("btnSubmitRollingUpgrade").textContent = "确认执行";
+      $("rollingUpgradeOverlay").hidden = false;
     }
 
     function setProjectDetailMode(mode) {
@@ -1806,6 +1965,10 @@
       if (btn.dataset.edit) { const p = projects.find((x) => x.project_name === btn.dataset.edit); if (p) openEditForm(p); }
       if (btn.dataset.delete) await deleteProject(btn.dataset.delete);
     });
+    $("btnRollingUpgrade").addEventListener("click", openRollingUpgrade);
+    $("btnCancelRollingUpgrade").addEventListener("click", () => $("rollingUpgradeOverlay").hidden = true);
+    $("btnScanRollingUpgrade").addEventListener("click", () => runRollingUpgrade(true));
+    $("btnSubmitRollingUpgrade").addEventListener("click", () => runRollingUpgrade(false));
     $("modelGroups").addEventListener("click", (event) => {
       const btn = event.target.closest("button"); if (!btn?.dataset.group) return;
       selectedModelGroup = btn.dataset.group;

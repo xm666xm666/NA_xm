@@ -294,6 +294,53 @@ class VolcOpenAPIClient:
             page += 1
         return items
 
+    def get_endpoint(self, endpoint_id: str) -> dict[str, Any]:
+        value = str(endpoint_id or "").strip()
+        if not value:
+            raise ValueError("接入点 ID 不能为空")
+        return self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="GetEndpoint",
+            version="2024-01-01",
+            body={"Id": value},
+        )
+
+    def create_endpoint_rolling(
+        self,
+        *,
+        endpoint_id: str,
+        model_name: str,
+        model_version: str,
+        description: str = "",
+    ) -> dict[str, Any]:
+        value = str(endpoint_id or "").strip()
+        model = str(model_name or "").strip()
+        version = str(model_version or "").strip()
+        if not value:
+            raise ValueError("接入点 ID 不能为空")
+        if not model:
+            raise ValueError("目标模型名称不能为空")
+        if not version:
+            raise ValueError("目标模型版本不能为空")
+        body: dict[str, Any] = {
+            "EndpointId": value,
+            "ModelReference": {
+                "FoundationModel": {"Name": model, "ModelVersion": version}
+            },
+        }
+        if description:
+            body["Description"] = str(description).strip()
+        return self.request(
+            method="POST",
+            host=ARK_HOST,
+            service="ark",
+            action="CreateEndpointRolling",
+            version="2024-01-01",
+            body=body,
+        )
+
     def list_api_keys(self, project_name: str, *, page_size: int = 50) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         page = 1

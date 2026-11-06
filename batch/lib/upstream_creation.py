@@ -124,6 +124,8 @@ def normalize_endpoint(item: dict[str, Any]) -> dict[str, Any]:
         "description": str(item.get("Description") or "").strip(),
         "create_time": str(item.get("CreateTime") or "").strip(),
         "update_time": str(item.get("UpdateTime") or "").strip(),
+        "support_rolling": bool(item.get("SupportRolling")),
+        "rolling_id": str(item.get("RollingId") or "").strip(),
     }
 
 
@@ -721,3 +723,179 @@ def delete_endpoint(
     client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
     client.delete_endpoint(endpoint_id=str(endpoint_id).strip())
     return {"id": str(endpoint_id).strip(), "deleted": True}
+
+
+def _rolling_endpoint_result(
+    *,
+    project_name: str,
+    row: dict[str, Any],
+    status: str,
+    message: str,
+) -> dict[str, Any]:
+    return {
+        "project_name": project_name,
+        "endpoint_id": row.get("id", ""),
+        "endpoint_name": row.get("name", ""),
+        "model_name": row.get("model_name", ""),
+        "model_version": row.get("model_version", ""),
+        "endpoint_status": row.get("status", ""),
+        "support_rolling": bool(row.get("support_rolling")),
+        "rolling_id": row.get("rolling_id", ""),
+        "action": status,
+        "message": message,
+    }
+
+
+def rolling_update_all_endpoints(
+    access_key_id: str,
+    secret_access_key: str,
+    *,
+    old_model_name: str,
+    old_model_version: str,
+    new_model_name: str,
+    new_model_version: str,
+    project_names: list[str] | None = None,
+    dry_run: bool = True,
+    region: str = "cn-beijing",
+) -> dict[str, Any]:
+    old_name = str(old_model_name or "").strip()
+    old_version = str(old_model_version or "").strip()
+    target_name = str(new_model_name or "").strip()
+    target_version = str(new_model_version or "").strip()
+    if not old_name:
+        raise ValueError("旧模型名称不能为空")
+    if not old_version:
+        raise ValueError("旧模型版本不能为空")
+    if not target_name:
+        raise ValueError("目标模型名称不能为空")
+    if not target_version:
+        raise ValueError("目标模型版本不能为空")
+
+    client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
+    all_projects = [
+        normalize_project(item)
+        for item in client.list_projects()
+        if isinstance(item, dict)
+    ]
+    selected_names = {
+        str(item or "").strip()
+        for item in (project_names or [])
+        if str(item or "").strip()
+    }
+    projects = [
+        item for item in all_projects
+        if not selected_names or item["project_name"] in selected_names
+    ]
+    if selected_names:
+        found_names = {item["project_name"] for item in projects}
+        missing = selected_names - found_names
+        if missing:
+            raise ValueError(f"项目不存在: {', '.join(sorted(missing))}")
+
+    items: list[dict[str, Any]] = []
+    updated = 0
+    failed = 0
+    for project in projects:
+        project_name = project["project_name"]
+        try:
+            raw_endpoints = client.list_endpoints(project_name)
+        except VolcOpenAPIError as exc:
+            items.append({
+                "project_name": project_name,
+                "endpoint_id": "",
+                "endpoint_name": "",
+                "model_name": "",
+                "model_version": "",
+                "endpoint_status": "",
+                "support_rolling": False,
+                "rolling_id": "",
+                "action": "failed",
+                "message": f"获取接入点失败: {exc}",
+            })
+            failed += 1
+            continue
+
+        rows = [
+            normalize_endpoint(item)
+            for item in raw_endpoints
+            if isinstance(item, dict)
+        ]
+        candidates = [
+            row for row in rows
+            if row["model_name"].casefold() == old_name.casefold()
+            and row["model_version"].casefold() == old_version.casefold()
+        ]
+        if not candidates:
+            continue
+
+        for row in candidates:
+            try:
+                detail = client.get_endpoint(row["id"])
+                detail_row = normalize_endpoint(detail) if isinstance(detail, dict) else {}
+                row.update({
+                    key: value
+                    for key, value in detail_row.items()
+                    if value not in {"", None}
+                })
+                row["project_name"] = row.get("project_name") or project_name
+                if row.get("rolling_id"):
+                    items.append(_rolling_endpoint_result(
+                        project_name=project_name,
+                        row=row,
+                        status="skipped",
+                        message="已存在滚动切换任务",
+                    ))
+                    continue
+                if not row.get("support_rolling"):
+                    items.append(_rolling_endpoint_result(
+                        project_name=project_name,
+                        row=row,
+                        status="skipped",
+                        message="上游返回不支持平滑切换",
+                    ))
+                    continue
+                if dry_run:
+                    items.append(_rolling_endpoint_result(
+                        project_name=project_name,
+                        row=row,
+                        status="candidate",
+                        message="扫描通过，等待确认执行",
+                    ))
+                    continue
+
+                result = client.create_endpoint_rolling(
+                    endpoint_id=row["id"],
+                    model_name=target_name,
+                    model_version=target_version,
+                )
+                row["rolling_id"] = str(
+                    result.get("Id") or result.get("RollingId") or ""
+                ).strip()
+                updated += 1
+                items.append(_rolling_endpoint_result(
+                    project_name=project_name,
+                    row=row,
+                    status="updated",
+                    message="滚动切换任务已创建",
+                ))
+            except VolcOpenAPIError as exc:
+                failed += 1
+                items.append(_rolling_endpoint_result(
+                    project_name=project_name,
+                    row=row,
+                    status="failed",
+                    message=str(exc),
+                ))
+
+    candidates = sum(1 for item in items if item["action"] == "candidate")
+    skipped = sum(1 for item in items if item["action"] == "skipped")
+    return {
+        "project_total": len(projects),
+        "matched_total": sum(1 for item in items if item["action"] != "failed"),
+        "candidate_total": candidates,
+        "updated_total": updated,
+        "skipped_total": skipped,
+        "failed_total": failed,
+        "dry_run": bool(dry_run),
+        "items": items,
+    }

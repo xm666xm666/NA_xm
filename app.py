@@ -222,6 +222,7 @@ def _load_batch_modules():
             "upstream_stop_endpoint": upstream_creation.stop_endpoint,
             "upstream_start_endpoint": upstream_creation.start_endpoint,
             "upstream_delete_endpoint": upstream_creation.delete_endpoint,
+            "upstream_rolling_update_all_endpoints": upstream_creation.rolling_update_all_endpoints,
             "build_upstream_path": upstream_exporter.build_upstream_path,
             "latest_upstream_excel_path": upstream_exporter.latest_upstream_excel_path,
             "save_upstream_workbook": upstream_exporter.save_upstream_workbook,
@@ -2328,6 +2329,32 @@ def api_upstream_delete_endpoint():
             region=region,
         )
         return jsonify({"success": True, "message": "接入点删除成功", "data": row})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+@app.post("/api/upstream-create/volc/endpoints/rolling-update-all")
+def api_upstream_rolling_update_all_endpoints():
+    _ensure_batch()
+    body = _creation_volc_payload()
+    ak, sk, region = _creation_volc_creds()
+    if not ak or not sk:
+        return jsonify({"success": False, "message": region}), 400
+    try:
+        dry_run = str(body.get("dry_run", True)).strip().lower() not in {"0", "false", "no"}
+        result = BATCH["upstream_rolling_update_all_endpoints"](
+            ak,
+            sk,
+            old_model_name=str(body.get("old_model_name") or "").strip(),
+            old_model_version=str(body.get("old_model_version") or "").strip(),
+            new_model_name=str(body.get("new_model_name") or "").strip(),
+            new_model_version=str(body.get("new_model_version") or "").strip(),
+            project_names=body.get("project_names") or [],
+            dry_run=dry_run,
+            region=region,
+        )
+        message = "扫描完成，请确认后执行" if dry_run else "批量滚动切换已提交"
+        return jsonify({"success": True, "message": message, "data": result})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 

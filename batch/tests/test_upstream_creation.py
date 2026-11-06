@@ -108,8 +108,36 @@ class FakeClient:
                     "FoundationModel": {"Name": "GLM-5.3-Flash", "ModelVersion": "260828"}
                 },
                 "CreateTime": "2026-10-14T14:40:19+08:00",
-            }
+            },
+            {
+                "Id": "ep-old-pro",
+                "Name": "deepseek-old",
+                "ProjectName": project_name,
+                "Status": "Running",
+                "ModelReference": {
+                    "FoundationModel": {"Name": "deepseek-v4-pro", "ModelVersion": "260425"}
+                },
+                "CreateTime": "2026-10-14T14:41:19+08:00",
+            },
         ]
+
+    def get_endpoint(self, endpoint_id: str, **kwargs):
+        self.calls.append(("get_endpoint", {"endpoint_id": endpoint_id, **kwargs}))
+        if endpoint_id == "ep-old-pro":
+            return {
+                "Id": endpoint_id,
+                "Status": "Running",
+                "SupportRolling": True,
+                "RollingId": "",
+                "ModelReference": {
+                    "FoundationModel": {"Name": "deepseek-v4-pro", "ModelVersion": "260425"}
+                },
+            }
+        return {"Id": endpoint_id, "Status": "Running", "SupportRolling": False}
+
+    def create_endpoint_rolling(self, **kwargs):
+        self.calls.append(("create_endpoint_rolling", kwargs))
+        return {"Id": "rolling-task-1"}
 
     def list_api_keys(self, project_name: str, **kwargs):
         self.calls.append(("list_api_keys", {"project_name": project_name, **kwargs}))
@@ -509,6 +537,48 @@ class UpstreamCreationTests(unittest.TestCase):
         client.delete_endpoint(endpoint_id="ep-1")
         self.assertEqual([call["action"] for call in calls], ["UpdateEndpoint", "StopEndpoint", "StartEndpoint", "DeleteEndpoint"])
         self.assertEqual(calls[0]["body"], {"Id": "ep-1", "Name": "new-name", "Description": "desc"})
+
+    def test_rolling_update_scan_does_not_create_task(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            result = upstream_creation.rolling_update_all_endpoints(
+                "ak",
+                "sk",
+                old_model_name="DeepSeek-V4-Pro",
+                old_model_version="260425",
+                new_model_name="deepseek-v4-pro",
+                new_model_version="261101",
+                dry_run=True,
+            )
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertFalse(any(call[0] == "create_endpoint_rolling" for call in fake.calls))
+        self.assertEqual(result["candidate_total"], 1)
+        self.assertEqual(result["items"][0]["endpoint_id"], "ep-old-pro")
+        self.assertTrue(result["items"][0]["support_rolling"])
+
+    def test_rolling_update_skips_unsupported_and_creates_task(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            result = upstream_creation.rolling_update_all_endpoints(
+                "ak",
+                "sk",
+                old_model_name="deepseek-v4-pro",
+                old_model_version="260425",
+                new_model_name="deepseek-v4-pro",
+                new_model_version="261101",
+                dry_run=False,
+            )
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        rolling_call = next(call for call in fake.calls if call[0] == "create_endpoint_rolling")
+        self.assertEqual(rolling_call[1]["endpoint_id"], "ep-old-pro")
+        self.assertEqual(result["updated_total"], 1)
+        self.assertEqual(result["items"][0]["rolling_id"], "rolling-task-1")
 
 
 if __name__ == "__main__":
