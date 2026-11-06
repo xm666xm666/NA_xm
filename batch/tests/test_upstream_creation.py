@@ -357,13 +357,11 @@ class UpstreamCreationTests(unittest.TestCase):
             def __init__(self, *_args, **_kwargs):
                 pass
 
-            def list_foundation_models(self, **_kwargs):
-                return ([{
-                    "Name": "deepseek-v4-pro",
-                    "FoundationModelVersions": [
-                        {"ModelVersion": "260425", "State": "Retiring"},
-                    ],
-                }], 1)
+            def list_foundation_model_versions(self, model_name: str, **_kwargs):
+                return [{
+                    "ModelVersion": "260425",
+                    "State": "Retiring",
+                }]
 
             def list_endpoints(self, project_name: str, **_kwargs):
                 return [{

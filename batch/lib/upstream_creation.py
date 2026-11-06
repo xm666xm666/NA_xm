@@ -113,6 +113,11 @@ def _is_system_tag_key(key: str) -> bool:
     return bool(re.match(r"^(?:sys|system)(?::|$)|^createdby$", key.lower()))
 
 
+def _lifecycle_tags_from_state(state: str) -> list[str]:
+    state = str(state or "")
+    return ["即将下线"] if re.search(r"retiring|deprecat|offline|eol|下线", state, re.IGNORECASE) else []
+
+
 def _endpoint_tags(item: dict[str, Any]) -> list[str]:
     raw_tags = item.get("Tags") if isinstance(item.get("Tags"), list) else []
     values: list[str] = []
@@ -143,39 +148,60 @@ def _endpoint_tags(item: dict[str, Any]) -> list[str]:
         value = str(item.get(key) or "").strip()
         if value:
             values.append(value)
+    reference = item.get("ModelReference") if isinstance(item.get("ModelReference"), dict) else {}
+    foundation = reference.get("FoundationModel") if isinstance(reference.get("FoundationModel"), dict) else {}
+    for source in (foundation, foundation.get("FoundationModelVersion") if isinstance(foundation.get("FoundationModelVersion"), dict) else {}):
+        for key in ("ModelVersionStatus", "FoundationModelVersionStatus", "VersionStatus", "State", "Status"):
+            value = str(source.get(key) or "").strip()
+            if value:
+                values.append(value)
     normalized_values = [
         value for value in values
         if value and not _is_system_tag_key(value.split(":", 1)[0])
     ]
-    return list(dict.fromkeys(normalized_values))
+    tags = list(dict.fromkeys(normalized_values))
+    for value in tuple(tags):
+        for lifecycle_tag in _lifecycle_tags_from_state(value):
+            if lifecycle_tag not in tags:
+                tags.append(lifecycle_tag)
+    return tags
 
 
-def _model_version_status_map(client: VolcOpenAPIClient) -> dict[tuple[str, str], str]:
+def _model_version_status_map(client: VolcOpenAPIClient, model_names: set[str]) -> dict[tuple[str, str], str]:
     statuses: dict[tuple[str, str], str] = {}
-    page = 1
-    while True:
-        try:
-            items, total = client.list_foundation_models(page_number=page, page_size=100)
-        except Exception:  # noqa: BLE001
-            break
-        for item in items:
-            model_name = str(item.get("Name") or "").strip()
-            versions = item.get("FoundationModelVersions") or item.get("Versions") or []
-            if not model_name or not isinstance(versions, list):
-                continue
-            for version in versions:
-                if not isinstance(version, dict):
+    for model_name in sorted(model_names, key=str.casefold):
+        page = 1
+        while True:
+            try:
+                items = client.list_foundation_model_versions(model_name, page_number=page, page_size=100)
+            except Exception:  # noqa: BLE001
+                break
+            for item in items:
+                if not isinstance(item, dict):
                     continue
-                version_name = str(version.get("ModelVersion") or version.get("Version") or "").strip()
-                state = str(version.get("State") or version.get("Status") or "").strip()
-                if model_name and version_name and state:
+                version_name = str(item.get("ModelVersion") or item.get("Version") or "").strip()
+                state = str(item.get("State") or item.get("Status") or item.get("FoundationModelVersionStatus") or "").strip()
+                if version_name and state:
                     statuses[(model_name.casefold(), version_name.casefold())] = state
-        if not items or page * 100 >= total:
-            break
-        page += 1
-        if page > 50:
-            break
+            if len(items) < 100:
+                break
+            page += 1
+            if page > 50:
+                break
     return statuses
+
+
+def _model_names_from_endpoints(items: list[Any]) -> set[str]:
+    names: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        reference = item.get("ModelReference") if isinstance(item.get("ModelReference"), dict) else {}
+        foundation = reference.get("FoundationModel") if isinstance(reference.get("FoundationModel"), dict) else {}
+        name = str(foundation.get("Name") or "").strip()
+        if name:
+            names.add(name)
+    return names
 
 
 def _merge_endpoint_lifecycle_tags(row: dict[str, Any], version_statuses: dict[tuple[str, str], str]) -> dict[str, Any]:
@@ -183,10 +209,10 @@ def _merge_endpoint_lifecycle_tags(row: dict[str, Any], version_statuses: dict[t
         str(row.get("model_name") or "").casefold(),
         str(row.get("model_version") or "").casefold(),
     ))
-    if state and re.search(r"retiring|deprecat|offline|eol|下线", state, re.IGNORECASE):
+    for lifecycle_tag in _lifecycle_tags_from_state(state):
         tags = row.setdefault("tags", [])
-        if "即将下线" not in tags:
-            tags.append("即将下线")
+        if lifecycle_tag not in tags:
+            tags.append(lifecycle_tag)
     return row
 
 
@@ -538,10 +564,11 @@ def list_endpoints(
     if not name:
         raise ValueError("项目名称不能为空")
     client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
-    version_statuses = _model_version_status_map(client)
+    raw_endpoints = client.list_endpoints(name)
+    version_statuses = _model_version_status_map(client, _model_names_from_endpoints(raw_endpoints))
     rows = [
         normalize_endpoint(item)
-        for item in client.list_endpoints(name)
+        for item in raw_endpoints
         if isinstance(item, dict)
     ]
     return [_merge_endpoint_lifecycle_tags(row, version_statuses) for row in rows]
@@ -565,30 +592,38 @@ def list_deployed_models(
         ]
 
     deployments: dict[tuple[str, str], dict[str, Any]] = {}
-    version_statuses = _model_version_status_map(client)
+    raw_endpoint_items: list[Any] = []
+    normalized_rows: list[dict[str, Any]] = []
     for name in project_names:
         for item in client.list_endpoints(name):
             if not isinstance(item, dict):
                 continue
-            row = _merge_endpoint_lifecycle_tags(normalize_endpoint(item), version_statuses)
-            model_name = row.get("model_name", "")
-            model_version = row.get("model_version", "")
-            if not model_name or not model_version:
-                continue
-            key = (model_name.casefold(), model_version.casefold())
-            deployment = deployments.setdefault(key, {
-                "model_name": model_name,
-                "model_version": model_version,
-                "endpoint_count": 0,
-                "projects": [],
-                "tags": [],
-            })
-            deployment["endpoint_count"] += 1
-            if name not in deployment["projects"]:
-                deployment["projects"].append(name)
-            for tag in row.get("tags", []):
-                if tag not in deployment["tags"]:
-                    deployment["tags"].append(tag)
+            raw_endpoint_items.append(item)
+            row = normalize_endpoint(item)
+            row["project_name"] = row.get("project_name") or name
+            normalized_rows.append(row)
+    version_statuses = _model_version_status_map(client, _model_names_from_endpoints(raw_endpoint_items))
+    for row in normalized_rows:
+        row = _merge_endpoint_lifecycle_tags(row, version_statuses)
+        model_name = row.get("model_name", "")
+        model_version = row.get("model_version", "")
+        if not model_name or not model_version:
+            continue
+        key = (model_name.casefold(), model_version.casefold())
+        deployment = deployments.setdefault(key, {
+            "model_name": model_name,
+            "model_version": model_version,
+            "endpoint_count": 0,
+            "projects": [],
+            "tags": [],
+        })
+        deployment["endpoint_count"] += 1
+        project_name = str(row.get("project_name") or "").strip()
+        if project_name and project_name not in deployment["projects"]:
+            deployment["projects"].append(project_name)
+        for tag in row.get("tags", []):
+            if tag not in deployment["tags"]:
+                deployment["tags"].append(tag)
 
     items = sorted(
         deployments.values(),
