@@ -1705,7 +1705,10 @@
     }
 
     function endpointTagPills(tags) {
-      const values = Array.isArray(tags) ? tags : [];
+      const values = (Array.isArray(tags) ? tags : []).filter((text) => {
+        const normalized = String(text || "").trim();
+        return normalized && !/^(?:sys:|system:)/i.test(normalized);
+      });
       if (!values.length) return "-";
       return values.map((text) => {
         const retiring = /即将下线|下线|retir|deprecat|offline|eol/i.test(String(text));

@@ -109,18 +109,26 @@ def _model_is_hidden(item: dict[str, Any]) -> bool:
     return bool(labels & {"体验隐藏", "推理隐藏", "广场隐藏"})
 
 
+def _is_system_tag_key(key: str) -> bool:
+    return bool(re.match(r"^(?:sys|system)(?::|$)|^createdby$", key.lower()))
+
+
 def _endpoint_tags(item: dict[str, Any]) -> list[str]:
     raw_tags = item.get("Tags") if isinstance(item.get("Tags"), list) else []
     values: list[str] = []
     for raw_tag in raw_tags:
         if isinstance(raw_tag, str):
-            values.append(raw_tag.strip())
+            value = raw_tag.strip()
+            if not _is_system_tag_key(value.split(":", 1)[0]):
+                values.append(value)
             continue
         if not isinstance(raw_tag, dict):
             continue
         key = str(raw_tag.get("Key") or raw_tag.get("key") or "").strip()
         value = str(raw_tag.get("Value") or raw_tag.get("value") or "").strip()
         if not key and not value:
+            continue
+        if _is_system_tag_key(key):
             continue
         if value and key.lower() in {
             "tag", "label", "name", "modelversionstatus",
@@ -135,7 +143,11 @@ def _endpoint_tags(item: dict[str, Any]) -> list[str]:
         value = str(item.get(key) or "").strip()
         if value:
             values.append(value)
-    return list(dict.fromkeys(value for value in values if value))
+    normalized_values = [
+        value for value in values
+        if value and not _is_system_tag_key(value.split(":", 1)[0])
+    ]
+    return list(dict.fromkeys(normalized_values))
 
 
 def normalize_endpoint(item: dict[str, Any]) -> dict[str, Any]:

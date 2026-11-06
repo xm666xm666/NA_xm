@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from lib import upstream_creation
+from lib.upstream_creation import normalize_endpoint
 from lib.volc_openapi import VolcOpenAPIError, VolcOpenAPIClient
 
 
@@ -334,6 +335,26 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(rows[0]["model_service"], "GLM-5.3-Flash｜260828")
         self.assertEqual(rows[1]["tags"], ["即将下线"])
         self.assertEqual(created["endpoint_id"], "ep-new")
+
+    def test_endpoint_tags_hide_system_internal_tags(self):
+        endpoint = normalize_endpoint({
+            "Id": "ep-1",
+            "Tags": [
+                {"Key": "sys:ark:createdBy", "Value": "Root/2105861601"},
+                {"Key": "createdBy", "Value": "Root/2105861601"},
+                "sys:ark:createdBy:Root/2105861601",
+                {"Key": "ModelVersionStatus", "Value": "即将下线"},
+            ],
+            "ModelReference": {"FoundationModel": {"Name": "DeepSeek-V4-Pro"}},
+        })
+        self.assertEqual(endpoint["tags"], ["即将下线"])
+
+    def test_endpoint_tags_show_dash_without_business_tags(self):
+        endpoint = normalize_endpoint({
+            "Id": "ep-1",
+            "Tags": [{"Key": "sys:ark:createdBy", "Value": "Root/2105861601"}],
+        })
+        self.assertEqual(endpoint["tags"], [])
 
     def test_create_endpoint_activates_model_service_and_retries(self):
         class ServiceNotOpenClient:
