@@ -580,6 +580,25 @@
       outline: none; border-color: var(--na-border-bright);
       box-shadow: 0 0 0 3px var(--na-accent-soft);
     }
+    .rolling-select-row {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto;
+      gap: .55rem; align-items: center;
+    }
+    .rolling-select-row select,
+    .rolling-select-row button {
+      min-height: 2.45rem;
+    }
+    .rolling-select-row select {
+      width: 100%; box-sizing: border-box;
+      border: 1px solid var(--na-border); border-radius: var(--na-radius-sm);
+      background: color-mix(in srgb, var(--na-panel-solid) 78%, transparent);
+      color: var(--na-text); padding: .58rem .65rem;
+      font: 500 .82rem/1.45 var(--na-font-body);
+    }
+    .rolling-select-row select:focus {
+      outline: none; border-color: var(--na-border-bright);
+      box-shadow: 0 0 0 3px var(--na-accent-soft);
+    }
     .rolling-summary {
       border: 1px solid color-mix(in srgb, var(--na-accent) 28%, var(--na-border));
       border-radius: .6rem; padding: .7rem .85rem;
@@ -761,10 +780,16 @@
           <div class="rolling-form-grid">
             <label>旧模型<input id="rollingOldModel" value="deepseek-v4-pro" autocomplete="off" /></label>
             <label>旧版本<input id="rollingOldVersion" value="260425" autocomplete="off" /></label>
-            <label>目标模型<input id="rollingNewModel" placeholder="例如 deepseek-v4-pro" autocomplete="off" /></label>
-            <label>目标版本<input id="rollingNewVersion" placeholder="目标版本必须确认后填写" autocomplete="off" /></label>
+            <label>目标模型<input id="rollingNewModel" placeholder="留空使用旧模型" autocomplete="off" /></label>
+            <label>
+              目标版本
+              <div class="rolling-select-row">
+                <select id="rollingNewVersion"><option value="">自动拉取</option></select>
+                <button id="btnPullRollingVersions" class="na-btn na-btn-ghost" type="button">自动拉取</button>
+              </div>
+            </label>
           </div>
-          <p class="hint">目标版本以上游公告或控制台为准，系统不会自动猜测版本。</p>
+          <p class="hint">目标版本自动拉取火山模型目录，只列出 Available 状态；默认选择最新可用版本，可手动更换。</p>
           <div id="rollingSummary" class="rolling-summary" hidden></div>
           <div class="table-wrap rolling-table">
             <table class="creation-table">
@@ -1248,6 +1273,54 @@
       }).join("");
     }
 
+    async function loadRollingVersions({ silent = false } = {}) {
+      const oldModel = $("rollingOldModel").value.trim();
+      const newModel = $("rollingNewModel").value.trim();
+      const sourceModel = newModel || oldModel;
+      const select = $("rollingNewVersion");
+      const button = $("btnPullRollingVersions");
+      if (!sourceModel) {
+        select.innerHTML = '<option value="">先填写模型</option>';
+        if (!silent) NAUi.showBanner("userBanner", "请填写旧模型或目标模型", "warn");
+        return;
+      }
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "拉取中";
+      select.innerHTML = '<option value="">加载中</option>';
+      try {
+        const data = await requestJson("/api/upstream-create/volc/model-versions", {
+          method: "POST",
+          body: { ...credPayload(), model_name: sourceModel, page_size: 100 },
+        });
+        const rawVersions = data.data?.items || [];
+        const availableVersions = rawVersions.filter((version) => {
+          const state = String(version.state || "").trim().toLowerCase();
+          return !state || state === "available";
+        });
+        const versions = availableVersions
+          .filter((version) => version.model_version)
+          .sort((left, right) => String(right.model_version).localeCompare(String(left.model_version), undefined, { numeric: true, sensitivity: "base" }));
+        if (!versions.length) {
+          select.innerHTML = '<option value="">无可用版本</option>';
+          if (!silent) NAUi.showBanner("userBanner", "火山模型目录没有可用版本", "err");
+          return;
+        }
+        select.innerHTML = versions.map((version) => {
+          const label = [version.model_version, version.display_name].filter(Boolean).join(" · ");
+          return `<option value="${esc(version.model_version)}">${esc(label)}</option>`;
+        }).join("");
+        select.value = versions[0].model_version;
+        if (!silent) NAUi.showBanner("userBanner", `已拉取 ${versions.length} 个可用版本`, "ok");
+      } catch (e) {
+        select.innerHTML = '<option value="">拉取失败</option>';
+        if (!silent) NAUi.showBanner("userBanner", e.message, "err");
+      } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+      }
+    }
+
     async function runRollingUpgrade(dryRun) {
       const oldModel = $("rollingOldModel").value.trim();
       const oldVersion = $("rollingOldVersion").value.trim();
@@ -1312,12 +1385,13 @@
       $("rollingOldModel").value = "deepseek-v4-pro";
       $("rollingOldVersion").value = "260425";
       $("rollingNewModel").value = "";
-      $("rollingNewVersion").value = "";
+      $("rollingNewVersion").innerHTML = '<option value="">自动拉取</option>';
       $("rollingSummary").hidden = true;
       $("rollingRows").innerHTML = '<tr><td colspan="5">先扫描，再确认执行。</td></tr>';
       $("btnSubmitRollingUpgrade").disabled = true;
       $("btnSubmitRollingUpgrade").textContent = "确认执行";
       $("rollingUpgradeOverlay").hidden = false;
+      loadRollingVersions({ silent: true });
     }
 
     function setProjectDetailMode(mode) {
@@ -1967,6 +2041,7 @@
     });
     $("btnRollingUpgrade").addEventListener("click", openRollingUpgrade);
     $("btnCancelRollingUpgrade").addEventListener("click", () => $("rollingUpgradeOverlay").hidden = true);
+    $("btnPullRollingVersions").addEventListener("click", () => loadRollingVersions());
     $("btnScanRollingUpgrade").addEventListener("click", () => runRollingUpgrade(true));
     $("btnSubmitRollingUpgrade").addEventListener("click", () => runRollingUpgrade(false));
     $("modelGroups").addEventListener("click", (event) => {
