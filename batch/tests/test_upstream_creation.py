@@ -630,6 +630,25 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertTrue(result["items"][0]["support_rolling"])
         self.assertEqual(result["items"][0]["tags"], ["即将下线"])
 
+    def test_rolling_update_rejects_same_model_version(self):
+        fake = FakeClient("ak", "sk")
+        original = upstream_creation.VolcOpenAPIClient
+        upstream_creation.VolcOpenAPIClient = FakeClientFactory(fake)
+        try:
+            with self.assertRaisesRegex(ValueError, "无需切换"):
+                upstream_creation.rolling_update_all_endpoints(
+                    "ak",
+                    "sk",
+                    old_model_name="DeepSeek-V4.1-Flash",
+                    old_model_version="261017",
+                    new_model_name="deepseek-v4.1-flash",
+                    new_model_version="261017",
+                    dry_run=True,
+                )
+        finally:
+            upstream_creation.VolcOpenAPIClient = original
+        self.assertFalse(any(call[0] == "list_endpoints" for call in fake.calls))
+
     def test_rolling_update_skips_unsupported_and_creates_task(self):
         fake = FakeClient("ak", "sk")
         original = upstream_creation.VolcOpenAPIClient

@@ -1360,13 +1360,20 @@
     }
 
     function updateRollingScanAvailability() {
+      const oldModel = $("rollingOldModel").value.trim();
+      const oldVersion = $("rollingOldVersion").value.trim();
+      const newModel = $("rollingNewModel").value.trim();
+      const newVersion = $("rollingNewVersion").value.trim();
       const ready = [
-        $("rollingOldModel").value.trim(),
-        $("rollingOldVersion").value.trim(),
-        $("rollingNewModel").value.trim(),
-        $("rollingNewVersion").value.trim(),
+        oldModel,
+        oldVersion,
+        newModel,
+        newVersion,
       ].every(Boolean);
-      $("btnScanRollingUpgrade").disabled = !ready;
+      const sameTarget = oldModel.toLowerCase() === newModel.toLowerCase()
+        && oldVersion.toLowerCase() === newVersion.toLowerCase();
+      $("btnScanRollingUpgrade").disabled = !ready || sameTarget;
+      $("btnScanRollingUpgrade").title = sameTarget ? "旧模型/版本与目标模型/版本相同，无需切换" : "";
       $("btnSubmitRollingUpgrade").disabled = true;
       $("btnSubmitRollingUpgrade").textContent = "确认执行";
     }
@@ -1546,6 +1553,13 @@
       const newVersion = $("rollingNewVersion").value.trim();
       if (!oldModel || !oldVersion || !newModel || !newVersion) {
         NAUi.showBanner("userBanner", "请填写旧模型/版本和目标模型/版本", "warn");
+        return;
+      }
+      if (
+        oldModel.toLowerCase() === newModel.toLowerCase()
+        && oldVersion.toLowerCase() === newVersion.toLowerCase()
+      ) {
+        NAUi.showBanner("userBanner", "旧模型/版本与目标模型/版本相同，无需切换", "warn");
         return;
       }
       if (!dryRun) {

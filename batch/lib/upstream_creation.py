@@ -946,6 +946,11 @@ def rolling_update_all_endpoints(
         raise ValueError("目标模型名称不能为空")
     if not target_version:
         raise ValueError("目标模型版本不能为空")
+    if (
+        old_name.casefold() == target_name.casefold()
+        and old_version.casefold() == target_version.casefold()
+    ):
+        raise ValueError("旧模型/版本与目标模型/版本相同，无需切换")
 
     client = VolcOpenAPIClient(access_key_id, secret_access_key, region=region)
     all_projects = [
