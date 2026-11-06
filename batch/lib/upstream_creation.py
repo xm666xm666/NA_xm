@@ -109,6 +109,35 @@ def _model_is_hidden(item: dict[str, Any]) -> bool:
     return bool(labels & {"体验隐藏", "推理隐藏", "广场隐藏"})
 
 
+def _endpoint_tags(item: dict[str, Any]) -> list[str]:
+    raw_tags = item.get("Tags") if isinstance(item.get("Tags"), list) else []
+    values: list[str] = []
+    for raw_tag in raw_tags:
+        if isinstance(raw_tag, str):
+            values.append(raw_tag.strip())
+            continue
+        if not isinstance(raw_tag, dict):
+            continue
+        key = str(raw_tag.get("Key") or raw_tag.get("key") or "").strip()
+        value = str(raw_tag.get("Value") or raw_tag.get("value") or "").strip()
+        if not key and not value:
+            continue
+        if value and key.lower() in {
+            "tag", "label", "name", "modelversionstatus",
+            "foundationmodelversionstatus", "versionstatus", "statusreason",
+        }:
+            values.append(value)
+        elif key and value and value.lower() not in {"true", "1", "yes"}:
+            values.append(f"{key}:{value}")
+        else:
+            values.append(key or value)
+    for key in ("ModelVersionStatus", "FoundationModelVersionStatus", "VersionStatus"):
+        value = str(item.get(key) or "").strip()
+        if value:
+            values.append(value)
+    return list(dict.fromkeys(value for value in values if value))
+
+
 def normalize_endpoint(item: dict[str, Any]) -> dict[str, Any]:
     reference = item.get("ModelReference") or {}
     model = reference.get("FoundationModel") or {} if isinstance(reference, dict) else {}
@@ -119,6 +148,7 @@ def normalize_endpoint(item: dict[str, Any]) -> dict[str, Any]:
         "model_name": str(model.get("Name") or "").strip(),
         "model_version": str(model.get("ModelVersion") or "").strip(),
         "model_service": format_model_service(item),
+        "tags": _endpoint_tags(item),
         "status": str(item.get("Status") or "").strip(),
         "status_reason": str(item.get("StatusReason") or "").strip(),
         "description": str(item.get("Description") or "").strip(),
@@ -738,6 +768,7 @@ def _rolling_endpoint_result(
         "endpoint_name": row.get("name", ""),
         "model_name": row.get("model_name", ""),
         "model_version": row.get("model_version", ""),
+        "tags": row.get("tags", []),
         "endpoint_status": row.get("status", ""),
         "support_rolling": bool(row.get("support_rolling")),
         "rolling_id": row.get("rolling_id", ""),
@@ -835,7 +866,7 @@ def rolling_update_all_endpoints(
                 row.update({
                     key: value
                     for key, value in detail_row.items()
-                    if value not in {"", None}
+                    if value not in ("", None)
                 })
                 row["project_name"] = row.get("project_name") or project_name
                 if row.get("rolling_id"):

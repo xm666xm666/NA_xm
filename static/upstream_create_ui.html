@@ -633,6 +633,23 @@
     }
     .rolling-row.updated { background: color-mix(in srgb, var(--na-ok, #16a34a) 8%, transparent); }
     .rolling-row.failed { background: color-mix(in srgb, var(--na-danger, #dc2626) 8%, transparent); }
+    .endpoint-tags {
+      display: flex; flex-wrap: wrap; gap: .3rem;
+      margin-top: .25rem;
+    }
+    .endpoint-tag {
+      display: inline-flex; align-items: center;
+      border: 1px solid color-mix(in srgb, var(--na-border-bright) 70%, transparent);
+      border-radius: 999px; padding: .1rem .42rem;
+      font-size: .64rem; line-height: 1.35;
+      color: var(--na-text-muted);
+      background: color-mix(in srgb, var(--na-panel-solid) 55%, transparent);
+      white-space: nowrap;
+    }
+    .endpoint-tag.retiring {
+      color: #b45309; border-color: rgba(217, 119, 6, .38);
+      background: rgba(217, 119, 6, .12); font-weight: 650;
+    }
     @media (max-width: 700px) {
       .rolling-form-grid { grid-template-columns: 1fr; }
     }
@@ -934,8 +951,8 @@
 
       <div class="table-wrap" id="endpointTableWrap">
         <table class="creation-table endpoint-table">
-          <thead><tr><th>接入点</th><th>部署 ID</th><th>模型服务</th><th>状态</th><th class="wrap">描述</th><th>创建时间</th><th>操作</th></tr></thead>
-          <tbody id="endpointRows"><tr><td colspan="7">尚未加载。</td></tr></tbody>
+          <thead><tr><th>接入点</th><th>部署 ID</th><th>模型服务</th><th>标签</th><th>状态</th><th class="wrap">描述</th><th>创建时间</th><th>操作</th></tr></thead>
+          <tbody id="endpointRows"><tr><td colspan="8">尚未加载。</td></tr></tbody>
         </table>
       </div>
 
@@ -1290,11 +1307,16 @@
         const model = item.model_name
           ? `${item.model_name} / ${item.model_version || "-"}`
           : "-";
+        const tags = Array.isArray(item.tags) ? item.tags : [];
+        const tagPills = tags.map((text) => {
+          const retiring = /即将下线|下线|retir|deprecat|offline|eol/i.test(String(text));
+          return `<span class="endpoint-tag ${retiring ? "retiring" : ""}">${esc(text)}</span>`;
+        }).join("");
         return `
           <tr class="rolling-row ${esc(item.action)}">
             <td class="wrap">${esc(item.project_name || "-")}</td>
             <td class="wrap">${esc(item.endpoint_name || "-")}${item.endpoint_id ? `<small>${esc(item.endpoint_id)}</small>` : ""}</td>
-            <td class="wrap">${esc(model)}</td>
+            <td class="wrap">${esc(model)}${tags.length ? `<div class="endpoint-tags">${tagPills}</div>` : ""}</td>
             <td>${esc(item.endpoint_status || "-")}</td>
             <td class="wrap">${esc(actionLabels[item.action] || item.action)}：${esc(item.message || "-")}</td>
           </tr>`;
@@ -1682,11 +1704,20 @@
       NAUi.toast(`已选择 ${modelName}｜${version}`, "ok");
     }
 
+    function endpointTagPills(tags) {
+      const values = Array.isArray(tags) ? tags : [];
+      if (!values.length) return "-";
+      return values.map((text) => {
+        const retiring = /即将下线|下线|retir|deprecat|offline|eol/i.test(String(text));
+        return `<span class="endpoint-tag ${retiring ? "retiring" : ""}">${esc(text)}</span>`;
+      }).join("");
+    }
+
     function renderEndpoints(rows) {
       endpoints = rows;
       $("endpointRows").innerHTML = rows.length ? rows.map((row) => `
         <tr><td class="wrap">${esc(row.name)}</td><td class="wrap">${esc(row.id)}</td>
-        <td>${esc(row.model_service || "-")}</td><td>${statusPill(row.status)}</td>
+        <td>${esc(row.model_service || "-")}</td><td class="wrap">${endpointTagPills(row.tags)}</td><td>${statusPill(row.status)}</td>
         <td class="wrap" title="${esc(row.description)}">${esc(row.description || "-")}</td><td>${esc(formatDateTime(row.create_time))}</td>
         <td><div class="row-actions">
           <button type="button" class="primary" data-edit-endpoint="${esc(row.id)}" ${pendingEndpointOperations.has(row.id) ? "disabled" : ""}>编辑信息</button>
@@ -1700,7 +1731,7 @@
           })()}
           <button type="button" class="danger" data-delete-endpoint="${esc(row.id)}" ${row.status !== "Stopped" || pendingEndpointOperations.has(row.id) ? "disabled" : ""}>删除</button>
         </div></td></tr>`).join("")
-        : '<tr><td colspan="7">该项目还没有接入点。</td></tr>';
+        : '<tr><td colspan="8">该项目还没有接入点。</td></tr>';
     }
 
     function permissionText(value) { return value === "custom" ? "自定义" : "全部"; }

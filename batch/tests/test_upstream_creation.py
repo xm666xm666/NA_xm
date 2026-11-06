@@ -117,6 +117,7 @@ class FakeClient:
                 "ModelReference": {
                     "FoundationModel": {"Name": "deepseek-v4-pro", "ModelVersion": "260425"}
                 },
+                "Tags": [{"Key": "ModelVersionStatus", "Value": "即将下线"}],
                 "CreateTime": "2026-10-14T14:41:19+08:00",
             },
         ]
@@ -132,6 +133,7 @@ class FakeClient:
                 "ModelReference": {
                     "FoundationModel": {"Name": "deepseek-v4-pro", "ModelVersion": "260425"}
                 },
+                "Tags": [{"Key": "ModelVersionStatus", "Value": "即将下线"}],
             }
         return {"Id": endpoint_id, "Status": "Running", "SupportRolling": False}
 
@@ -330,6 +332,7 @@ class UpstreamCreationTests(unittest.TestCase):
             upstream_creation.VolcOpenAPIClient = original
         self.assertEqual(rows[0]["id"], "ep-20261014144019-smrv7")
         self.assertEqual(rows[0]["model_service"], "GLM-5.3-Flash｜260828")
+        self.assertEqual(rows[1]["tags"], ["即将下线"])
         self.assertEqual(created["endpoint_id"], "ep-new")
 
     def test_create_endpoint_activates_model_service_and_retries(self):
@@ -558,6 +561,7 @@ class UpstreamCreationTests(unittest.TestCase):
         self.assertEqual(result["candidate_total"], 1)
         self.assertEqual(result["items"][0]["endpoint_id"], "ep-old-pro")
         self.assertTrue(result["items"][0]["support_rolling"])
+        self.assertEqual(result["items"][0]["tags"], ["即将下线"])
 
     def test_rolling_update_skips_unsupported_and_creates_task(self):
         fake = FakeClient("ak", "sk")
