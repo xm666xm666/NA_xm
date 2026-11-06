@@ -565,7 +565,10 @@
       display: flex; justify-content: flex-end; gap: .65rem; padding: 1rem 1.15rem 1.15rem;
       border-top: 1px solid color-mix(in srgb, var(--na-border) 70%, transparent);
     }
-    .rolling-modal { width: min(920px, 100%); }
+    .rolling-modal {
+      width: min(1180px, 100%);
+      max-height: min(920px, calc(100dvh - 2rem));
+    }
     .rolling-form-grid {
       display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem;
     }
@@ -622,7 +625,9 @@
       font-weight: 650;
     }
     .rolling-table {
-      max-height: 300px; overflow: auto;
+      min-height: 340px;
+      max-height: min(520px, calc(100dvh - 460px));
+      overflow: auto;
       border: 1px solid color-mix(in srgb, var(--na-border) 75%, transparent);
       border-radius: .7rem;
     }
@@ -1368,6 +1373,25 @@
       }
     }
 
+    function renderRollingVersionOptions(versions) {
+      const select = $("rollingNewVersion");
+      const unique = new Map();
+      versions.forEach((version) => {
+        const value = String(version?.model_version || "").trim();
+        if (value && !unique.has(value)) unique.set(value, version);
+      });
+      const sorted = [...unique.values()].sort(
+        (left, right) => String(right.model_version).localeCompare(String(left.model_version), undefined, { numeric: true, sensitivity: "base" })
+      );
+      select.innerHTML = sorted.map((version) => {
+        const label = [version.model_version, version.display_name].filter(Boolean).join(" · ");
+        return `<option value="${esc(version.model_version)}">${esc(label)}</option>`;
+      }).join("");
+      select.value = sorted[0]?.model_version || "";
+      updateRollingScanAvailability();
+      return sorted;
+    }
+
     async function loadRollingVersions({ silent = false } = {}) {
       const sourceModel = $("rollingNewModel").value.trim();
       const select = $("rollingNewVersion");
@@ -1379,17 +1403,14 @@
       }
       const model = rollingModels.find((item) => item.name === sourceModel);
       const catalogVersions = (model?.versions || []).filter((version) => version.model_version);
-      if (catalogVersions.length || model?.primary_version) {
-        const versions = catalogVersions.length
+      const hasCatalogFallback = Boolean(catalogVersions.length || model?.primary_version);
+      if (hasCatalogFallback) {
+        renderRollingVersionOptions(catalogVersions.length
           ? catalogVersions
-          : [{ model_version: model.primary_version, display_name: "默认版本", state: "Available" }];
-        select.innerHTML = versions.map((version) => {
-          const label = [version.model_version, version.display_name].filter(Boolean).join(" · ");
-          return `<option value="${esc(version.model_version)}">${esc(label)}</option>`;
-        }).join("");
-        select.value = versions[0]?.model_version || "";
+          : [{ model_version: model.primary_version, display_name: "默认版本", state: "Available" }]);
+      } else {
+        select.innerHTML = '<option value="">加载中</option>';
         updateRollingScanAvailability();
-        return;
       }
       const originalText = button.textContent;
       button.disabled = true;
@@ -1406,15 +1427,11 @@
           const state = String(version.state || "").trim().toLowerCase();
           return !state || state === "available";
         });
-        const versions = availableVersions
-          .filter((version) => version.model_version)
-          .sort((left, right) => String(right.model_version).localeCompare(String(left.model_version), undefined, { numeric: true, sensitivity: "base" }));
+        const versions = renderRollingVersionOptions(availableVersions);
         if (!versions.length) {
           const fallbackVersion = model?.primary_version;
           if (fallbackVersion) {
-            select.innerHTML = `<option value="${esc(fallbackVersion)}">${esc(fallbackVersion)} · 默认版本</option>`;
-            select.value = fallbackVersion;
-            updateRollingScanAvailability();
+            renderRollingVersionOptions([{ model_version: fallbackVersion, display_name: "默认版本", state: "Available" }]);
             if (!silent) NAUi.showBanner("userBanner", `模型版本目录为空，已使用默认版本 ${fallbackVersion}`, "warn");
             return;
           }
@@ -1423,17 +1440,15 @@
           if (!silent) NAUi.showBanner("userBanner", "火山模型目录没有可用版本", "err");
           return;
         }
-        select.innerHTML = versions.map((version) => {
-          const label = [version.model_version, version.display_name].filter(Boolean).join(" · ");
-          return `<option value="${esc(version.model_version)}">${esc(label)}</option>`;
-        }).join("");
-        select.value = versions[0].model_version;
-        updateRollingScanAvailability();
         if (!silent) NAUi.showBanner("userBanner", `已拉取 ${versions.length} 个可用版本`, "ok");
       } catch (e) {
-        select.innerHTML = '<option value="">拉取失败</option>';
-        updateRollingScanAvailability();
-        if (!silent) NAUi.showBanner("userBanner", e.message, "err");
+        if (select.value) {
+          if (!silent) NAUi.showBanner("userBanner", `版本目录刷新失败，已保留可选版本：${e.message}`, "warn");
+        } else {
+          select.innerHTML = '<option value="">拉取失败</option>';
+          updateRollingScanAvailability();
+          if (!silent) NAUi.showBanner("userBanner", e.message, "err");
+        }
       } finally {
         button.textContent = originalText;
         button.disabled = false;
