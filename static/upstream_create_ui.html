@@ -809,7 +809,7 @@
               </div>
             </label>
           </div>
-          <p class="hint">目标模型来自创建页已出现的模型；选择模型后自动联动版本，只列出 Available 状态，可切换不同模型和版本。</p>
+          <p class="hint">目标模型来自创建页已出现的模型；选择模型后自动联动版本，只列出 Available 状态。必须有明确目标版本才能扫描。</p>
           <div id="rollingSummary" class="rolling-summary" hidden></div>
           <div class="table-wrap rolling-table">
             <table class="creation-table">
@@ -1328,6 +1328,19 @@
         ? preferredModel
         : select.value;
       select.value = modelMap.has(selected) ? selected : "";
+      updateRollingScanAvailability();
+    }
+
+    function updateRollingScanAvailability() {
+      const ready = [
+        $("rollingOldModel").value.trim(),
+        $("rollingOldVersion").value.trim(),
+        $("rollingNewModel").value.trim(),
+        $("rollingNewVersion").value.trim(),
+      ].every(Boolean);
+      $("btnScanRollingUpgrade").disabled = !ready;
+      $("btnSubmitRollingUpgrade").disabled = true;
+      $("btnSubmitRollingUpgrade").textContent = "确认执行";
     }
 
     async function loadRollingModels({ silent = false } = {}) {
@@ -1342,6 +1355,7 @@
         renderRollingModelOptions(matchedOldModel?.name || "");
         if (!rollingModels.length) {
           $("rollingNewVersion").innerHTML = '<option value="">无可用模型</option>';
+          updateRollingScanAvailability();
           if (!silent) NAUi.showBanner("userBanner", "没有可用的目标模型", "err");
           return;
         }
@@ -1371,12 +1385,14 @@
           return `<option value="${esc(version.model_version)}">${esc(label)}</option>`;
         }).join("");
         select.value = versions[0]?.model_version || "";
+        updateRollingScanAvailability();
         return;
       }
       const originalText = button.textContent;
       button.disabled = true;
       button.textContent = "拉取中";
       select.innerHTML = '<option value="">加载中</option>';
+      updateRollingScanAvailability();
       try {
         const data = await requestJson("/api/upstream-create/volc/model-versions", {
           method: "POST",
@@ -1392,6 +1408,7 @@
           .sort((left, right) => String(right.model_version).localeCompare(String(left.model_version), undefined, { numeric: true, sensitivity: "base" }));
         if (!versions.length) {
           select.innerHTML = '<option value="">无可用版本</option>';
+          updateRollingScanAvailability();
           if (!silent) NAUi.showBanner("userBanner", "火山模型目录没有可用版本", "err");
           return;
         }
@@ -1400,13 +1417,16 @@
           return `<option value="${esc(version.model_version)}">${esc(label)}</option>`;
         }).join("");
         select.value = versions[0].model_version;
+        updateRollingScanAvailability();
         if (!silent) NAUi.showBanner("userBanner", `已拉取 ${versions.length} 个可用版本`, "ok");
       } catch (e) {
         select.innerHTML = '<option value="">拉取失败</option>';
+        updateRollingScanAvailability();
         if (!silent) NAUi.showBanner("userBanner", e.message, "err");
       } finally {
         button.textContent = originalText;
         button.disabled = false;
+        updateRollingScanAvailability();
       }
     }
 
@@ -1485,6 +1505,7 @@
       $("rollingRows").innerHTML = '<tr><td colspan="5">先扫描，再确认执行。</td></tr>';
       $("btnSubmitRollingUpgrade").disabled = true;
       $("btnSubmitRollingUpgrade").textContent = "确认执行";
+      updateRollingScanAvailability();
       $("rollingUpgradeOverlay").hidden = false;
       loadRollingModels({ silent: true });
     }
@@ -2139,8 +2160,12 @@
     $("btnCancelRollingUpgrade").addEventListener("click", () => $("rollingUpgradeOverlay").hidden = true);
     $("rollingNewModel").addEventListener("change", () => {
       $("rollingNewVersion").innerHTML = '<option value="">加载版本</option>';
+      updateRollingScanAvailability();
       loadRollingVersions({ silent: true });
     });
+    $("rollingNewVersion").addEventListener("change", updateRollingScanAvailability);
+    $("rollingOldModel").addEventListener("input", updateRollingScanAvailability);
+    $("rollingOldVersion").addEventListener("input", updateRollingScanAvailability);
     $("btnPullRollingVersions").addEventListener("click", () => loadRollingVersions());
     $("btnScanRollingUpgrade").addEventListener("click", () => runRollingUpgrade(true));
     $("btnSubmitRollingUpgrade").addEventListener("click", () => runRollingUpgrade(false));
