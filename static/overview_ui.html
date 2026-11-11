@@ -62,7 +62,31 @@
       box-shadow: 0 24px 64px rgba(0,0,0,.35);
       color: var(--text, #e2e8f0);
     }
+    #disableModal .na-modal {
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 48px);
+      max-height: calc(100dvh - 48px);
+      overflow: hidden;
+    }
+    #disableModal .na-modal > h3,
+    #disableModal .na-modal > .na-hint,
+    #disableModal .na-modal-actions { flex-shrink: 0; }
+    #disableModalBody {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      padding-right: 4px;
+    }
+    #disableModal .na-modal-actions {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--na-border);
+    }
     .na-modal h3 { margin: 0 0 8px; font-size: 1.1rem; }
+    .na-status-restored { color: var(--na-success); }
     .na-otp-fields { display: grid; gap: 12px; margin: 16px 0; }
     .na-otp-fields label { display: grid; gap: 6px; font-size: 0.85rem; color: var(--text-muted, #94a3b8); }
     .na-otp-fields input {
@@ -101,7 +125,7 @@
       <h1>卫生<em>清理</em></h1>
       <p class="na-subtitle">
         <span class="na-badge"><span class="na-badge-dot"></span>卫生</span>
-        选择盘点表与上游表生成总览，再对照分析建议勾选预禁用。
+        选择盘点表与上游表生成总览，再对照分析建议勾选预禁用或重新启用。
         不会静默改用另一份 Excel。宽限期内默认暂缓，须勾选「仍要执行」。
       </p>
       <p class="na-hint" style="margin-top:0.5rem">
@@ -115,7 +139,7 @@
         请在下方<strong>明确选择</strong>盘点表、上游表、总览与分析表。未选择时不会静默取最新一份。
         继续补全只认<strong>盘点表或总览表</strong>其中一个来源，两个不能同时选择。
         test / uat / prod 默认拉渠道密钥（需 Root + 二次验证）。
-        分析按当前卫生策略判定不用 / 不常用 / 新部署宽限。建议表在页内勾选即可预禁用，不必先打开 Excel。
+        分析按当前卫生策略判定不用 / 不常用 / 新部署宽限。建议表在页内勾选即可预禁用；已禁用建议可按同一源文件重新启用。
       </p>
       <div class="na-file-grid">
         <label class="na-field"><span class="na-field-label">盘点表（网关）</span><div class="na-select-wrap"><select id="selSummary" class="na-select"></select><span class="na-select-chevron" aria-hidden="true"></span></div></label>
@@ -229,15 +253,21 @@
       <div class="na-hygiene-table-wrap">
         <table class="na-hygiene-table" id="actionsTable"></table>
       </div>
-      <details style="margin-top:0.8rem">
-        <summary>已禁用建议（默认折叠）</summary>
+      <details style="margin-top:0.8rem" id="disabledPanel">
+        <summary>已禁用建议（可勾选重新启用）</summary>
+        <div class="na-hygiene-toolbar">
+          <span class="na-hint" id="disabledHint"></span>
+          <button type="button" class="na-btn na-btn-ghost" id="btnEnableSelectAll">全选</button>
+          <button type="button" class="na-btn na-btn-ghost" id="btnEnableInvert">反选</button>
+          <button type="button" class="na-btn na-btn-secondary" id="btnPreviewEnable">按勾选重新启用</button>
+        </div>
         <div class="na-hygiene-table-wrap"><table class="na-hygiene-table" id="disabledTable"></table></div>
       </details>
     </section>
   </div>
 
   <div class="na-modal-backdrop" id="disableModal" hidden>
-    <div class="na-modal" role="dialog" aria-modal="true" style="width:min(720px,100%)">
+    <div class="na-modal" role="dialog" aria-modal="true" aria-labelledby="disableModalTitle" style="width:min(720px,100%)">
       <h3 id="disableModalTitle">预禁用确认</h3>
       <p class="na-hint" id="disableModalHint"></p>
       <div id="disableModalBody"></div>
@@ -271,7 +301,7 @@
     let envSites = [];
     let selectedEnvs = new Set(ENV_ORDER);
     let hygienePayload = { actions: [], disabled_actions: [] };
-    let pendingDisable = { keys: [], force_hold: false, file: "", dryOk: false };
+    let pendingStatus = { action: "disable", keys: [], force_hold: false, file: "", dryOk: false };
     const ARTIFACT_CAP = 200;
 
     function selectedFile(id) {
@@ -373,7 +403,11 @@
       return "";
     }
 
-    function filteredActions(rows = hygienePayload.actions || []) {
+    function statusLabel(status) {
+      return ({ open: "未处理", held: "宽限期", done: "已禁用", restored: "已重新启用" })[status] || status || "";
+    }
+
+    function filteredActions(rows = hygienePayload.actions || [], ignoreStatus = false) {
       const level = $("fltLevel").value;
       const site = $("fltSite").value;
       const category = $("fltCategory").value;
@@ -384,14 +418,20 @@
         if (site && String(row["站点"] || "") !== site) return false;
         if (category && String(row["类别"] || "") !== category) return false;
         if (problem && !String(row["问题"] || "").toLowerCase().includes(problem)) return false;
-        if (status === "open" && row.status !== "open") return false;
-        if (status === "held" && row.status !== "held") return false;
+        if (!ignoreStatus && status === "open" && row.status !== "open") return false;
+        if (!ignoreStatus && status === "held" && row.status !== "held") return false;
         return true;
       });
     }
 
-    function renderActionRows(tableId, rows, withCheck) {
+    function enablePanelRows() {
+      const completed = (hygienePayload.actions || []).filter((row) => row.status === "done");
+      return [...completed, ...(hygienePayload.disabled_actions || [])];
+    }
+
+    function renderActionRows(tableId, rows, mode = "") {
       const table = $(tableId);
+      const withCheck = Boolean(mode);
       if (!rows.length) {
         table.innerHTML = "<tr><td>没有匹配的建议</td></tr>";
         return;
@@ -402,9 +442,10 @@
       table.innerHTML = `<tr>${withCheck ? "<th></th>" : ""}<th>级别</th><th>站点</th><th>渠道</th><th>令牌</th><th>问题</th><th>建议</th><th>近一月活跃</th><th>部署时间</th><th>用量</th><th>状态</th></tr>` +
         shown.map((row) => {
           const holdLock = row.hold && !$("forceHold").checked;
-          const disabled = row.status === "done" || holdLock;
+          const disabled = mode === "enable" ? row.status !== "done" : row.status === "done" || holdLock;
+          const checkClass = mode === "enable" ? "enable-check" : "act-check";
           const check = withCheck
-            ? `<td><input type="checkbox" class="act-check" value="${esc(row.key || "")}" ${disabled ? "disabled" : ""} data-hold="${row.hold ? "1" : "0"}"></td>`
+            ? `<td><input type="checkbox" class="${checkClass}" value="${esc(row.key || "")}" ${disabled ? "disabled" : ""} data-hold="${row.hold ? "1" : "0"}"></td>`
             : "";
           return `<tr>
             ${check}
@@ -417,14 +458,15 @@
             <td class="na-activity-cell">${esc(row["近一月活跃"] || "")}</td>
             <td>${esc(row["部署时间"] || "")}</td>
             <td>${esc(usageLabel(row))}</td>
-            <td class="na-status-${esc(row.status || "")}">${esc(row.status || "")}</td>
+            <td class="na-status-${esc(row.status || "")}">${esc(statusLabel(row.status))}</td>
           </tr>`;
         }).join("") + extra;
     }
 
     function renderHygieneTables() {
-      const sites = [...new Set((hygienePayload.actions || []).map((r) => String(r["站点"] || "")).filter(Boolean))];
-      const cats = [...new Set((hygienePayload.actions || []).map((r) => String(r["类别"] || "")).filter(Boolean))];
+      const allRows = [...(hygienePayload.actions || []), ...(hygienePayload.disabled_actions || [])];
+      const sites = [...new Set(allRows.map((r) => String(r["站点"] || "")).filter(Boolean))];
+      const cats = [...new Set(allRows.map((r) => String(r["类别"] || "")).filter(Boolean))];
       const siteSel = $("fltSite");
       const catSel = $("fltCategory");
       const cur = siteSel.value;
@@ -433,8 +475,14 @@
       catSel.innerHTML = '<option value="">全部类别</option>' + cats.map((s) => `<option>${esc(s)}</option>`).join("");
       if (cur && sites.includes(cur)) siteSel.value = cur;
       if (curCat && cats.includes(curCat)) catSel.value = curCat;
-      renderActionRows("actionsTable", filteredActions(), true);
-      renderActionRows("disabledTable", filteredActions(hygienePayload.disabled_actions || []), false);
+      renderActionRows("actionsTable", filteredActions(), "disable");
+      const enableRows = filteredActions(enablePanelRows(), true);
+      renderActionRows("disabledTable", enableRows, "enable");
+      const restorable = enableRows.filter((row) => row.status === "done").length;
+      $("disabledHint").textContent = `当前 ${restorable} 项可重新启用；渠道与令牌按各自勾选行处理，不连带启用`;
+      $("btnEnableSelectAll").disabled = !restorable;
+      $("btnEnableInvert").disabled = !restorable;
+      $("btnPreviewEnable").disabled = !restorable;
       const open = hygienePayload.open_count ?? (hygienePayload.actions || []).filter((r) => r.status === "open").length;
       $("actionsHint").textContent = `${hygienePayload.filename || ""} · 未处理 ${open} · 宽限 ${hygienePayload.hold_count || 0} · 高优先级 ${hygienePayload.pending_high || 0}`;
     }
@@ -488,6 +536,10 @@
       return [...document.querySelectorAll("#actionsTable .act-check:checked")].map((el) => el.value);
     }
 
+    function selectedEnableKeys() {
+      return [...document.querySelectorAll("#disabledTable .enable-check:checked")].map((el) => el.value);
+    }
+
     function filteredPreviewableKeys() {
       const forceHold = $("forceHold").checked;
       return filteredActions()
@@ -500,24 +552,37 @@
       return [...document.querySelectorAll("#actionsTable .act-check")].filter((el) => !el.disabled);
     }
 
-    function renderDisablePreview(pack) {
+    function enabledEnableChecks() {
+      return [...document.querySelectorAll("#disabledTable .enable-check")].filter((el) => !el.disabled);
+    }
+
+    function previewTargetCount(pack) {
+      return [...Object.values(pack.channel_count || {}), ...Object.values(pack.token_count || {})]
+        .reduce((total, value) => total + Number(value || 0), 0);
+    }
+
+    function renderStatusPreview(pack, action) {
+      const enabling = action === "enable";
       const skipped = (pack.skipped || []).map((s) => `${s.key || ""}：${s.reason || ""}`).join("\n");
       const ch = pack.channels || {};
       const tk = pack.tokens || {};
-      $("disableModalHint").textContent = `将按名称匹配禁用。渠道 ${JSON.stringify(pack.channel_count || {})} · 令牌 ${JSON.stringify(pack.token_count || {})}。跳过 ${ (pack.skipped || []).length } 条。`;
+      $("disableModalTitle").textContent = enabling ? "预启用确认" : "预禁用确认";
+      $("disableConfirm").textContent = enabling ? "确认重新启用" : "确认禁用";
+      $("disableModalHint").textContent = `将按名称匹配${enabling ? "重新启用" : "禁用"}。渠道 ${JSON.stringify(pack.channel_count || {})} · 令牌 ${JSON.stringify(pack.token_count || {})}。跳过 ${ (pack.skipped || []).length } 条。`;
       $("disableModalBody").innerHTML = ENV_ORDER.map((env) =>
-        `<p><strong>${env.toUpperCase()} 渠道</strong></p><pre class="na-preview-pre">${ch[env] || "（无）"}</pre><p><strong>${env.toUpperCase()} 令牌</strong></p><pre class="na-preview-pre">${tk[env] || "（无）"}</pre>`
-      ).join("") + (skipped ? `<p><strong>跳过</strong></p><pre class="na-preview-pre">${skipped}</pre>` : "");
+        `<p><strong>${env.toUpperCase()} 渠道</strong></p><pre class="na-preview-pre">${esc(ch[env] || "（无）")}</pre><p><strong>${env.toUpperCase()} 令牌</strong></p><pre class="na-preview-pre">${esc(tk[env] || "（无）")}</pre>`
+      ).join("") + (skipped ? `<p><strong>跳过</strong></p><pre class="na-preview-pre">${esc(skipped)}</pre>` : "");
     }
 
-    async function postDisable(dryRun) {
-      const resp = await fetch("/api/hygiene/confirm-disable", {
+    async function postStatus(dryRun) {
+      const enabling = pendingStatus.action === "enable";
+      const resp = await fetch(enabling ? "/api/hygiene/confirm-enable" : "/api/hygiene/confirm-disable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          file: pendingDisable.file,
-          keys: pendingDisable.keys,
-          force_hold: pendingDisable.force_hold,
+          file: pendingStatus.file,
+          keys: pendingStatus.keys,
+          force_hold: pendingStatus.force_hold,
           dry_run: dryRun,
           sites: payloadSites(),
         }),
@@ -527,18 +592,25 @@
       return data;
     }
 
-    async function previewActions(file, keys) {
-      const resp = await fetch("/api/hygiene/preview-disable", {
+    async function previewStatus(file, keys, action) {
+      const enabling = action === "enable";
+      const resp = await fetch(enabling ? "/api/hygiene/preview-enable" : "/api/hygiene/preview-disable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file, keys, force_hold: $("forceHold").checked }),
+        body: JSON.stringify({ file, keys, force_hold: enabling ? false : $("forceHold").checked }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
-      pendingDisable = { keys, force_hold: $("forceHold").checked, file, dryOk: false };
+      const pack = data.data || {};
+      if (!previewTargetCount(pack)) throw new Error(enabling ? "没有可重新启用的渠道或令牌" : "没有可禁用的渠道或令牌");
+      pendingStatus = { action, keys, force_hold: enabling ? false : $("forceHold").checked, file, dryOk: false };
       $("disableConfirm").disabled = true;
-      renderDisablePreview(data.data || {});
+      renderStatusPreview(pack, action);
       $("disableModal").hidden = false;
+    }
+
+    function previewActions(file, keys) {
+      return previewStatus(file, keys, "disable");
     }
 
     function openLog() {
@@ -1298,30 +1370,65 @@
         NAUi.showBanner("userBanner", e.message || String(e), "err");
       }
     });
+    $("btnEnableSelectAll").addEventListener("click", () => {
+      const boxes = enabledEnableChecks();
+      if (!boxes.length) {
+        NAUi.showBanner("userBanner", "当前筛选下没有可重新启用的建议", "warn");
+        return;
+      }
+      boxes.forEach((el) => { el.checked = true; });
+    });
+    $("btnEnableInvert").addEventListener("click", () => {
+      const boxes = enabledEnableChecks();
+      if (!boxes.length) {
+        NAUi.showBanner("userBanner", "当前筛选下没有可重新启用的建议", "warn");
+        return;
+      }
+      boxes.forEach((el) => { el.checked = !el.checked; });
+    });
+    $("btnPreviewEnable").addEventListener("click", async () => {
+      const file = selectedFile("selAnalysis");
+      const keys = selectedEnableKeys();
+      if (!file) {
+        NAUi.showBanner("userBanner", "请选择分析表", "warn");
+        return;
+      }
+      if (!keys.length) {
+        NAUi.showBanner("userBanner", "请先勾选已禁用建议", "warn");
+        return;
+      }
+      try {
+        await previewStatus(file, keys, "enable");
+      } catch (e) {
+        NAUi.showBanner("userBanner", e.message || String(e), "err");
+      }
+    });
     $("disableCancel").addEventListener("click", () => { $("disableModal").hidden = true; });
     $("disableDryRun").addEventListener("click", async () => {
       try {
         const ready = await ensureKeyAuth(payloadSites(), { confirmLabel: "确认并预检" });
         if (ready === null) return;
         envSites = ready.length ? ready : envSites;
-        const data = await postDisable(true);
-        pendingDisable.dryOk = true;
+        const data = await postStatus(true);
+        pendingStatus.dryOk = true;
         $("disableConfirm").disabled = false;
-        $("disableModalHint").textContent = data.message || "预检完成，请确认后再禁用";
+        $("disableModalHint").textContent = data.message || `预检完成，请确认后再${pendingStatus.action === "enable" ? "重新启用" : "禁用"}`;
         NAUi.toast("预检完成", "ok");
       } catch (e) {
-        pendingDisable.dryOk = false;
+        pendingStatus.dryOk = false;
         $("disableConfirm").disabled = true;
         NAUi.showBanner("userBanner", e.message || String(e), "err");
       }
     });
     $("disableConfirm").addEventListener("click", async () => {
-      if (!pendingDisable.dryOk) return;
+      if (!pendingStatus.dryOk) return;
+      const enabling = pendingStatus.action === "enable";
+      const filename = pendingStatus.file;
       try {
-        const data = await postDisable(false);
+        const data = await postStatus(false);
         $("disableModal").hidden = true;
-        NAUi.showBanner("userBanner", data.message || "已禁用", data.success ? "ok" : "warn");
-        await loadHygieneActions(pendingDisable.file);
+        NAUi.showBanner("userBanner", data.message || (enabling ? "已重新启用" : "已禁用"), data.success ? "ok" : "warn");
+        await loadHygieneActions(filename);
       } catch (e) {
         NAUi.showBanner("userBanner", e.message || String(e), "err");
       }

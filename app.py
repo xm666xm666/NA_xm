@@ -266,8 +266,11 @@ def _load_batch_modules():
             "list_summary_excel_files": data_summary_exporter.list_summary_excel_files,
             "load_analysis_payload": hygiene_actions.load_analysis_payload,
             "select_actions": hygiene_actions.select_actions,
+            "select_enable_actions": hygiene_actions.select_enable_actions,
             "preview_disable_from_actions": hygiene_actions.preview_disable_from_actions,
+            "preview_enable_from_actions": hygiene_actions.preview_enable_from_actions,
             "mark_actions_done": hygiene_actions.mark_actions_done,
+            "mark_actions_enabled": hygiene_actions.mark_actions_enabled,
             "filename_timestamp": data_summary_exporter.filename_timestamp,
             "run_volc_bill_export": volc_billing.run_volc_bill_export,
             "collect_volc_bills": volc_billing.collect_volc_bills,
@@ -3814,18 +3817,28 @@ def _hygiene_env_body(env: str, body: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-@app.post("/api/hygiene/preview-disable")
-def api_hygiene_preview_disable():
-    _ensure_batch()
-    body = request.get_json(silent=True) or {}
-    try:
-        path = BATCH["resolve_excel_path"](NEW_DIR, body.get("file") or body.get("id") or "")
-        payload = BATCH["load_analysis_payload"](path, NEW_DIR)
+def _hygiene_status_request(body: dict[str, Any], action: str):
+    path = BATCH["resolve_excel_path"](NEW_DIR, body.get("file") or body.get("id") or "")
+    payload = BATCH["load_analysis_payload"](path, NEW_DIR)
+    if action == "enable":
+        selected = BATCH["select_enable_actions"](payload, body.get("keys"))
+        preview = BATCH["preview_enable_from_actions"](selected)
+        if not any(preview.get("channel_count", {}).values()) and not any(preview.get("token_count", {}).values()):
+            raise ValueError("所选记录没有可重新启用的渠道或令牌")
+    else:
         selected = BATCH["select_actions"](payload, body.get("keys"))
         preview = BATCH["preview_disable_from_actions"](
             selected,
             force_hold=bool(body.get("force_hold") or body.get("force")),
         )
+    return path, selected, preview
+
+
+def _hygiene_preview_status(action: str):
+    _ensure_batch()
+    body = request.get_json(silent=True) or {}
+    try:
+        path, selected, preview = _hygiene_status_request(body, action)
     except FileNotFoundError as exc:
         return jsonify({"success": False, "message": str(exc)}), 404
     except ValueError as exc:
@@ -3833,19 +3846,22 @@ def api_hygiene_preview_disable():
     return jsonify({"success": True, "data": {**preview, "filename": path.name, "keys": [r.get("key") for r in selected]}})
 
 
-@app.post("/api/hygiene/confirm-disable")
-def api_hygiene_confirm_disable():
+@app.post("/api/hygiene/preview-disable")
+def api_hygiene_preview_disable():
+    return _hygiene_preview_status("disable")
+
+
+@app.post("/api/hygiene/preview-enable")
+def api_hygiene_preview_enable():
+    return _hygiene_preview_status("enable")
+
+
+def _hygiene_confirm_status(action: str):
     _ensure_batch()
     body = request.get_json(silent=True) or {}
     dry_run = bool(body.get("dry_run", False))
     try:
-        path = BATCH["resolve_excel_path"](NEW_DIR, body.get("file") or body.get("id") or "")
-        payload = BATCH["load_analysis_payload"](path, NEW_DIR)
-        selected = BATCH["select_actions"](payload, body.get("keys"))
-        preview = BATCH["preview_disable_from_actions"](
-            selected,
-            force_hold=bool(body.get("force_hold") or body.get("force")),
-        )
+        path, selected, preview = _hygiene_status_request(body, action)
     except FileNotFoundError as exc:
         return jsonify({"success": False, "message": str(exc)}), 404
     except ValueError as exc:
@@ -3871,7 +3887,7 @@ def api_hygiene_confirm_disable():
                 ch = BATCH["run_channel_batch_status"](
                     base_url=base_url,
                     auth=auth,
-                    action="disable",
+                    action=action,
                     dry_run=dry_run,
                     match_mode="name",
                     batch_text=ch_text,
@@ -3891,7 +3907,7 @@ def api_hygiene_confirm_disable():
                     base_url=base_url,
                     batch_text=tk_text,
                     auth=auth,
-                    action="disable",
+                    action=action,
                     dry_run=dry_run,
                 )
                 env_result["tokens"] = {
@@ -3910,15 +3926,37 @@ def api_hygiene_confirm_disable():
             results[env] = {"success": False, "message": _user_facing_error(exc)}
 
     if not dry_run and not failed:
-        BATCH["mark_actions_done"](NEW_DIR, path.name, [str(r.get("key")) for r in selected if r.get("key")])
+        if action == "enable":
+            enabled_keys = {str(key) for key in preview.get("action_keys") or []}
+            enabled_rows = [row for row in selected if str(row.get("key") or "") in enabled_keys]
+            BATCH["mark_actions_enabled"](NEW_DIR, path.name, enabled_rows)
+        else:
+            BATCH["mark_actions_done"](NEW_DIR, path.name, [str(r.get("key")) for r in selected if r.get("key")])
+
+    if dry_run:
+        message = "预启用完成，请确认清单" if action == "enable" else "预禁用完成，请确认清单"
+    elif failed:
+        message = "部分环境失败"
+    else:
+        message = "已重新启用并更新处理记录" if action == "enable" else "已禁用并记入处理记录"
 
     return jsonify(
         {
             "success": not failed,
-            "message": "预禁用完成，请确认清单" if dry_run else ("已禁用并记入处理记录" if not failed else "部分环境失败"),
-            "data": {"preview": preview, "results": results, "dry_run": dry_run, "filename": path.name},
+            "message": message,
+            "data": {"preview": preview, "results": results, "dry_run": dry_run, "filename": path.name, "action": action},
         }
     )
+
+
+@app.post("/api/hygiene/confirm-disable")
+def api_hygiene_confirm_disable():
+    return _hygiene_confirm_status("disable")
+
+
+@app.post("/api/hygiene/confirm-enable")
+def api_hygiene_confirm_enable():
+    return _hygiene_confirm_status("enable")
 
 
 @app.get("/api/llm-presets")

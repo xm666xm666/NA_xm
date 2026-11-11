@@ -14,7 +14,12 @@ from lib.artifacts import list_artifacts, resolve_excel_path
 from lib.hygiene_actions import (
     action_key,
     is_hold_suggestion,
+    load_analysis_payload,
+    mark_actions_done,
+    mark_actions_enabled,
     preview_disable_from_actions,
+    preview_enable_from_actions,
+    select_enable_actions,
 )
 from lib.hygiene_policy import (
     uncommon_metric_label,
@@ -22,7 +27,15 @@ from lib.hygiene_policy import (
     normalize_policy,
     save_policy,
 )
-from lib.overview_analyzer import SHEET_SUMMARY, classify_usage, relax_for_new_deploy, save_analysis_workbook
+from lib.overview_analyzer import (
+    ACTION_HEADERS,
+    SHEET_ACTIONS,
+    SHEET_DISABLED_ACTIONS,
+    SHEET_SUMMARY,
+    classify_usage,
+    relax_for_new_deploy,
+    save_analysis_workbook,
+)
 
 
 class HygienePolicyTests(unittest.TestCase):
@@ -154,6 +167,114 @@ class HygieneActionsTests(unittest.TestCase):
         row = {"站点": "test", "渠道名称": "a", "分组": "g", "类别": "下游无上游"}
         self.assertEqual(action_key(row, index=3), "3|test|a||g|下游无上游")
         self.assertTrue(is_hold_suggestion("部署未满 10 天，暂缓禁用/停用"))
+
+    def test_source_file_disabled_actions_can_be_enabled_again(self):
+        from openpyxl import Workbook
+
+        pending_row = {header: "" for header in ACTION_HEADERS}
+        pending_row.update(
+            {
+                "级别": "高",
+                "类别": "下游无上游",
+                "站点": "test",
+                "渠道名称": "channel-disabled-by-action",
+                "分组": "gateway",
+                "状态": "已启用",
+            }
+        )
+        archived_channel = {header: "" for header in ACTION_HEADERS}
+        archived_channel.update(
+            {
+                "级别": "低",
+                "类别": "已禁用仍登记",
+                "站点": "uat",
+                "渠道名称": "channel-disabled-in-source",
+                "分组": "gateway",
+                "状态": "已禁用",
+            }
+        )
+        archived_token = {header: "" for header in ACTION_HEADERS}
+        archived_token.update(
+            {
+                "级别": "低",
+                "类别": "令牌对照",
+                "站点": "prod",
+                "令牌名称": "token-disabled-in-source",
+                "分组": "tokens",
+                "状态": "已禁用",
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            excel = root / "excel"
+            excel.mkdir()
+            path = excel / "智能分析表格_enable.xlsx"
+            workbook = Workbook()
+            pending_sheet = workbook.active
+            pending_sheet.title = SHEET_ACTIONS
+            pending_sheet.append(ACTION_HEADERS)
+            pending_sheet.append([pending_row[header] for header in ACTION_HEADERS])
+            archived_sheet = workbook.create_sheet(SHEET_DISABLED_ACTIONS)
+            archived_sheet.append(ACTION_HEADERS)
+            archived_sheet.append([archived_channel[header] for header in ACTION_HEADERS])
+            archived_sheet.append([archived_token[header] for header in ACTION_HEADERS])
+            workbook.save(path)
+            workbook.close()
+
+            initial = load_analysis_payload(path, root)
+            mark_actions_done(root, path.name, [initial["actions"][0]["key"]])
+            disabled = load_analysis_payload(path, root)
+            keys = [disabled["actions"][0]["key"]] + [row["key"] for row in disabled["disabled_actions"]]
+            selected = select_enable_actions(disabled, keys)
+            preview = preview_enable_from_actions(selected)
+
+            self.assertEqual(preview["channels"]["test"], "channel-disabled-by-action\tgateway")
+            self.assertEqual(preview["channels"]["uat"], "channel-disabled-in-source\tgateway")
+            self.assertEqual(preview["tokens"]["prod"], "token-disabled-in-source\ttokens")
+            self.assertEqual(preview["actions_used"], 3)
+
+            mark_actions_enabled(root, path.name, selected)
+            restored = load_analysis_payload(path, root)
+            self.assertEqual(restored["actions"][0]["status"], "open")
+            self.assertEqual([row["status"] for row in restored["disabled_actions"]], ["restored", "restored"])
+            with self.assertRaises(ValueError):
+                select_enable_actions(restored, keys)
+
+    def test_enable_preview_tracks_only_actionable_rows(self):
+        rows = [
+            {
+                "key": "restorable",
+                "status": "done",
+                "站点": "test",
+                "类别": "下游无上游",
+                "渠道名称": "channel-off",
+                "分组": "gateway",
+            },
+            {
+                "key": "duplicate",
+                "status": "done",
+                "站点": "test",
+                "类别": "渠道余额",
+                "渠道名称": "channel-off",
+                "分组": "gateway",
+            },
+            {
+                "key": "missing-group",
+                "status": "done",
+                "站点": "uat",
+                "类别": "下游无上游",
+                "渠道名称": "broken-channel",
+                "分组": "",
+            },
+        ]
+
+        preview = preview_enable_from_actions(rows)
+
+        self.assertEqual(preview["channels"]["test"], "channel-off\tgateway")
+        self.assertEqual(preview["actions_used"], 2)
+        self.assertEqual(preview["action_keys"], ["restorable", "duplicate"])
+        self.assertEqual([item["key"] for item in preview["skipped"]], ["missing-group"])
 
 
 if __name__ == "__main__":

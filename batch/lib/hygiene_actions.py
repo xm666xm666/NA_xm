@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""卫生建议读取、处理记录、预禁用清单。不改历史分析 Excel。"""
+"""卫生建议读取、处理记录、禁用/重新启用清单。不改历史分析 Excel。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,9 @@ from typing import Any
 from .overview_analyzer import (
     SHEET_ACTIONS,
     SHEET_DISABLED_ACTIONS,
+    _envs_from_action_site,
     build_batch_disable_rows,
+    format_name_group_line,
 )
 from .overview_exporter import load_sheet_rows
 
@@ -19,6 +21,7 @@ STATUS_OPEN = "open"
 STATUS_HELD = "held"
 STATUS_DONE = "done"
 STATUS_SKIPPED = "skipped"
+STATUS_RESTORED = "restored"
 
 
 def status_path(root_dir: Path) -> Path:
@@ -68,6 +71,19 @@ def mark_actions_done(root_dir: Path, filename: str, keys: list[str], *, status:
     files = store.setdefault("files", {})
     bucket = files.setdefault(filename, {})
     for key in keys:
+        bucket[key] = {"status": status}
+    save_status_map(root_dir, store)
+
+
+def mark_actions_enabled(root_dir: Path, filename: str, rows: list[dict[str, Any]]) -> None:
+    store = load_status_map(root_dir)
+    files = store.setdefault("files", {})
+    bucket = files.setdefault(filename, {})
+    for row in rows:
+        key = str(row.get("key") or "")
+        if not key:
+            continue
+        status = STATUS_RESTORED if row.get("disabled_sheet") else STATUS_OPEN
         bucket[key] = {"status": status}
     save_status_map(root_dir, store)
 
@@ -170,6 +186,54 @@ def preview_disable_from_actions(
     }
 
 
+def preview_enable_from_actions(actions: list[dict[str, Any]]) -> dict[str, Any]:
+    channel_lines: dict[str, list[str]] = {env: [] for env in ("test", "uat", "prod")}
+    token_lines: dict[str, list[str]] = {env: [] for env in ("test", "uat", "prod")}
+    seen_channels: dict[str, set[str]] = {env: set() for env in channel_lines}
+    seen_tokens: dict[str, set[str]] = {env: set() for env in token_lines}
+    skipped: list[dict[str, Any]] = []
+    action_keys: list[str] = []
+    actions_used = 0
+
+    for row in actions:
+        if row.get("status") != STATUS_DONE:
+            skipped.append({"key": row.get("key"), "reason": "仅支持已禁用记录"})
+            continue
+        envs = _envs_from_action_site(row.get("站点"))
+        if not envs:
+            skipped.append({"key": row.get("key"), "reason": "未识别站点"})
+            continue
+        is_token = str(row.get("类别") or "") == "令牌对照"
+        name = row.get("令牌名称") if is_token else row.get("渠道名称")
+        line = format_name_group_line(name, row.get("分组"))
+        if not line:
+            skipped.append({"key": row.get("key"), "reason": "缺少名称或分组，无法重新启用"})
+            continue
+        actions_used += 1
+        action_keys.append(str(row.get("key") or ""))
+        for env in envs:
+            lines = token_lines[env] if is_token else channel_lines[env]
+            seen = seen_tokens[env] if is_token else seen_channels[env]
+            if line in seen:
+                continue
+            seen.add(line)
+            lines.append(line)
+
+    channels = {env: _batch_text_from_lines(lines) for env, lines in channel_lines.items()}
+    tokens = {env: _batch_text_from_lines(lines) for env, lines in token_lines.items()}
+    return {
+        "action": "enable",
+        "actions_used": actions_used,
+        "action_keys": action_keys,
+        "skipped": skipped,
+        "channels": channels,
+        "tokens": tokens,
+        "channel_count": {env: len([ln for ln in text.splitlines() if ln]) for env, text in channels.items()},
+        "token_count": {env: len([ln for ln in text.splitlines() if ln]) for env, text in tokens.items()},
+        "force_hold": False,
+    }
+
+
 def select_actions(payload: dict[str, Any], keys: list[str] | None) -> list[dict[str, Any]]:
     rows = list(payload.get("actions") or [])
     wanted = {str(k) for k in (keys or []) if str(k).strip()}
@@ -178,4 +242,19 @@ def select_actions(payload: dict[str, Any], keys: list[str] | None) -> list[dict
     picked = [row for row in rows if str(row.get("key")) in wanted]
     if not picked:
         raise ValueError("没有匹配的建议，请刷新后重选")
+    return picked
+
+
+def select_enable_actions(payload: dict[str, Any], keys: list[str] | None) -> list[dict[str, Any]]:
+    rows = [
+        row
+        for row in list(payload.get("actions") or []) + list(payload.get("disabled_actions") or [])
+        if row.get("status") == STATUS_DONE
+    ]
+    wanted = {str(k) for k in (keys or []) if str(k).strip()}
+    if not wanted:
+        raise ValueError("请先勾选要重新启用的已禁用建议")
+    picked = [row for row in rows if str(row.get("key")) in wanted]
+    if not picked:
+        raise ValueError("没有可重新启用的已禁用建议，请刷新后重选")
     return picked
