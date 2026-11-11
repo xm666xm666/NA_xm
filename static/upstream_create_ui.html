@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>上游创建 · NA 自动配置</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/static/na-theme.css?v=creation-1" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=creation-3" />
   <link rel="stylesheet" href="/static/na-components.css?v=art-2" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=art-1"></script>
@@ -21,6 +21,7 @@
     }
     .na-card {
       position: relative;
+      min-width: 0;
       margin-bottom: 1.15rem;
       padding: 1.25rem 1.35rem;
       border: 1px solid var(--na-border);
@@ -71,29 +72,36 @@
     .mode-switch {
       display: inline-flex;
       align-items: center;
-      gap: .28rem;
-      margin-right: .65rem;
+      gap: .2rem;
+      margin-right: .35rem;
+      padding: .22rem;
+      border: 1px solid var(--na-border);
+      border-radius: .75rem;
+      background: color-mix(in srgb, var(--na-panel-solid) 48%, transparent);
     }
     .mode-btn {
-      border: 1px solid var(--na-border);
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--na-panel-solid) 72%, transparent);
+      min-height: 2rem;
+      border: 0;
+      border-radius: .52rem;
+      background: transparent;
       color: var(--na-text-muted);
       font: 650 .72rem/1 var(--na-font-body);
-      padding: .34rem .68rem;
+      padding: .45rem .72rem;
       cursor: pointer;
       white-space: nowrap;
-      transition: border-color .18s ease, background .18s ease, color .18s ease;
+      transition: background .18s ease, color .18s ease, box-shadow .18s ease;
     }
-    .mode-btn:hover { color: var(--na-text); border-color: var(--na-border-bright); }
+    .mode-btn:hover:not(:disabled) { color: var(--na-text); background: var(--na-accent-soft); }
     .mode-btn.active {
       color: var(--na-accent);
-      border-color: color-mix(in srgb, var(--na-accent) 45%, transparent);
-      background: var(--na-accent-soft);
+      background: var(--na-panel-solid);
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--na-shadow-color, rgba(15, 23, 42, .2)) 18%, transparent);
     }
+    .mode-btn:focus-visible { outline: 2px solid var(--na-accent); outline-offset: 2px; }
+    .mode-btn:disabled { opacity: .45; cursor: not-allowed; }
     .creation-stack {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 1.15rem;
     }
     .form-grid {
@@ -386,6 +394,25 @@
     .switch-row select { min-width: 180px; }
     .hint { font-size: .72rem; color: var(--na-text-muted); margin: .45rem 0 0; }
     .actions { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; }
+    .actions .na-btn, .search-row .na-btn, .rolling-select-row .na-btn {
+      min-height: 2.55rem;
+      border-radius: .65rem;
+    }
+    .na-btn-refresh .na-btn-glyph, .refresh-icon-button .na-btn-glyph { color: var(--na-accent); }
+    .na-btn-refresh:hover:not(:disabled) .na-btn-glyph { color: currentColor; }
+    .parent-control button:focus-visible,
+    .pagination button:focus-visible,
+    .page-number:focus-visible,
+    .row-actions button:focus-visible,
+    .api-key-actions button:focus-visible {
+      outline: 2px solid var(--na-accent);
+      outline-offset: 2px;
+    }
+    .parent-control button:active:not(:disabled),
+    .pagination button:active:not(:disabled),
+    .page-number:active:not(:disabled),
+    .row-actions button:active:not(:disabled),
+    .api-key-actions button:active:not(:disabled) { transform: translateY(1px); }
     #projectForm .actions {
       justify-content: flex-end;
       margin-top: .9rem; padding-top: .85rem;
@@ -476,6 +503,23 @@
       background: color-mix(in srgb, var(--na-danger, #dc2626) 6%, transparent);
     }
     .api-key-actions button.danger:hover { color: #fff; border-color: var(--na-danger, #dc2626); background: var(--na-danger, #dc2626); }
+    .row-actions button, .api-key-actions button {
+      min-height: 1.95rem;
+      border-radius: .5rem;
+      padding: .3rem .62rem;
+      transition: background .18s, border-color .18s, color .18s, transform .18s;
+    }
+    .row-actions button:not(.danger):hover:not(:disabled), .api-key-actions button:not(.danger):hover:not(:disabled) {
+      color: var(--na-text);
+      border-color: var(--na-border-bright);
+      background: var(--na-accent-soft);
+    }
+    .api-key-actions button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      border-color: var(--na-border);
+      background: color-mix(in srgb, var(--na-panel-solid) 60%, transparent);
+    }
     .api-key-form {
       margin: .8rem 0 1rem;
       border: 1px solid color-mix(in srgb, var(--na-border) 85%, transparent);
@@ -667,13 +711,20 @@
     #projectDetail.api-key-only > .table-wrap,
     .api-key-only #endpointTableWrap { display: none; }
     @media (max-width: 1160px) {
-      .detail-grid { grid-template-columns: 1fr; }
+      .detail-grid { grid-template-columns: minmax(0, 1fr); }
       .project-form-grid { grid-template-columns: 1fr; }
       .subproject-row { grid-template-columns: 1fr; align-items: stretch; }
     }
     @media (max-width: 700px) {
       .na-card { padding: 1rem; }
       .na-card-head { display: block; }
+      .na-card-head > .actions { margin-top: 1rem; }
+      .mode-switch { width: 100%; margin: 0 0 .65rem; }
+      .mode-btn { flex: 1 1 0; padding-inline: .45rem; }
+      #projectDetail .actions > .na-btn { flex: 1 1 auto; }
+      .search-row { flex-wrap: wrap; }
+      .search-row input { flex-basis: 100%; }
+      .search-row .na-btn { flex: 1 1 auto; }
       .creation-table.project-table, .creation-table.model-table { min-width: 36rem; }
       .api-key-row { grid-template-columns: 1fr; align-items: start; }
       .creation-table.endpoint-table { min-width: 44rem; }
@@ -767,7 +818,7 @@
               <label for="formParent">父级项目<span class="required">*</span></label>
               <div class="parent-control">
                 <select id="formParent"><option value="default">default（默认项目）</option></select>
-                <button id="btnRefreshParents" type="button" title="刷新父级项目" aria-label="刷新父级项目">↻</button>
+                <button id="btnRefreshParents" class="refresh-icon-button" type="button" title="刷新父级项目" aria-label="刷新父级项目"><svg class="na-btn-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.5-2.6L20 9"/><path d="m4 15 2.4 2.6A7 7 0 0 0 17.9 15"/></svg></button>
               </div>
               <span class="field-error" id="parentProjectError"></span>
             </div>
@@ -857,7 +908,9 @@
             <button type="button" class="mode-btn" data-detail-mode="endpoint-info">接入点信息</button>
           </div>
           <button id="btnChangeProject" class="na-btn na-btn-secondary" type="button">切换项目</button>
-          <button id="btnLoadEndpoints" class="na-btn na-btn-ghost" type="button">刷新接入点</button>
+          <button id="btnShowApiKeyForm" class="na-btn na-btn-primary" type="button" hidden>新建 API Key</button>
+          <button id="btnLoadApiKeys" class="na-btn na-btn-ghost na-btn-refresh" type="button" hidden><svg class="na-btn-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.5-2.6L20 9"/><path d="m4 15 2.4 2.6A7 7 0 0 0 17.9 15"/></svg><span>刷新 API Key</span></button>
+          <button id="btnLoadEndpoints" class="na-btn na-btn-ghost na-btn-refresh" type="button" hidden><svg class="na-btn-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.5-2.6L20 9"/><path d="m4 15 2.4 2.6A7 7 0 0 0 17.9 15"/></svg><span>刷新接入点</span></button>
           <button id="btnProjectRollingUpgrade" class="na-btn na-btn-secondary" type="button">一键切换模型</button>
         </div>
       </div>
@@ -867,7 +920,7 @@
           <div class="search-row">
             <input id="modelSearch" placeholder="搜索模型" aria-label="搜索模型" />
             <button id="btnLoadModels" class="na-btn na-btn-secondary" type="button">模型广场</button>
-            <button id="btnLoadEnabledModels" class="na-btn na-btn-secondary" type="button">刷新已开通</button>
+            <button id="btnLoadEnabledModels" class="na-btn na-btn-secondary na-btn-refresh" type="button"><svg class="na-btn-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.5-2.6L20 9"/><path d="m4 15 2.4 2.6A7 7 0 0 0 17.9 15"/></svg><span>刷新已开通</span></button>
           </div>
           <div id="modelGroups" class="group-row" aria-label="模型供应商分组"></div>
           <div class="table-wrap">
@@ -909,11 +962,6 @@
           <div>
             <h3>API Key 管理</h3>
             <p class="hint">为当前项目创建调用凭证，资源权限默认全部，可随时编辑范围和 IP 白名单。</p>
-          </div>
-          <div class="actions">
-            <button id="btnApiKeyChangeProject" class="na-btn na-btn-secondary" type="button">切换项目</button>
-            <button id="btnShowApiKeyForm" class="na-btn na-btn-primary" type="button">新建 API Key</button>
-            <button id="btnLoadApiKeys" class="na-btn na-btn-ghost" type="button">刷新 API Key</button>
           </div>
         </div>
         <form id="apiKeyForm" class="api-key-form" hidden>
@@ -1651,6 +1699,8 @@
           ? "查看并编辑当前项目的推理接入点，停止后才能删除。"
           : "点击模型后自动填入右侧接入点信息，再补充名称/描述并创建。";
       $("btnLoadEndpoints").hidden = !endpointInfoMode;
+      $("btnShowApiKeyForm").hidden = !apiKeyMode;
+      $("btnLoadApiKeys").hidden = !apiKeyMode;
       document.querySelectorAll("#projectDetail [data-detail-mode]").forEach((button) => {
         button.classList.toggle("active", button.dataset.detailMode === currentDetailMode);
       });
@@ -2145,7 +2195,6 @@
     $("btnLoadEndpoints").addEventListener("click", loadEndpoints);
     $("btnLoadApiKeys").addEventListener("click", loadApiKeys);
     $("btnShowApiKeyForm").addEventListener("click", openApiKeyForm);
-    $("btnApiKeyChangeProject").addEventListener("click", () => $("btnChangeProject").click());
     $("btnCancelApiKey").addEventListener("click", () => $("apiKeyForm").hidden = true);
     $("btnSubmitApiKey").addEventListener("click", submitApiKey);
     $("apiKeyPermission").addEventListener("change", toggleApiKeyCustom);

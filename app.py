@@ -4681,18 +4681,16 @@ def _latest_logs_export_path() -> Path | None:
     return max(files, key=lambda path: path.stat().st_mtime)
 
 
-def _parse_logs_export_request(body: dict[str, Any]) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
-    """解析使用日志导出请求，校验失败时抛 ValueError。"""
+def _parse_logs_request(body: dict[str, Any]) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """解析使用日志的公共连接和筛选参数，校验失败时抛 ValueError。"""
     base_url = _parse_base_url(body.get("base_url", ""))
     if not base_url:
         raise ValueError("请填写 New API 地址")
-    export_format = str(body.get("format") or "xlsx").strip().lower()
-    if export_format not in {"csv", "xlsx"}:
-        raise ValueError("format 仅支持 csv 或 xlsx")
     filters = {
         "log_type": int(body.get("log_type") or 0),
         "start_timestamp": int(body["start_timestamp"]) if body.get("start_timestamp") else None,
         "end_timestamp": int(body["end_timestamp"]) if body.get("end_timestamp") else None,
+        "username": str(body.get("username") or "").strip(),
         "token_name": str(body.get("token_name") or "").strip(),
         "model_name": str(body.get("model_name") or "").strip(),
         "group": str(body.get("group") or "").strip(),
@@ -4709,7 +4707,54 @@ def _parse_logs_export_request(body: dict[str, Any]) -> tuple[str, str, dict[str
     else:
         filters["channel"] = None
     auth = _parse_auth(body)
+    return base_url, filters, auth
+
+
+def _parse_logs_export_request(body: dict[str, Any]) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
+    """解析使用日志导出请求，校验失败时抛 ValueError。"""
+    base_url, filters, auth = _parse_logs_request(body)
+    export_format = str(body.get("format") or "xlsx").strip().lower()
+    if export_format not in {"csv", "xlsx"}:
+        raise ValueError("format 仅支持 csv 或 xlsx")
     return base_url, export_format, filters, auth
+
+
+@app.post("/api/logs/list")
+def logs_list():
+    """按页查询使用日志，供页面直接展示；每页最多返回 100 条。"""
+    body = request.get_json(silent=True) or {}
+    try:
+        base_url, filters, auth = _parse_logs_request(body)
+        page = int(body.get("page") if body.get("page") not in (None, "") else 1)
+        if page <= 0:
+            raise ValueError("页码必须大于 0")
+    except (TypeError, ValueError) as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+
+    try:
+        batch = _ensure_batch()
+        client = batch["NewAPIClient"](base_url)
+        batch["authenticate_client"](client, auth)
+        is_admin = client.is_admin()
+        result = client.list_logs(
+            page=page,
+            page_size=100,
+            admin=is_admin,
+            **filters,
+        )
+        items = result.get("items") or []
+        return jsonify(
+            {
+                "success": True,
+                "items": items,
+                "total": result.get("total"),
+                "page": result.get("page") or page,
+                "page_size": min(max(int(result.get("page_size") or 100), 1), 100),
+                "is_admin": is_admin,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
 def _log_export_job_public(job: dict[str, Any]) -> dict[str, Any]:

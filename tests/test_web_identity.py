@@ -123,6 +123,9 @@ class WebsiteIdentityTests(unittest.TestCase):
             session["csrf_token"] = "test-csrf-token"
         return "test-csrf-token"
 
+    def test_logs_list_api_uses_batch_feature(self) -> None:
+        self.assertEqual(self.identity.api_feature("/api/logs/list"), FEATURE_BATCH)
+
     def test_bootstrap_admin_login_and_user_management(self) -> None:
         login_page = self.client.get("/login")
         self.assertEqual(login_page.status_code, 200)

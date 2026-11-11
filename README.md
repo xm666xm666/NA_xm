@@ -213,7 +213,7 @@ NA信息：按 test / uat / prod 读取服务端站点账号、密码与 TOTP，
 | **分组设置**   | 批量创建 / 删除分组；**分组切换**（勾选或全选，将该分组下渠道 / 令牌改到目标分组；需 Root 建分组） |
 | **渠道启停**   | 按上游模型 / 类型全部 / 勾选 ID 启用禁用；可视化清单；全选反选；单条操作；默认自定义渠道可改类型                              |
 | **渠道查询**   | 在**数据汇总**页：按已配置站点查询已用/剩余；常用区间；**配置时间段**（1/3/5/15/30/60/180/365 天或自定义）；**近一月活跃**按模型逐项填写（失败/无信息为 N/A）；导出写入 `excel/渠道余额_时间戳.xlsx`；点「下载 Excel」获取完整文件；按环境分表（历史表名仍可能是 `uat-渠道余额` 等） |
-| **使用日志**   | 新版 NA 优先调用 `/api/log/export` 直接传回 CSV / Excel；老版本自动回退分页导出到 `excel/`；后台任务 + 进度轮询；可**终止**；完成后点「下载 Excel」取最新一份 |
+| **使用日志**   | 页面直接查询并展示日志，每页最多 **100 条**，支持筛选、分页和详情展开；新版 NA 优先调用 `/api/log/export` 直接传回 CSV / Excel，老版本自动回退分页导出到 `excel/`；后台任务 + 进度轮询，可终止并下载 |
 | **数据汇总**   | 多站点全量采集渠道 + 令牌（渠道含管理员备注）；工作台已认证或已预置 TOTP 时**不再弹审查窗**，仅缺码站点弹 30 秒临时码；**每次一键采集新建** `ai网关令牌及渠道列表_时间戳.xlsx`；全部站点写完后再点「下载 Excel」；「继续补全缺失项」才更新最新一份（不含总览文件） |
 | **智能体** | 异步任务 + SSE + 提取门禁 + 渠道/令牌写入；可选上游、总览（不含密钥）、智能分析；登录 2FA 可在连接、门禁确认、重试时刷新；与批量页共用连接；完成后分别下载数据汇总、上游信息、一表总览/分析表 |
 | **上游信息**   | 采集云厂商资源：**火山云**与 **Azure OpenAI**。可「一键采集全部上游」写入同一工作簿（工作表 `火山云`、`Azure OpenAI`）；也可按厂商单独导出。火山云列 **TPM 在 RPM 前**；新增 **Tokens 查询**，可按项目 / 日期 / Day-Hour / 模型、版本、接入点或 API Key 资源 ID 查询用量并导出 CSV。两表**最后一列均为部署时间**，**按部署时间降序（最新在上）**。表头开启列筛选，首行冻结 |
@@ -393,7 +393,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 | **批量配置**   | 连接配置、渠道/令牌/分组/启停/使用日志 | `batch/static/index.html`（iframe 经 `/static/batch_ui.html?embed=1` 代理）；hash `#write` |
 | **NA信息**   | test / uat / prod 的 New API NA渠道、NA令牌列表；分页、悬浮复制、完整记录编辑、测试/启停/删除、批量配置转换 | `static/platform_ui.html`（iframe 经 `/static/platform_ui.html?embed=1` 代理）；hash `#platform` |
 | **数据汇总**   | 多站点采集、渠道余额查询、Excel 导入/导出、历史产物下拉 | `static/summary_ui.html`（iframe `?embed=1`）；hash `#inventory` |
-| **上游创建**   | 火山云 IAM 项目 CRUD、API Key 管理、已开通模型/模型广场与版本选择、推理接入点创建/编辑/启停/删除/标签展示、一键切换模型（全局/单项目局部）与模型/版本联动 | `static/upstream_create_ui.html`（iframe `?embed=1`）；hash `#upstream_create` |
+| **上游创建**   | 火山云 IAM 项目 CRUD、API Key 管理、已开通模型/模型广场与版本选择、推理接入点创建/编辑/启停/删除/标签展示、一键切换模型（全局/单项目局部）与模型/版本联动；统一主/次/刷新/危险按钮层级、尺寸与交互状态，API Key 操作集中在顶部工具栏 | `static/upstream_create_ui.html`（iframe `?embed=1`）；hash `#upstream_create` |
 | **上游信息**   | 云厂商上游采集（一键汇总 / 火山云 / Azure OpenAI）、历史产物下拉；火山云 Tokens 查询与 CSV 导出；导出表头可筛选 | `static/upstream_ui.html`（iframe `?embed=1`）；hash `#upstream` |
 | **上游账单**   | 账期起止采集火山云 / Azure 费用（跨月则每月一份；一键汇总或分厂商）；导出表头可筛选 | `static/bill_ui.html`（iframe `?embed=1`）；hash `#bill` |
 | **一表总览**   | 网关 + 两侧上游合成总览；智能分析；页内建议表（筛选、全选/反选、预禁用）；卫生策略；渠道/令牌批量 TXT 导出；Excel 最后一列批量配置 | `static/overview_ui.html`（iframe `?embed=1`）；hash `#hygiene` |
@@ -1473,7 +1473,9 @@ legacy-token-c  team-c  model-c、model-d  2000000
 
 ### 使用日志
 
-按时间范围从 NA 拉取使用日志并导出。新版 NA（含 v1.0.3）优先调用 `/api/log/export`，由网关按兼容表格格式直接生成并传回 Excel / CSV；老版本 NA 返回 404/405 或非日志文件时，自动回退为分页抓取至 `total` 收齐或短页结束：
+页面可直接查询并展示日志，每页最多 100 条，支持时间、类型、分组、令牌、用户、模型和渠道筛选，以及首页、上一页、下一页和页码跳转。列表包含时间、渠道、用户、令牌、分组、类型、模型、用时/首字、输入/输出 Tokens 和可展开详情。普通用户走 `/api/log/self/`，管理员走 `/api/log/`。
+
+需要完整文件时仍可导出。新版 NA（含 v1.0.3）优先调用 `/api/log/export`，由网关按兼容表格格式直接生成并传回 Excel / CSV；老版本 NA 返回 404/405 或非日志文件时，自动回退为分页抓取至 `total` 收齐或短页结束：
 
 | 项 | 说明 |
 | -- | ---- |
@@ -1481,11 +1483,12 @@ legacy-token-c  team-c  model-c、model-d  2000000
 | **Excel 样式** | 宋体 11、深蓝表头。大批量用 `write_only` 写出，**不再逐格套边框**（数十万行否则会卡很久）；CSV 仍为纯文本 |
 | **空列剔除** | 某一列在全部数据行均为空时不导出（仅表头有字的列会去掉） |
 | **分页** | 上游硬上限 **每页 100 条**（更大 page_size 会被截成 100） |
+| **新版超时** | `/api/log/export` 直接导出的连接/读取超时下限为 **30 分钟**；客户端配置更高时沿用更高值 |
 | **节奏** | 两次列表请求启动间隔约 **1.05 秒**；单次请求已超过间隔则不再空等 |
 | **进度** | `POST /api/logs-export` 立即返回 `job_id`；前端轮询 `GET /api/logs-export/jobs/<id>`，展示「已拉取 x / y」。直传模式下显示“网关直接导出” |
 | **终止** | 页面红色「终止」→ `POST /api/logs-export/jobs/<id>/cancel`；分页等待可中断 |
 | **权限** | 建议 Admin；普通用户走 `/api/log/self`（无渠道名 / Admin 扩展列） |
-| **筛选** | 默认时间「今天」；填了模型名会先拉全量再本地模糊筛选 |
+| **筛选** | 默认时间「今天」；列表模型筛选由网关处理，老版本分页导出会先拉全量再本地模糊筛选 |
 
 导出列对齐上游 `Log` 结构及 `other` JSON（见 `ai-cloud-test/model/log.go`、`service/log_info_generate.go`），包括：
 
@@ -2392,6 +2395,7 @@ python batch/tests/test_azure_billing.py
 python batch/tests/test_bill_combined.py
 python batch/tests/test_log_model_fuzzy.py
 python batch/tests/test_log_export_columns.py
+python tests/test_logs_list.py
 python batch/tests/test_totp.py
 python batch/tests/test_inspect_auth.py
 python batch/tests/test_login_2fa.py
@@ -2495,6 +2499,7 @@ python agent/tests/test_pipeline_runner.py
 | `POST` | `/api/groups-switch`         | 将勾选渠道/令牌切换到目标分组       |
 | `POST` | `/api/groups-create`         | 批量创建分组                  |
 | `POST` | `/api/groups-delete`         | 分组预删除 / 确认删除            |
+| `POST` | `/api/logs/list`             | 页面查询使用日志；`page` 指定页码，每页最多返回 100 条 |
 | `POST` | `/api/logs-export`           | 启动使用日志导出任务，立即返回 `job_id` / 进度 |
 | `GET`  | `/api/logs-export/jobs/<id>` | 轮询导出进度（`fetched` / `total` / `state`） |
 | `POST` | `/api/logs-export/jobs/<id>/cancel` | 终止导出 |

@@ -121,6 +121,7 @@ _BATCH_API_PATHS = frozenset(
         "/api/batch-channel-status",
         "/api/token-batch-delete",
         "/api/token-batch-status",
+        "/api/logs/list",
     }
 )
 

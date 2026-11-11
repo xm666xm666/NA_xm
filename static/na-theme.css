@@ -36,6 +36,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html { scroll-behavior: smooth; }
 
 body.na-app {
@@ -646,18 +648,23 @@ html.na-embed body {
   font-family: var(--na-font-body);
   font-weight: 600;
   font-size: 0.86rem;
-  border: none;
+  line-height: 1.25;
+  min-height: 2.5rem;
+  border: 1px solid transparent;
   border-radius: var(--na-radius-sm);
   padding: 0.58rem 1.1rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
-  transition: transform 0.15s var(--na-ease-spring), box-shadow 0.25s, background 0.25s, opacity 0.2s;
+  white-space: nowrap;
+  user-select: none;
+  transition: transform 0.15s var(--na-ease-spring), box-shadow 0.2s, background 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s;
 }
 
-.na-btn:active:not(:disabled) { transform: scale(0.96); }
-.na-btn:disabled { opacity: 0.48; cursor: not-allowed; }
+.na-btn:active:not(:disabled) { transform: scale(0.98); }
+.na-btn:disabled { opacity: 0.48; cursor: not-allowed; transform: none; box-shadow: none; }
 .na-btn:focus-visible {
   outline: 2px solid var(--na-accent);
   outline-offset: 2px;
@@ -682,7 +689,7 @@ html.na-embed body {
 
 .na-btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(148, 163, 184, 0.28);
+  border-color: var(--na-border-bright);
 }
 
 .na-btn-accent {
@@ -692,11 +699,15 @@ html.na-embed body {
 }
 
 .na-btn-ghost {
-  background: transparent;
+  background: color-mix(in srgb, var(--na-panel-solid) 42%, transparent);
   color: var(--na-text-muted);
-  border: 1px dashed var(--na-border);
-  padding: 0.5rem 0.95rem;
-  font-size: 0.8rem;
+  border: 1px solid var(--na-border);
+}
+
+.na-btn-ghost:hover:not(:disabled) {
+  background: var(--na-accent-soft);
+  color: var(--na-text);
+  border-color: var(--na-border-bright);
 }
 
 .na-btn-glyph {
@@ -1440,6 +1451,18 @@ html[data-theme="light"] .na-btn-secondary {
 html[data-theme="light"] .na-btn-secondary:hover:not(:disabled) {
   background: #f8fafc;
   border-color: rgba(79, 70, 229, 0.25);
+}
+
+html[data-theme="light"] .na-btn-ghost {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: var(--na-text-muted);
+}
+
+html[data-theme="light"] .na-btn-ghost:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: rgba(79, 70, 229, 0.3);
+  color: var(--na-text);
 }
 
 html[data-theme="light"] .na-btn-accent {

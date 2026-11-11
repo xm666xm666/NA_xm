@@ -495,7 +495,7 @@ def _gateway_direct_export(
             f"{client.base_url}/api/log/export",
             params=params,
             headers=client._headers(),
-            timeout=max(int(client.timeout or 30), 900),
+            timeout=max(int(client.timeout or 30), 1800),
         )
     except requests.RequestException:
         return None

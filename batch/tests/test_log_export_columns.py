@@ -323,7 +323,7 @@ def test_run_logs_export_uses_gateway_direct_export(tmp_path=None):
     assert calls[0]["params"]["format"] == "xlsx"
     assert calls[0]["params"]["type"] == 2
     assert calls[0]["params"]["model_name"] == "glm"
-    assert calls[0]["timeout"] >= 900
+    assert calls[0]["timeout"] == 1800
 
 
 def test_run_logs_export_falls_back_for_old_gateway(tmp_path=None):

@@ -668,6 +668,121 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .log-help { margin-top: 10px; }
+    .log-help summary { color: var(--text-muted); cursor: pointer; font-size: 0.78rem; }
+    .log-help .hint { margin-top: 10px; }
+
+    .log-list {
+      min-width: 0;
+      margin-top: 18px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--panel-solid) 82%, transparent);
+    }
+
+    .log-list-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .log-list-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .log-list-title strong { font-size: 0.84rem; color: var(--text); }
+    .log-list-summary { color: var(--text-muted); font-size: 0.74rem; }
+    .log-list-error { padding: 10px 14px; color: var(--danger); background: var(--danger-soft); border-bottom: 1px solid var(--border); font-size: 0.78rem; }
+    .log-table-scroll { max-height: 560px; overflow: auto; }
+
+    .log-table {
+      width: 100%;
+      min-width: 1380px;
+      border-collapse: collapse;
+      color: var(--text);
+      font-size: 0.74rem;
+    }
+
+    .log-table th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 10px 12px;
+      color: var(--text-muted);
+      background: var(--panel-solid);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .log-table td {
+      max-width: 230px;
+      padding: 9px 12px;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border);
+      text-overflow: ellipsis;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    .log-table tbody tr:last-child td { border-bottom: 0; }
+    .log-table tbody tr:hover td { background: var(--accent-soft); }
+    .log-table .log-cell-time { font-family: var(--font-mono); font-size: 0.7rem; }
+    .log-table .log-cell-number { text-align: right; font-family: var(--font-mono); }
+    .log-table .log-list-empty { max-width: none; padding: 34px 16px; color: var(--text-muted); text-align: center; white-space: normal; }
+
+    .log-type, .log-model-badge, .log-stream-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.68rem;
+      line-height: 1.5;
+    }
+
+    .log-type-error { color: var(--danger); background: var(--danger-soft); border-color: var(--danger); }
+    .log-type-system { color: var(--warn); background: var(--warn-soft); border-color: var(--warn); }
+    .log-stream-badge { margin-left: 5px; color: var(--text-muted); background: transparent; }
+    .log-muted { color: var(--text-muted); }
+
+    .log-detail { max-width: 260px; white-space: normal; }
+    .log-detail summary { color: var(--accent); cursor: pointer; white-space: nowrap; }
+    .log-detail pre {
+      max-width: 360px;
+      max-height: 180px;
+      margin: 8px 0 2px;
+      overflow: auto;
+      color: var(--text-muted);
+      font: 0.7rem/1.55 var(--font-mono);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .log-list-pager { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+    .log-list-pager label, .log-page-info { color: var(--text-muted); font-size: 0.74rem; }
+    .log-list-pager input {
+      width: 64px;
+      margin: 0 4px;
+      padding: 6px 8px;
+      color: var(--text);
+      background: var(--panel-solid);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      text-align: center;
+    }
+
+    .log-list-pager button { padding: 6px 10px; }
+    @media (max-width: 680px) {
+      .log-list-toolbar { align-items: flex-start; flex-direction: column; }
+      .log-table-scroll { max-height: 480px; }
+      .log-list-pager { justify-content: flex-start; }
+    }
+
     /* ── 连接状态 ── */
     .status-bar {
       margin-top: 18px;
@@ -1787,21 +1902,25 @@ sample-azure-test
         </div>
       </div>
 
-      <!-- 右：使用日志导出 -->
+      <!-- 右：使用日志 -->
       <div class="card module-panel" id="moduleLog">
         <div class="card-header">
-          <h2><span class="card-icon">📊</span>使用日志导出</h2>
-          <span class="tag" id="logExportTag">对接 NA /api/log</span>
+          <h2><span class="card-icon">📊</span>使用日志</h2>
+          <span class="tag" id="logExportTag">每页 100 条</span>
         </div>
         <div class="card-body">
+          <div class="hint">使用左侧<strong>连接配置</strong>登录 NA，点击「查询日志」即可在页面查看日志，每页最多 <strong>100 条</strong>；需要完整文件时仍可导出 CSV / Excel。</div>
+          <details class="log-help">
+            <summary>查看筛选、限流与导出说明</summary>
           <div class="hint">
-            使用左侧<strong>连接配置</strong>登录 NA，按使用日志接口分页抓取并导出 CSV / Excel。时间筛选精确到秒；管理员导出全站日志，普通用户仅导出自身日志。
-            <strong>模型名称</strong>支持模糊查询（不区分大小写子串，如 <code>glm-5.1</code> 可命中所有包含该关键词的模型）。
-            NA 接口<strong>不能按模型名筛选</strong>，本工具会先按时间/分组/令牌把网关日志全部翻页拉完，再在本地按模型名过滤——进度里较大的分母是网关条数，导出条数会变少。
+            时间筛选精确到秒；管理员查询和导出全站日志，普通用户仅查询和导出自身日志。
+            <strong>模型名称</strong>列表查询由 NA 网关筛选；老版本 NA 的分页导出支持本地模糊查询（不区分大小写子串，如 <code>glm-5.1</code> 可命中所有包含该关键词的模型）。
+            老版本 NA 的分页导出<strong>不能依赖网关模型名筛选</strong>，本工具会先按时间/分组/令牌把网关日志全部翻页拉完，再在本地按模型名过滤——进度里较大的分母是网关条数，导出条数会变少。
             若提示「网关有 N 条但模型名未匹配」，清空「模型名称」即可导出这 N 条。
             默认时间是<strong>今天</strong>，量大请改「近 7 天 / 近 30 天」。NA 每页硬上限 100 条，本工具会一直翻页到拉完。<strong>180 次 / 180 秒</strong>是网关速度上限。导出期间请尽量不要同时刷 NA 控制台（同一 IP 共用配额）。
             文件存放在 <code>excel/</code>（如 <code>usage_logs_年月日_时分秒.xlsx</code>）。导出完成后再点「下载 Excel」获取完整文件，不会自动下载。
           </div>
+          </details>
 
           <div class="field-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px;">
             <div class="field field-span-2">
@@ -1843,6 +1962,10 @@ sample-azure-test
               <label for="logTokenName">令牌名称</label>
               <input id="logTokenName" placeholder="demo-alpha-test-glm-x-样例甲" />
             </div>
+            <div class="field field-log-admin">
+              <label for="logUsername">用户名称</label>
+              <input id="logUsername" placeholder="admin（留空表示不限）" />
+            </div>
             <div class="field">
               <label for="logModelName">模型名称（模糊）</label>
               <input id="logModelName" placeholder="glm-5.1 可匹配全部含该关键词的模型" />
@@ -1861,7 +1984,12 @@ sample-azure-test
           </div>
 
           <div class="actions" style="margin-top:16px;">
-            <button class="btn-primary" id="btnExportLogs">
+            <button class="btn-primary" id="btnQueryLogs" type="button">
+              <span class="btn-spinner"></span>
+              <span class="btn-label">查询日志</span>
+            </button>
+            <button class="btn-ghost" id="btnResetLogs" type="button">重置</button>
+            <button class="btn-secondary" id="btnExportLogs" type="button">
               <span class="btn-spinner"></span>
               <span class="btn-label">导出使用日志</span>
             </button>
@@ -1869,6 +1997,46 @@ sample-azure-test
             <button class="btn-ghost" id="btnRefreshLogsExport" type="button" title="其它页导出后点此同步下载状态">刷新</button>
             <button class="btn-danger" id="btnStopExportLogs" type="button" hidden>终止</button>
           </div>
+
+          <section class="log-list" id="logList" aria-label="使用日志列表">
+            <div class="log-list-toolbar">
+              <div class="log-list-title">
+                <strong>日志列表</strong>
+                <span class="log-list-summary" id="logListSummary">设置筛选条件后点击「查询日志」</span>
+              </div>
+              <span class="tag">每页 100 条</span>
+            </div>
+            <div class="log-list-error" id="logListError" role="alert" hidden></div>
+            <div class="log-table-scroll" id="logTableScroll">
+              <table class="log-table">
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>渠道</th>
+                    <th>用户</th>
+                    <th>令牌</th>
+                    <th>分组</th>
+                    <th>类型</th>
+                    <th>模型</th>
+                    <th>用时 / 首字</th>
+                    <th>输入</th>
+                    <th>输出</th>
+                    <th>详情</th>
+                  </tr>
+                </thead>
+                <tbody id="logListBody">
+                  <tr><td class="log-list-empty" colspan="11">尚未查询日志，每页最多显示 100 条数据。</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="log-list-pager">
+              <button class="btn-ghost" id="btnLogFirstPage" type="button" disabled>首页</button>
+              <button class="btn-ghost" id="btnLogPrevPage" type="button" disabled>上一页</button>
+              <label for="logPageInput">第 <input id="logPageInput" type="number" min="1" step="1" value="1" /> 页</label>
+              <button class="btn-ghost" id="btnLogNextPage" type="button" disabled>下一页</button>
+              <span class="log-page-info" id="logPageInfo">共 0 条</span>
+            </div>
+          </section>
 
           <div class="log-wrap" style="margin-top:18px;">
             <div class="log-header">
@@ -3179,6 +3347,7 @@ sample-azure-test
         log_type: Number($('logType').value || 0),
         start_timestamp: datetimeLocalToUnix($('logStartTime').value),
         end_timestamp: datetimeLocalToUnix($('logEndTime').value),
+        username: $('logUsername').value.trim(),
         token_name: $('logTokenName').value.trim(),
         model_name: $('logModelName').value.trim(),
         group: $('logGroup').value.trim(),
@@ -3208,6 +3377,196 @@ sample-azure-test
         verify_ssl: !($('skipSslVerify') && $('skipSslVerify').checked),
       };
     }
+
+    const logListState = { page: 1, total: null, count: 0, loading: false, requestId: 0 };
+
+    function escapeLogHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[char]);
+    }
+
+    function logDisplay(value) {
+      return value === null || value === undefined || value === '' ? '-' : String(value);
+    }
+
+    function parseLogOther(raw) {
+      if (raw && typeof raw === 'object') return raw;
+      if (!raw) return {};
+      try {
+        const parsed = JSON.parse(String(raw));
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function formatLogTimestamp(value) {
+      const timestamp = Number(value);
+      if (!Number.isFinite(timestamp) || timestamp <= 0) return '-';
+      const date = new Date(timestamp > 1e12 ? timestamp : timestamp * 1000);
+      if (Number.isNaN(date.getTime())) return '-';
+      const pad = (number) => String(number).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    }
+
+    function formatLogDuration(log, other) {
+      const useTime = log.use_time === null || log.use_time === undefined || log.use_time === '' ? '-' : `${log.use_time}s`;
+      const frt = Number(other.frt);
+      const hasFirstByte = other.frt !== null && other.frt !== undefined && other.frt !== '';
+      const firstByte = log.is_stream && hasFirstByte && Number.isFinite(frt) && frt >= 0 ? ` / ${(frt / 1000).toFixed(1)}s` : '';
+      return `${useTime}${firstByte}`;
+    }
+
+    function logTypeMeta(value) {
+      const code = Number(value || 0);
+      const labels = { 1: '充值', 2: '消费', 3: '管理', 4: '系统', 5: '错误', 6: '退款' };
+      return { code, label: labels[code] || logDisplay(value), className: code === 5 ? 'log-type-error' : [1, 3, 4].includes(code) ? 'log-type-system' : '' };
+    }
+
+    function logTextCell(value, className = '', maxLength = 80) {
+      const text = logDisplay(value);
+      const truncated = text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+      return `<td class="${className}" title="${escapeLogHtml(text)}">${escapeLogHtml(truncated)}</td>`;
+    }
+
+    function logNumberCell(value) {
+      const number = Number(value || 0);
+      return `<td class="log-cell-number">${Number.isFinite(number) ? number.toLocaleString('zh-CN') : '0'}</td>`;
+    }
+
+    function formatLogDetails(log, other) {
+      if (log.content !== null && log.content !== undefined && String(log.content).trim()) {
+        return typeof log.content === 'string' ? log.content : JSON.stringify(log.content, null, 2);
+      }
+      if (Object.keys(other).length) return JSON.stringify(other, null, 2);
+      return log.other ? String(log.other) : '';
+    }
+
+    function renderLogList(items) {
+      const body = $('logListBody');
+      if (!items.length) {
+        body.innerHTML = '<tr><td class="log-list-empty" colspan="11">当前筛选条件下没有日志数据。</td></tr>';
+        return;
+      }
+      body.innerHTML = items.map((log) => {
+        const other = parseLogOther(log.other);
+        const type = logTypeMeta(log.type);
+        const detail = formatLogDetails(log, other);
+        const channel = log.channel_name ? `${log.channel_name} (#${logDisplay(log.channel)})` : log.channel;
+        const stream = `<span class="log-stream-badge">${log.is_stream ? '流式' : '非流'}</span>`;
+        const detailHtml = detail
+          ? `<details class="log-detail"><summary>查看</summary><pre>${escapeLogHtml(detail)}</pre></details>`
+          : '<span class="log-muted">-</span>';
+        return `<tr>${logTextCell(formatLogTimestamp(log.created_at), 'log-cell-time')}${logTextCell(channel)}${logTextCell(log.username || log.user_id)}${logTextCell(log.token_name)}${logTextCell(log.group)}<td><span class="log-type ${type.className}">${escapeLogHtml(type.label)}</span></td>${logTextCell(log.model_name)}<td>${escapeLogHtml(formatLogDuration(log, other))}${stream}</td>${logNumberCell(log.prompt_tokens)}${logNumberCell(log.completion_tokens)}<td>${detailHtml}</td></tr>`;
+      }).join('');
+    }
+
+    function updateLogListPager() {
+      const totalPages = logListState.total === null ? null : Math.max(1, Math.ceil(logListState.total / 100));
+      $('logPageInput').value = logListState.page;
+      $('logPageInput').max = totalPages || '';
+      $('logPageInput').disabled = logListState.loading || logListState.count === 0;
+      $('btnLogFirstPage').disabled = logListState.loading || logListState.page <= 1;
+      $('btnLogPrevPage').disabled = logListState.loading || logListState.page <= 1;
+      $('btnLogNextPage').disabled = logListState.loading || logListState.count === 0 || (totalPages ? logListState.page >= totalPages : logListState.count < 100);
+      $('logPageInfo').textContent = totalPages ? `共 ${logListState.total} 条 · ${totalPages} 页` : `本页 ${logListState.count} 条`;
+    }
+
+    function resetLogListView() {
+      logListState.page = 1;
+      logListState.total = null;
+      logListState.count = 0;
+      $('logListBody').innerHTML = '<tr><td class="log-list-empty" colspan="11">尚未查询日志，每页最多显示 100 条数据。</td></tr>';
+      $('logListSummary').textContent = '设置筛选条件后点击「查询日志」';
+      $('logListError').hidden = true;
+      $('logExportTag').textContent = '每页 100 条';
+      updateLogListPager();
+    }
+
+    function setLogListBusy(busy) {
+      logListState.loading = busy;
+      setLoading($('btnQueryLogs'), busy);
+      $('logTableScroll').setAttribute('aria-busy', busy ? 'true' : 'false');
+      updateLogListPager();
+    }
+
+    async function queryLogs(page = 1) {
+      const targetPage = Math.max(1, Number(page) || 1);
+      const requestId = ++logListState.requestId;
+      setLogListBusy(true);
+      $('logListSummary').textContent = `正在查询第 ${targetPage} 页…`;
+      try {
+        const payload = { ...buildLogExportPayload(), page: targetPage };
+        delete payload.format;
+        if (!payload.start_timestamp || !payload.end_timestamp) throw new Error('请填写开始时间与结束时间');
+        if (payload.start_timestamp > payload.end_timestamp) throw new Error('开始时间不能晚于结束时间');
+        const resp = await fetch('/api/logs/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await readJsonOrThrow(resp, '查询使用日志失败');
+        if (requestId !== logListState.requestId) return;
+        const items = Array.isArray(data.items) ? data.items : [];
+        const total = Number(data.total);
+        logListState.page = Math.max(1, Number(data.page) || targetPage);
+        logListState.total = data.total === null || data.total === undefined || !Number.isFinite(total) ? null : total;
+        logListState.count = items.length;
+        renderLogList(items);
+        $('logListError').hidden = true;
+        $('logListSummary').textContent = `第 ${logListState.page} 页 · 本页 ${items.length} 条`;
+        $('logExportTag').textContent = `本页 ${items.length} 条`;
+        $('logTableScroll').scrollTop = 0;
+        if (typeof data.is_admin === 'boolean') {
+          cachedIsAdmin = data.is_admin;
+          switchModule(activeModule);
+        }
+      } catch (err) {
+        if (requestId !== logListState.requestId) return;
+        const message = formatLogExportError(err) || '查询使用日志失败';
+        logListState.page = targetPage;
+        logListState.total = null;
+        logListState.count = 0;
+        $('logListBody').innerHTML = '<tr><td class="log-list-empty" colspan="11">查询失败，请检查连接配置和筛选条件后重试。</td></tr>';
+        $('logListSummary').textContent = '查询失败';
+        $('logListError').textContent = message;
+        $('logListError').hidden = false;
+      } finally {
+        if (requestId === logListState.requestId) setLogListBusy(false);
+      }
+    }
+
+    function resetLogFilters() {
+      logListState.requestId += 1;
+      setLogListBusy(false);
+      $('logType').value = '0';
+      ['logGroup', 'logTokenName', 'logUsername', 'logModelName', 'logChannel'].forEach((id) => { $(id).value = ''; });
+      $('logChannel').setCustomValidity('');
+      $('logExportFormat').value = 'xlsx';
+      initLogExportDefaults();
+      resetLogListView();
+    }
+
+    $('btnQueryLogs').addEventListener('click', () => queryLogs(1));
+    $('btnResetLogs').addEventListener('click', resetLogFilters);
+    $('btnLogFirstPage').addEventListener('click', () => queryLogs(1));
+    $('btnLogPrevPage').addEventListener('click', () => queryLogs(logListState.page - 1));
+    $('btnLogNextPage').addEventListener('click', () => queryLogs(logListState.page + 1));
+    $('logPageInput').addEventListener('change', () => {
+      const input = $('logPageInput');
+      const maxPage = Number(input.max) || Number.MAX_SAFE_INTEGER;
+      const page = Math.min(maxPage, Math.max(1, Number(input.value) || 1));
+      queryLogs(page);
+    });
+    ['logStartTime', 'logEndTime', 'logGroup', 'logTokenName', 'logUsername', 'logModelName', 'logChannel'].forEach((id) => {
+      $(id).addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        queryLogs(1);
+      });
+    });
+    resetLogListView();
 
     document.querySelectorAll('.module-tabs button').forEach((btn) => {
       btn.addEventListener('click', () => switchModule(btn.dataset.module));
