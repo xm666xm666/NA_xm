@@ -13,7 +13,12 @@
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
   <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
   <style>
-    html body .na-wrap { max-width:100%; padding:1.5rem 1.5rem 3rem; }
+    html body .na-wrap {
+      max-width: none;
+      width: 100%;
+      margin: 0;
+      padding: 1.25rem clamp(1rem, 1.5vw, 2rem) 3.5rem;
+    }
     .platform-shell { display:grid; gap:1.1rem; }
     .platform-hero { display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
     .platform-hero h1 { margin:0; font-size:1.25rem; }

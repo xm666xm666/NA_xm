@@ -170,9 +170,10 @@ body.na-app {
 .na-wrap {
   position: relative;
   z-index: 1;
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 3.5rem;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 1.25rem clamp(1rem, 1.5vw, 2rem) 3.5rem;
 }
 
 /* ── 顶栏导航 ── */
@@ -345,8 +346,10 @@ html.na-embed .summary-hero { display: none !important; }
 
 html.na-embed .na-wrap,
 html.na-embed .wrap {
-  padding-top: 1.25rem;
-  padding-bottom: 2rem;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 1.25rem clamp(1rem, 1.5vw, 2rem) 2rem;
 }
 
 html.na-embed body {

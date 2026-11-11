@@ -91,9 +91,10 @@
     .wrap {
       position: relative;
       z-index: 1;
-      max-width: 1240px;
-      margin: 0 auto;
-      padding: 36px 24px 56px;
+      max-width: none;
+      width: 100%;
+      margin: 0;
+      padding: 1.25rem clamp(1rem, 1.5vw, 2rem) 3.5rem;
     }
 
     /* ── Hero ── */
@@ -1984,6 +1985,7 @@ sample-azure-test
           </div>
 
           <div class="actions" style="margin-top:16px;">
+            <button class="btn-secondary" id="btnToggleLogList" type="button" aria-expanded="false" aria-controls="logList">查看日志（100条/页）</button>
             <button class="btn-primary" id="btnQueryLogs" type="button">
               <span class="btn-spinner"></span>
               <span class="btn-label">查询日志</span>
@@ -1998,7 +2000,7 @@ sample-azure-test
             <button class="btn-danger" id="btnStopExportLogs" type="button" hidden>终止</button>
           </div>
 
-          <section class="log-list" id="logList" aria-label="使用日志列表">
+          <section class="log-list" id="logList" aria-label="使用日志列表" hidden>
             <div class="log-list-toolbar">
               <div class="log-list-title">
                 <strong>日志列表</strong>
@@ -3378,7 +3380,13 @@ sample-azure-test
       };
     }
 
-    const logListState = { page: 1, total: null, count: 0, loading: false, requestId: 0 };
+    const logListState = { page: 1, total: null, count: 0, loaded: false, loading: false, requestId: 0 };
+
+    function setLogListVisible(visible) {
+      $('logList').hidden = !visible;
+      $('btnToggleLogList').setAttribute('aria-expanded', visible ? 'true' : 'false');
+      $('btnToggleLogList').textContent = visible ? '收起日志列表' : '查看日志（100条/页）';
+    }
 
     function escapeLogHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -3477,6 +3485,7 @@ sample-azure-test
       logListState.page = 1;
       logListState.total = null;
       logListState.count = 0;
+      logListState.loaded = false;
       $('logListBody').innerHTML = '<tr><td class="log-list-empty" colspan="11">尚未查询日志，每页最多显示 100 条数据。</td></tr>';
       $('logListSummary').textContent = '设置筛选条件后点击「查询日志」';
       $('logListError').hidden = true;
@@ -3494,6 +3503,7 @@ sample-azure-test
     async function queryLogs(page = 1) {
       const targetPage = Math.max(1, Number(page) || 1);
       const requestId = ++logListState.requestId;
+      setLogListVisible(true);
       setLogListBusy(true);
       $('logListSummary').textContent = `正在查询第 ${targetPage} 页…`;
       try {
@@ -3513,6 +3523,7 @@ sample-azure-test
         logListState.page = Math.max(1, Number(data.page) || targetPage);
         logListState.total = data.total === null || data.total === undefined || !Number.isFinite(total) ? null : total;
         logListState.count = items.length;
+        logListState.loaded = true;
         renderLogList(items);
         $('logListError').hidden = true;
         $('logListSummary').textContent = `第 ${logListState.page} 页 · 本页 ${items.length} 条`;
@@ -3528,6 +3539,7 @@ sample-azure-test
         logListState.page = targetPage;
         logListState.total = null;
         logListState.count = 0;
+        logListState.loaded = false;
         $('logListBody').innerHTML = '<tr><td class="log-list-empty" colspan="11">查询失败，请检查连接配置和筛选条件后重试。</td></tr>';
         $('logListSummary').textContent = '查询失败';
         $('logListError').textContent = message;
@@ -3548,6 +3560,14 @@ sample-azure-test
       resetLogListView();
     }
 
+    $('btnToggleLogList').addEventListener('click', () => {
+      if (!$('logList').hidden) {
+        setLogListVisible(false);
+        return;
+      }
+      setLogListVisible(true);
+      if (!logListState.loaded && !logListState.loading) queryLogs(1);
+    });
     $('btnQueryLogs').addEventListener('click', () => queryLogs(1));
     $('btnResetLogs').addEventListener('click', resetLogFilters);
     $('btnLogFirstPage').addEventListener('click', () => queryLogs(1));
