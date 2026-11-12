@@ -238,7 +238,7 @@
     }
     .platform-search {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 0.55rem;
       align-items: center;
       padding: 0 0.1rem;
@@ -529,6 +529,11 @@
         <input type="search" id="searchName" placeholder="搜索名称" autocomplete="off" />
         <select id="searchGroup" aria-label="选择分组"></select>
         <input type="search" id="searchModel" placeholder="搜索模型" autocomplete="off" />
+        <select id="searchStatus" aria-label="选择状态">
+          <option value="" selected>全部状态</option>
+          <option value="enabled">已启用</option>
+          <option value="disabled">已禁用</option>
+        </select>
       </div>
       <div class="platform-meta" id="tableMeta">选择已配置环境后读取列表。</div>
       <div class="platform-table-wrap"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
@@ -614,7 +619,7 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 20, siteEditingEnv: null, siteManageWasOpen: false, search: { name: "", group: "", model: "" } };
+      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 20, siteEditingEnv: null, siteManageWasOpen: false, search: { name: "", group: "", model: "", status: "" } };
 
       function cleanNaBaseUrlInput(raw) {
         return String(raw ?? "")
@@ -889,6 +894,8 @@
         if (groupTerm && !safeText(record.group).toLowerCase().split(",").map((item) => item.trim()).includes(groupTerm)) return false;
         const modelText = state.kind === "channels" ? safeText(record.models) : (record.token_model_limit_enabled ? safeText(record.token_model_limit) : "");
         if (modelTerm && !modelText.toLowerCase().includes(modelTerm)) return false;
+        if (state.search.status === "enabled" && Number(record.status) !== 1) return false;
+        if (state.search.status === "disabled" && Number(record.status) === 1) return false;
         return true;
       }
       function filteredRows() { return state.rows.filter(matchesFilter); }
@@ -1446,8 +1453,8 @@
       document.querySelectorAll(".platform-tabs button").forEach((button) => button.addEventListener("click", () => {
         const next = button.dataset.kind; if (next === state.kind) return; state.kind = next;
         document.querySelectorAll(".platform-tabs button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-selected", String(active)); });
-        state.search = { name: "", group: "", model: "" };
-        $("searchName").value = ""; $("searchGroup").value = ""; $("searchModel").value = "";
+        state.search = { name: "", group: "", model: "", status: "" };
+        $("searchName").value = ""; $("searchGroup").value = ""; $("searchModel").value = ""; $("searchStatus").value = "";
         state.page = 1; loadRows();
       }));
       [["searchName", "name"], ["searchModel", "model"]].forEach(([elementId, key]) => {
@@ -1460,6 +1467,11 @@
       });
       $("searchGroup").addEventListener("change", (event) => {
         state.search.group = event.target.value.trim().toLowerCase();
+        state.page = 1; renderTable();
+        setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
+      });
+      $("searchStatus").addEventListener("change", (event) => {
+        state.search.status = event.target.value;
         state.page = 1; renderTable();
         setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
       });
