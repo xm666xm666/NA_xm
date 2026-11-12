@@ -25,7 +25,7 @@ SYSTEM_PROMPT = """你是 New API 渠道配置助手。用户会粘贴杂乱的�
 - model: 对外模型名，通常与 name 相同
 - upstream_model: 上游真实模型 ID（如火山方舟的 ep-xxxxxxxx、路径型 /models/GLM-5.2-FP8，或 Azure 的 gpt-4o / text-embedding-ada-002）
 - api_key: API 密钥（UUID 或 sk- 开头）
-- base_url: 上游地址；若类型有默认值则填默认
+- base_url: 上游地址；用户显式提供时保留该地址，未提供且类型有默认值时填默认
 - api_version: 仅 Azure OpenAI 需要
 
 忽略噪声信息：RPM/TPM 限额、版本标注 GLM-5.2｜260617、测试别名等。
@@ -47,7 +47,7 @@ EXTRACTION_RULES_PROMPT = """请按以下自然语言规则理解用户输入：
 3. 分组从渠道名称推导：优先截取到 test、uat、prd、prod、stg、dev 环境段；没有环境段时先剥除常见模型后缀，再兜底去掉最后一段。
 4. API Key 可能是 ark- 或 sk- 前缀的字符串、UUID，或 Azure 使用的 40 位以上连续字母数字串。
 5. 上游真实模型优先识别 `ep-...`、`models/...`、`源模型->上游模型` 和 Azure 部署名；不要把中文备注当作上游模型。
-6. 上游模型以 ep- 开头时，类型使用「字节火山方舟、豆包通用」，Base URL 使用 https://ark.cn-beijing.volces.com。
+6. 上游模型以 ep- 开头时，类型使用「字节火山方舟、豆包通用」；Base URL 优先使用用户提供的地址，未提供时使用 https://ark.cn-beijing.volces.com。
 7. 出现 openai.azure.com、Azure 或 Azure OpenAI 语境时选择「Azure OpenAI」，并解析 endpoint 与 api-version；只有明确写出 OpenAI 时才选择「OpenAI」。
 8. sk- 加非 Azure/火山 URL 且没有 ep- 时，选择「自定义渠道」，Base URL 使用用户提供的 URL。
 9. RPM、TPM、版本标注、地区等是噪声，不要提取为渠道字段；但不要把嵌在这些噪声附近的 URL 或密钥一起丢弃。
@@ -122,6 +122,7 @@ def _merge_llm_into_fields(
     *,
     override: bool = False,
 ) -> list[str]:
+    llm_type_hint = resolve_type_hint(str(data.get("type_label") or fields.type_label))
     mapping = {
         "name": "name",
         "group": "group",
@@ -138,6 +139,15 @@ def _merge_llm_into_fields(
         if not value:
             continue
         current = getattr(fields, dst, "").strip()
+        if (
+            dst == "base_url"
+            and override
+            and current
+            and current != value
+            and llm_type_hint
+            and value == llm_type_hint.base_url
+        ):
+            continue
         if override or not current:
             if current and current != value:
                 fields.sources[dst] = "llm:override"
@@ -149,11 +159,8 @@ def _merge_llm_into_fields(
     type_hint = resolve_type_hint(fields.type_label)
     if type_hint:
         fields.type_label = type_hint.label
-        if type_hint.base_url and (override or not fields.base_url):
-            if fields.base_url and fields.base_url != type_hint.base_url:
-                fields.sources["base_url"] = "llm:type_default:override"
-            else:
-                fields.sources["base_url"] = "llm:type_default"
+        if type_hint.base_url and not fields.base_url:
+            fields.sources["base_url"] = "llm:type_default"
             fields.base_url = type_hint.base_url
             if "base_url" not in filled:
                 filled.append("base_url")

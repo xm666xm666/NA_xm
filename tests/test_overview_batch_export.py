@@ -10,6 +10,27 @@ from batch.lib.data_summary_exporter import save_workbook_data
 
 
 class OverviewBatchExportTests(unittest.TestCase):
+    def test_volcano_channel_defaults_base_url_and_preserves_custom_value(self):
+        row = {
+            "名称": "doubao-alpha",
+            "分组": "doubao",
+            "类型": "字节火山方舟、豆包通用",
+            "状态": "已启用",
+            "模型列表": "model-a",
+            "模型重定向": "model-a->ep-a",
+            "base_url": "",
+            "密钥": "ark-test",
+        }
+        self.assertEqual(
+            batch_line_for_row(row, "channels"),
+            "doubao-alpha\tdoubao\t字节火山方舟、豆包通用\tmodel-a\tmodel-a->ep-a\thttps://ark.cn-beijing.volces.com\tark-test",
+        )
+        row["base_url"] = "https://ark.example.com/v1/"
+        self.assertIn(
+            "\thttps://ark.example.com/v1\t",
+            batch_line_for_row(row, "channels"),
+        )
+
     def test_builds_channel_and_token_batch_lines(self):
         workbook = Workbook()
         workbook.active.title = "总览"

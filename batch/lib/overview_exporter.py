@@ -11,6 +11,7 @@ from typing import Any
 
 from openpyxl import Workbook, load_workbook
 
+from .channel_builder import DEFAULT_VOLCANO_BASE_URL, is_volcano_channel_type
 from .data_summary import (
     ENVS,
     SHEET_CHANNELS,
@@ -266,6 +267,24 @@ def _ensure_channel_remark_columns(wb) -> None:
             apply_channel_remark_mismatch_style(wb[title])
 
 
+def _fill_volcano_base_urls(wb) -> None:
+    for title in [*SHEET_CHANNELS.values(), SHEET_DUP_CHANNELS]:
+        if title not in wb.sheetnames:
+            continue
+        ws = wb[title]
+        headers = [str(cell.value or "").strip() for cell in ws[1]]
+        if "base_url" not in headers or "类型" not in headers:
+            continue
+        base_col = headers.index("base_url") + 1
+        type_col = headers.index("类型") + 1
+        for row in range(2, (ws.max_row or 1) + 1):
+            base_cell = ws.cell(row=row, column=base_col)
+            if str(base_cell.value or "").strip():
+                continue
+            if is_volcano_channel_type(ws.cell(row=row, column=type_col).value):
+                base_cell.value = DEFAULT_VOLCANO_BASE_URL
+
+
 def save_overview_workbook(
     path: Path,
     *,
@@ -287,6 +306,7 @@ def save_overview_workbook(
         placeholder = wb.active
         placeholder.title = "_empty"
 
+    _fill_volcano_base_urls(wb)
     _ensure_channel_remark_columns(wb)
 
     for name in list(wb.sheetnames):

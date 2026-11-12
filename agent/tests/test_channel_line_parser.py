@@ -134,6 +134,7 @@ def test_volcano_space_line_equals_multiline():
     assert "ep-20260708113825-d45qv" in one.channel_line
     assert "ark-test-key" in one.channel_line
     assert "字节火山方舟、豆包通用" in one.channel_line
+    assert "https://ark.cn-beijing.volces.com" in one.channel_line
 
 
 def test_volcano_space_line_without_type_label():
@@ -145,6 +146,29 @@ def test_volcano_space_line_without_type_label():
     assert result.success is True
     assert "字节火山方舟、豆包通用" in result.channel_line
     assert "ep-20260708113825-d45qv" in result.channel_line
+
+
+def test_volcano_multiline_preserves_custom_base_url():
+    result = extract_channels(
+        VOLCANO_MULTILINE + "\nhttps://ark.example.com/v1/",
+        use_llm=False,
+    )
+    assert result.success is True
+    assert result.fields.base_url == "https://ark.example.com/v1"
+    assert "https://ark.example.com/v1" in result.channel_line
+
+
+def test_volcano_full_line_defaults_base_url_when_omitted():
+    line = (
+        "ai-train-camp-uat-glm-5.2 ai-train-camp-uat 字节火山方舟、豆包通用 "
+        "ai-train-camp-uat-glm-5.2 ai-train-camp-uat-glm-5.2->ep-20260708113825-d45qv "
+        "ark-test-key"
+    )
+    row = parse_channel_line(line)
+    assert row["base_url"] == "https://ark.cn-beijing.volces.com"
+    result = extract_channels(line, use_llm=False)
+    assert result.success is True
+    assert result.fields.base_url == "https://ark.cn-beijing.volces.com"
 
 
 OPENAI_KIMI_BLOCK = (
@@ -243,6 +267,8 @@ if __name__ == "__main__":
     test_expand_volcano_space_line()
     test_volcano_space_line_equals_multiline()
     test_volcano_space_line_without_type_label()
+    test_volcano_multiline_preserves_custom_base_url()
+    test_volcano_full_line_defaults_base_url_when_omitted()
     test_explicit_openai_not_custom()
     test_explicit_openai_lowercase()
     test_azure_url_defaults_to_azure_not_openai()

@@ -128,6 +128,41 @@ class OverviewWorkbookTests(unittest.TestCase):
             finally:
                 wb.close()
 
+    def test_overview_fills_only_blank_volcano_base_urls(self):
+        from openpyxl import load_workbook
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gateway = root / "gateway.xlsx"
+            save_workbook_data(
+                gateway,
+                channel_env_rows={
+                    "test": [
+                        {"名称": "volcano-default", "分组": "g", "类型": 45, "状态": "已启用", "模型列表": "m", "模型重定向": "", "base_url": "", "部署时间": ""},
+                        {"名称": "volcano-custom", "分组": "g", "类型": "字节火山方舟、豆包通用", "状态": "已启用", "模型列表": "m2", "模型重定向": "", "base_url": "https://ark.example.com/v1/", "部署时间": ""},
+                        {"名称": "openai-blank", "分组": "g", "类型": "OpenAI", "状态": "已启用", "模型列表": "m3", "模型重定向": "", "base_url": "", "部署时间": ""},
+                    ],
+                    "uat": [],
+                    "prod": [],
+                },
+                token_env_rows={"test": [], "uat": [], "prod": []},
+            )
+            dest = root / "overview.xlsx"
+            save_overview_workbook(dest, gateway_path=gateway, volc_rows=[], azure_rows=[])
+
+            wb = load_workbook(dest, read_only=True, data_only=True)
+            try:
+                ws = wb[SHEET_CHANNELS["test"]]
+                rows = list(ws.iter_rows(values_only=True))
+                headers = list(rows[0])
+                base_index = headers.index("base_url")
+                values = {row[0]: row[base_index] for row in rows[1:]}
+                self.assertEqual(values["volcano-default"], "https://ark.cn-beijing.volces.com")
+                self.assertEqual(values["volcano-custom"], "https://ark.example.com/v1/")
+                self.assertIsNone(values["openai-blank"])
+            finally:
+                wb.close()
+
     def test_filename_stamp_beats_mtime(self):
         import os
 

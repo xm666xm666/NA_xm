@@ -259,15 +259,14 @@ def _pick_type(lines: list[str]) -> tuple[str, str, ChannelTypeInfo | None]:
 
 
 def _pick_base_url(lines: list[str], type_info: ChannelTypeInfo | None) -> tuple[str, str]:
-    if type_info and type_info.base_url:
-        return type_info.base_url, "rule:type_default"
-
     for line in lines:
         if is_azure_host(line):
             return normalize_azure_base_url(line), "rule:azure_url_normalized"
         match = URL_RE.search(line)
         if match:
             return match.group(0).rstrip("/"), "rule:url"
+    if type_info and type_info.base_url:
+        return type_info.base_url, "rule:type_default"
     return "", ""
 
 
@@ -345,8 +344,9 @@ def _build_result_from_lines(lines: list[str]) -> ExtractedFields:
             type_info = get_volcano_type()
             type_label = type_info.label
             type_src = "rule:ep_inferred"
-            base_url = type_info.base_url or ""
-            url_src = "rule:ep_inferred_default"
+            base_url, url_src = _pick_base_url(lines, type_info)
+            if url_src == "rule:type_default":
+                url_src = "rule:ep_inferred_default"
         else:
             type_label, type_src, type_info = explicit_type, explicit_type_src, explicit_type_info
             if not type_label:

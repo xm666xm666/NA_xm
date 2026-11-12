@@ -10,6 +10,7 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from .channel_builder import DEFAULT_VOLCANO_BASE_URL, is_volcano_channel_type
 from .data_summary import ENVS, SHEET_CHANNELS, SHEET_TOKENS
 
 
@@ -110,6 +111,8 @@ def channel_batch_lines(row: dict[str, Any]) -> list[str]:
     models_raw = _cell(row, "模型列表", "模型", "models")
     models = [item.strip() for item in re.split(r"[,，;；|]+", models_raw) if item.strip()]
     base_url = _cell(row, "base_url", "Base URL").rstrip("/")
+    if not base_url and is_volcano_channel_type(channel_type):
+        base_url = DEFAULT_VOLCANO_BASE_URL
     redirect = _mapping(_cell(row, "模型重定向", "model_mapping"))
     key = _cell(row, "密钥", "秘钥", "key")
     api_version = _cell(row, "默认API版本", "api_version", "default_api_version", "other")

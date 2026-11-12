@@ -6,12 +6,18 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 BATCH_DIR = Path(__file__).resolve().parents[1]
 if str(BATCH_DIR) not in sys.path:
     sys.path.insert(0, str(BATCH_DIR))
 
 from lib.batch_processor import run_batch_create  # noqa: E402
-from lib.channel_builder import build_channel_payload  # noqa: E402
+from lib.channel_builder import (  # noqa: E402
+    DEFAULT_VOLCANO_BASE_URL,
+    build_channel_payload,
+    parse_data_line,
+)
 from lib.channel_test import format_test_failure_message, test_channel_models  # noqa: E402
 
 
@@ -70,6 +76,49 @@ def test_build_channel_payload_writes_normalized_base_url_to_remark():
     assert channel["remark"] == channel["base_url"]
 
 
+def test_volcano_channel_defaults_base_url_when_omitted():
+    row = parse_data_line(
+        "demo-alpha-test-doubao demo-alpha-test 字节火山方舟、豆包通用 "
+        "demo-alpha-test-doubao demo-alpha-test-doubao->ep-20261112000000-demo ark-demo"
+    )
+    assert row["base_url"] == DEFAULT_VOLCANO_BASE_URL
+    payload = build_channel_payload(
+        row,
+        channel_type=45,
+        default_key="",
+        known_groups={"demo-alpha-test"},
+    )
+    assert payload["channel"]["base_url"] == DEFAULT_VOLCANO_BASE_URL
+    assert payload["channel"]["remark"] == DEFAULT_VOLCANO_BASE_URL
+
+
+def test_volcano_channel_preserves_custom_base_url():
+    row = parse_data_line(
+        "demo-alpha-test-doubao demo-alpha-test 字节火山方舟、豆包通用 "
+        "demo-alpha-test-doubao demo-alpha-test-doubao->ep-20261112000000-demo "
+        "https://ark.example.com/v1/ ark-demo"
+    )
+    assert row["base_url"] == "https://ark.example.com/v1"
+
+
+def test_volcano_update_defaults_base_url_without_secret():
+    row = parse_data_line(
+        "demo-alpha-test-doubao demo-alpha-test 字节火山方舟、豆包通用 "
+        "demo-alpha-test-doubao demo-alpha-test-doubao->ep-20261112000000-demo",
+        require_secret=False,
+    )
+    assert row["base_url"] == DEFAULT_VOLCANO_BASE_URL
+    assert row["秘钥"] == ""
+
+
+def test_non_volcano_channel_still_requires_base_url():
+    with pytest.raises(ValueError, match="缺少 base_url"):
+        parse_data_line(
+            "demo-alpha-test-gpt demo-alpha-test OpenAI demo-alpha-test-gpt "
+            "demo-alpha-test-gpt->gpt-x sk-demo-key"
+        )
+
+
 def test_batch_create_attaches_channel_id_for_test():
     client = MagicMock()
     client.list_groups.return_value = ["demo-alpha-test"]
@@ -123,6 +172,10 @@ if __name__ == "__main__":
     test_channel_models_reports_which_model_failed()
     test_channel_models_all_ok()
     test_build_channel_payload_writes_normalized_base_url_to_remark()
+    test_volcano_channel_defaults_base_url_when_omitted()
+    test_volcano_channel_preserves_custom_base_url()
+    test_volcano_update_defaults_base_url_without_secret()
+    test_non_volcano_channel_still_requires_base_url()
     test_batch_create_attaches_channel_id_for_test()
     print("ok")
 

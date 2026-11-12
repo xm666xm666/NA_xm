@@ -6,6 +6,7 @@
    此时上游模型默认等于模型。
 另支持火山「空格单行」杂乱输入（无 URL）：名称 [类型] ep-… ark-…
 与换行多行块等效，在分块阶段展开为多行后再走规则提取。
+火山 / 豆包完整行与紧凑行均可省略 base_url，自动使用类型默认地址。
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import re
 
 from .group_deriver import derive_group_from_name
 from .patterns import API_VERSION_RE, ARK_KEY_RE, EP_MODEL_RE, PROJECT_NAME_RE, URL_RE
-from .type_registry import all_type_labels
+from .type_registry import all_type_labels, get_volcano_type
 
 REDIRECT_TOKEN_RE = re.compile(r"\S+->\S+")
 AZURE_KEY_TOKEN_RE = re.compile(r"^[A-Za-z0-9]{40,}$")
@@ -70,16 +71,32 @@ def looks_like_volcano_space_line(text: str) -> bool:
     return expand_volcano_space_line(text) is not None
 
 
+def _secret_from_tail(tail: str) -> str:
+    if not tail:
+        return ""
+    tokens = tail.strip().split()
+    if not tokens:
+        return ""
+    if len(tokens) >= 2 and API_VERSION_RE.match(tokens[0]):
+        return tokens[1]
+    return tokens[-1]
+
+
 def _secret_after_url(line: str) -> str:
     url_match = URL_RE.search(line)
     if not url_match:
         return ""
-    tail = line[url_match.end() :].strip().split()
-    if not tail:
-        return ""
-    if len(tail) >= 2 and API_VERSION_RE.match(tail[0]):
-        return tail[1]
-    return tail[-1]
+    return _secret_from_tail(line[url_match.end() :])
+
+
+def _is_volcano_type(channel_type: str) -> bool:
+    return channel_type.strip() == get_volcano_type().label
+
+
+def _default_base_url(channel_type: str) -> str:
+    if _is_volcano_type(channel_type):
+        return get_volcano_type().base_url or ""
+    return ""
 
 
 def _is_secret_token(secret: str) -> bool:
@@ -92,9 +109,19 @@ def _is_secret_token(secret: str) -> bool:
 
 def looks_like_redirect_channel_line(text: str) -> bool:
     line = normalize_channel_line(text)
-    if not line or not REDIRECT_TOKEN_RE.search(line) or not URL_RE.search(line):
+    redirect_match = REDIRECT_TOKEN_RE.search(line)
+    if not line or not redirect_match:
         return False
-    return _is_secret_token(_secret_after_url(line))
+    if URL_RE.search(line):
+        return _is_secret_token(_secret_after_url(line))
+    try:
+        front_tokens = line[: redirect_match.start()].strip().split()
+        _, _, channel_type, _ = _parse_front_section(front_tokens, redirect_match.group(0))
+    except ValueError:
+        return False
+    return _is_volcano_type(channel_type) and _is_secret_token(
+        _secret_from_tail(line[redirect_match.end() :])
+    )
 
 
 def looks_like_compact_channel_line(text: str) -> bool:
@@ -103,12 +130,23 @@ def looks_like_compact_channel_line(text: str) -> bool:
     if not line or REDIRECT_TOKEN_RE.search(line):
         return False
     url_match = URL_RE.search(line)
-    if not url_match or not _is_secret_token(_secret_after_url(line)):
+    if url_match:
+        if not _is_secret_token(_secret_after_url(line)):
+            return False
+        front_tokens = line[: url_match.start()].strip().split()
+        if len(front_tokens) < 2:
+            return False
+        return _try_parse_front_compact(front_tokens) is not None
+
+    tokens = line.split()
+    if len(tokens) < 3:
         return False
-    front_tokens = line[: url_match.start()].strip().split()
-    if len(front_tokens) < 2:
-        return False
-    return _try_parse_front_compact(front_tokens) is not None
+    parsed = _try_parse_front_compact(tokens[:-1])
+    return bool(
+        parsed
+        and _is_volcano_type(parsed[2])
+        and _is_secret_token(tokens[-1])
+    )
 
 
 def looks_like_channel_line(text: str) -> bool:
@@ -247,13 +285,18 @@ def _requires_api_version(channel_type: str) -> bool:
     return channel_type.strip().lower() in {"azure openai", "azure", "azure_openai"}
 
 
-def _parse_tail_section(tail: str, *, require_api_version: bool) -> tuple[str, str, str]:
+def _parse_tail_section(
+    tail: str, *, require_api_version: bool, default_base_url: str = ""
+) -> tuple[str, str, str]:
     url_match = URL_RE.search(tail)
-    if not url_match:
+    if url_match:
+        base_url = url_match.group(0).rstrip("/")
+        rest = tail[url_match.end() :].strip().split()
+    elif default_base_url:
+        base_url = default_base_url
+        rest = tail.strip().split()
+    else:
         raise ValueError("缺少 base_url")
-
-    base_url = url_match.group(0).rstrip("/")
-    rest = tail[url_match.end() :].strip().split()
     if not rest:
         raise ValueError("缺少秘钥")
 
@@ -273,17 +316,24 @@ def _parse_tail_section(tail: str, *, require_api_version: bool) -> tuple[str, s
 
 def _parse_compact_channel_line(line: str) -> dict[str, str]:
     url_match = URL_RE.search(line)
-    if not url_match:
-        raise ValueError("缺少 base_url")
-
-    front_tokens = line[: url_match.start()].strip().split()
+    if url_match:
+        front_tokens = line[: url_match.start()].strip().split()
+        tail = line[url_match.start() :].strip()
+    else:
+        tokens = line.split()
+        parsed = _try_parse_front_compact(tokens[:-1]) if len(tokens) >= 3 else None
+        if not parsed or not _is_volcano_type(parsed[2]):
+            raise ValueError("缺少 base_url")
+        front_tokens = tokens[:-1]
+        tail = tokens[-1]
     name, group, channel_type, upstream = _parse_front_compact(front_tokens)
     # 与批量样例一致：模型列 = 渠道名，重定向 = 渠道名->上游
     model = name
     redirect = f"{model}->{upstream}"
     base_url, api_version, secret = _parse_tail_section(
-        line[url_match.start() :].strip(),
+        tail,
         require_api_version=_requires_api_version(channel_type),
+        default_base_url=_default_base_url(channel_type),
     )
     return {
         "名称": name,
@@ -314,6 +364,7 @@ def parse_channel_line(text: str) -> dict[str, str]:
     base_url, api_version, secret = _parse_tail_section(
         line[redirect_match.end() :].strip(),
         require_api_version=_requires_api_version(channel_type),
+        default_base_url=_default_base_url(channel_type),
     )
 
     return {

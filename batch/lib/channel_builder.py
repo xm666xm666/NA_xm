@@ -21,7 +21,21 @@ REDIRECT_PATTERN = re.compile(r"^\s*(.+?)\s*->\s*(.+?)\s*$")
 
 CHANNEL_TYPE_AZURE = 3
 CHANNEL_TYPE_VOLCANO = 45  # 字节火山方舟、豆包通用（上游可能自动升级）
+DEFAULT_VOLCANO_BASE_URL = "https://ark.cn-beijing.volces.com"
 MAX_CHANNEL_REMARK_LENGTH = 255
+
+_VOLCANO_TYPE_ALIASES = {
+    "字节火山方舟、豆包通用",
+    "字节火山方舟",
+    "火山方舟",
+    "火山",
+    "豆包",
+    "豆包通用",
+    "volcengine",
+    "volces",
+    "ark",
+    "doubao",
+}
 
 API_VERSION_KEYS = ("默认API版本", "api_version", "default_api_version", "other")
 RESPONSES_VERSION_KEYS = (
@@ -69,6 +83,13 @@ def normalize_base_url(url: str) -> str:
     return text.rstrip("/")
 
 
+def is_volcano_channel_type(channel_type: Any) -> bool:
+    text = str(channel_type or "").strip()
+    if text.isdigit():
+        return int(text) == CHANNEL_TYPE_VOLCANO
+    return text.casefold() in _VOLCANO_TYPE_ALIASES
+
+
 def pick_row_value(row: dict[str, Any], keys: tuple[str, ...]) -> str:
     for key in keys:
         value = row.get(key)
@@ -93,7 +114,10 @@ def build_channel_payload(
     name = str(row.get("名称") or row.get("name") or "").strip()
     group = str(row.get("分组") or row.get("group") or "").strip()
     model = pick_row_value(row, MODEL_KEYS)
-    base_url = normalize_base_url(str(row.get("base_url") or row.get("BaseURL") or ""))
+    raw_base_url = str(row.get("base_url") or row.get("BaseURL") or "").strip()
+    if not raw_base_url and is_volcano_channel_type(channel_type):
+        raw_base_url = DEFAULT_VOLCANO_BASE_URL
+    base_url = normalize_base_url(raw_base_url)
     redirect_raw = str(row.get("模型重定向") or row.get("model_redirect") or "")
     key = pick_row_value(row, KEY_KEYS) or (default_key or "").strip()
     api_version = pick_row_value(row, API_VERSION_KEYS)
@@ -203,14 +227,21 @@ def _parse_front_section(front_tokens: list[str]) -> tuple[str, str, str, str]:
 
 
 def _parse_tail_section(
-    tail: str, *, require_api_version: bool, require_secret: bool = True
+    tail: str,
+    *,
+    require_api_version: bool,
+    require_secret: bool = True,
+    default_base_url: str = "",
 ) -> tuple[str, str, str]:
     url_match = URL_TOKEN_RE.search(tail)
-    if not url_match:
+    if url_match:
+        base_url = url_match.group(0).rstrip("/")
+        rest = tail[url_match.end() :].strip().split()
+    elif default_base_url:
+        base_url = default_base_url
+        rest = tail.strip().split()
+    else:
         raise ValueError("缺少 base_url（https://...）")
-
-    base_url = url_match.group(0).rstrip("/")
-    rest = tail[url_match.end() :].strip().split()
 
     api_version = ""
     secret = ""
@@ -262,6 +293,9 @@ def parse_data_line(line: str, *, require_secret: bool = True) -> dict[str, str]
         line[redirect_match.end() :].strip(),
         require_api_version=_requires_api_version(channel_type),
         require_secret=require_secret,
+        default_base_url=(
+            DEFAULT_VOLCANO_BASE_URL if is_volcano_channel_type(channel_type) else ""
+        ),
     )
 
     return {

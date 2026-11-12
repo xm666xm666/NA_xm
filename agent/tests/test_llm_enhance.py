@@ -53,6 +53,24 @@ def test_merge_override_replaces_rule_field():
     assert fields.sources["name"] == "llm:override"
 
 
+def test_merge_override_keeps_explicit_volcano_base_url():
+    fields = ExtractedFields(
+        type_label="字节火山方舟、豆包通用",
+        base_url="https://ark.example.com/v1",
+        sources={"base_url": "rule:url"},
+    )
+    _merge_llm_into_fields(
+        fields,
+        {
+            "type_label": "字节火山方舟、豆包通用",
+            "base_url": "https://ark.cn-beijing.volces.com",
+        },
+        override=True,
+    )
+    assert fields.base_url == "https://ark.example.com/v1"
+    assert fields.sources["base_url"] == "rule:url"
+
+
 def test_build_llm_messages_packages_prompt_and_input():
     fields = ExtractedFields(name="rule-name", type_label="OpenAI")
     messages = build_llm_messages("项目信息：demo-alpha-test\nsk-demo-key", fields, override=True)
