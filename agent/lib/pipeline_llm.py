@@ -35,7 +35,7 @@ SYSTEM_PROMPT = """你是 NA 自动配置工具的全流程自动化智能体，
 - options.run_upstream 时可 upstream（读 env 上游凭证，不需要 raw_text）
 - options.run_overview 时可 overview（从 excel/ 已有文件提取，默认不含密钥）
 - options.run_analyze 时可 analyze（读最新总览；无总览只在 warnings 说明即可）
-- dry_run=true 时不实际写网关/Excel（token_export / upstream / overview / analyze 也跳过）
+- dry_run=true 时 batch 必须保留并执行只读预检，不实际写网关/Excel（token_export / upstream / overview / analyze 也跳过）
 - 缺少关键字段时在 warnings 说明，proceed=false 若无法安全执行
 
 仅返回 JSON，不要 markdown：
@@ -87,13 +87,13 @@ def _default_plan(context: dict[str, Any]) -> PipelinePlan:
     elif options.get("run_extract", True):
         warnings.append("未提供原始文本，跳过提取")
 
-    if options.get("run_batch", True) and not dry_run:
+    if options.get("run_batch", True):
         if connection.get("base_url"):
             steps.append("batch")
+            if dry_run:
+                warnings.append("试运行模式：批量创建仅执行只读预检")
         else:
             warnings.append("未配置 New API 地址，跳过批量创建")
-    elif options.get("run_batch", True) and dry_run:
-        warnings.append("试运行模式：不执行批量创建")
 
     token_users = str(options.get("token_usernames") or "").strip()
     if options.get("run_token", False) and not dry_run:

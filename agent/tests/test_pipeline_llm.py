@@ -67,9 +67,27 @@ def test_plan_without_llm_config():
     assert "extract" in plan.steps
 
 
+def test_default_plan_dry_run_keeps_batch_for_preflight():
+    plan = _default_plan({
+        "raw_text": "ep-123",
+        "connection": {"base_url": "http://localhost:3000"},
+        "sites": [],
+        "options": {
+            "run_extract": True,
+            "run_batch": True,
+            "run_summary": False,
+            "dry_run": True,
+        },
+    })
+    assert plan.steps == ["extract", "batch"]
+    assert plan.proceed
+    assert any("只读预检" in warning for warning in plan.warnings)
+
+
 if __name__ == "__main__":
     test_default_plan_extract_only()
     test_default_plan_all_steps()
     test_default_plan_overview_analyze_standalone()
     test_plan_without_llm_config()
+    test_default_plan_dry_run_keeps_batch_for_preflight()
     print("ok")

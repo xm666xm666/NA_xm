@@ -114,7 +114,7 @@ def user_wanted_steps(options: dict[str, Any]) -> list[str]:
 
 
 def intersect_plan_steps(llm_steps: list[str], options: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """最终 steps = 用户勾选优先，再与 LLM 计划求并（勾选必跑）。"""
+    """最终以用户勾选为准；LLM 漏选不裁步骤，多选则裁掉并告警。"""
     wanted = set(user_wanted_steps(options))
     valid = set(STEP_ORDER)
     llm_clean = [s for s in llm_steps if s in valid]
@@ -261,7 +261,38 @@ def run_step(
 
     if step_id == "batch":
         if dry_run:
-            return _step("batch", label, "skipped", "试运行：未写入网关"), channel_lines
+            if not str(channel_lines or "").strip():
+                return _step("batch", label, "err", "无渠道行可预检"), channel_lines
+            base_url = batch["normalize_na_base_url"](str(connection.get("base_url") or "").strip())
+            if not base_url:
+                return _step("batch", label, "err", "缺少 New API 地址"), channel_lines
+            try:
+                result = batch["run_agent_preflight"](
+                    base_url=base_url,
+                    batch_text=channel_lines,
+                    default_key=str(connection.get("default_key") or ""),
+                    auth=_build_auth(connection),
+                )
+                failed = int(result.get("error_count") or 0)
+                created = int(result.get("create_count") or 0)
+                skipped = int(result.get("skip_count") or 0)
+                message = f"只读预检：可创建 {created}，跳过 {skipped}，失败 {failed}；未写入网关"
+                return (
+                    _step(
+                        "batch",
+                        label,
+                        "err" if failed else "ok",
+                        message,
+                        preflight=result,
+                        total=int(result.get("total") or 0),
+                        create_count=created,
+                        skipped_count=skipped,
+                        failed_count=failed,
+                    ),
+                    channel_lines,
+                )
+            except Exception as exc:
+                return _step("batch", label, "err", f"只读预检失败：{exc}"), channel_lines
         if not str(channel_lines or "").strip():
             return _step("batch", label, "err", "无渠道行可创建"), channel_lines
         base_url = batch["normalize_na_base_url"](str(connection.get("base_url") or "").strip())

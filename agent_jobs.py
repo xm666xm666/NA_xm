@@ -15,6 +15,12 @@ from pipeline_runner import STEP_LABELS, execute_pipeline, normalize_step_order
 
 TERMINAL = frozenset({"succeeded", "failed", "cancelled"})
 ACTIVE = frozenset({"queued", "planning", "running", "waiting_confirm"})
+ARTIFACT_STEP_KINDS = {
+    "summary": "summary",
+    "upstream": "upstream",
+    "overview": "overview",
+    "analyze": "analysis",
+}
 
 
 @dataclass
@@ -28,6 +34,7 @@ class JobEvent:
 class AgentJob:
     id: str
     status: str = "queued"
+    scenario: str = "custom"
     goal: str = ""
     raw_text: str = ""
     connection: dict[str, Any] = field(default_factory=dict)
@@ -48,10 +55,49 @@ class AgentJob:
     _cond: threading.Condition = field(default_factory=threading.Condition, repr=False)
     _worker_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
+    def artifact_summaries(self) -> list[dict[str, Any]]:
+        artifacts: list[dict[str, Any]] = []
+        for step in self.steps:
+            kind = ARTIFACT_STEP_KINDS.get(str(step.get("id") or ""))
+            data = step.get("data") or {}
+            file = str(data.get("file") or "").strip()
+            if not kind or not file or step.get("status") not in ("ok", "warn"):
+                continue
+            artifacts.append(
+                {
+                    "kind": kind,
+                    "file": file,
+                    "filename": file.replace("\\", "/").rsplit("/", 1)[-1],
+                    "download_url": f"/api/agent/jobs/{self.id}/artifacts/{kind}/download",
+                }
+            )
+        return artifacts
+
+    def to_summary(self) -> dict[str, Any]:
+        step_counts: dict[str, int] = {}
+        for step in self.steps:
+            status = str(step.get("status") or "unknown")
+            step_counts[status] = step_counts.get(status, 0) + 1
+        return {
+            "id": self.id,
+            "scenario": self.scenario,
+            "status": self.status,
+            "goal": self.goal,
+            "options": dict(self.options),
+            "planned_steps": list((self.plan or {}).get("steps") or []),
+            "checkpoint": self.checkpoint,
+            "message": self.message,
+            "step_counts": step_counts,
+            "artifacts": self.artifact_summaries(),
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "status": self.status,
+            "scenario": self.scenario,
             "goal": self.goal,
             "raw_text": self.raw_text,
             "connection": {
@@ -71,6 +117,7 @@ class AgentJob:
             "confirmed": self.confirmed,
             "message": self.message,
             "result": self.result,
+            "artifacts": self.artifact_summaries(),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "event_count": len(self.events),
@@ -92,9 +139,11 @@ class AgentJobStore:
         options: dict[str, Any],
         llm_config: dict[str, Any],
         channel_lines: str = "",
+        scenario: str = "custom",
     ) -> AgentJob:
         job = AgentJob(
             id=uuid.uuid4().hex[:12],
+            scenario=str(scenario or "custom").strip()[:40] or "custom",
             goal=goal,
             raw_text=raw_text,
             connection=dict(connection),
@@ -116,6 +165,34 @@ class AgentJobStore:
     def snapshot_jobs(self) -> list[dict[str, Any]]:
         with self._lock:
             return [job.to_dict() for job in self._jobs.values()]
+
+    def list_summaries(
+        self,
+        *,
+        status: str = "",
+        search: str = "",
+        limit: int = 30,
+    ) -> list[dict[str, Any]]:
+        status_key = str(status or "").strip().lower()
+        query = str(search or "").strip().casefold()
+        cap = max(1, min(int(limit or 30), 100))
+        with self._lock:
+            jobs = sorted(self._jobs.values(), key=lambda item: item.updated_at, reverse=True)
+            summaries: list[dict[str, Any]] = []
+            for job in jobs:
+                if status_key == "active" and job.status not in ACTIVE:
+                    continue
+                if status_key == "terminal" and job.status not in TERMINAL:
+                    continue
+                if status_key not in ("", "all", "active", "terminal") and job.status != status_key:
+                    continue
+                haystack = f"{job.id} {job.scenario} {job.goal}".casefold()
+                if query and query not in haystack:
+                    continue
+                summaries.append(job.to_summary())
+                if len(summaries) >= cap:
+                    break
+            return summaries
 
     def append_event(self, job: AgentJob, etype: str, data: dict[str, Any] | None = None) -> None:
         ev = JobEvent(type=etype, ts=time.time(), data=data or {})

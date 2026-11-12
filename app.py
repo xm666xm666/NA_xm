@@ -105,6 +105,7 @@ def _load_batch_modules():
     with _LIB_LOCK:
         _pin_lib_root(BATCH_DIR)
         api_client = importlib.import_module("lib.api_client")
+        agent_preflight = importlib.import_module("lib.agent_preflight")
         batch_processor = importlib.import_module("lib.batch_processor")
         channel_types = importlib.import_module("lib.channel_types")
         channel_batch_delete = importlib.import_module("lib.channel_batch_delete")
@@ -147,6 +148,7 @@ def _load_batch_modules():
         modules = {
             "NewAPIClient": api_client.NewAPIClient,
             "authenticate_client": api_client.authenticate_client,
+            "run_agent_preflight": agent_preflight.run_agent_preflight,
             "run_batch_create": batch_processor.run_batch_create,
             "run_channel_test": channel_test.run_channel_test,
             "get_channel_types": channel_types.get_channel_types,
@@ -4285,7 +4287,12 @@ def _agent_run_analysis(project_dir: Path) -> dict[str, Any]:
 def _agent_has_standalone_work(opts: dict) -> bool:
     if opts.get("run_token_export") and not opts.get("run_extract", True):
         return True
-    return bool(opts.get("run_upstream") or opts.get("run_overview") or opts.get("run_analyze"))
+    return bool(
+        opts.get("run_summary")
+        or opts.get("run_upstream")
+        or opts.get("run_overview")
+        or opts.get("run_analyze")
+    )
 
 
 def _agent_options(options: dict, *, require_confirm_default: bool) -> dict:
@@ -4340,6 +4347,7 @@ def _load_agent_job_deps():
 
     batch_snapshot = {
         "normalize_na_base_url": _batch_get("normalize_na_base_url"),
+        "run_agent_preflight": _batch_get("run_agent_preflight"),
         "run_batch_create": _batch_get("run_batch_create"),
         "run_token_batch_create": _batch_get("run_token_batch_create"),
         "build_token_batch_text": _batch_get("build_token_batch_text"),
@@ -4364,25 +4372,45 @@ def _create_agent_job_from_body(body: dict, *, require_confirm_default: bool):
     sites = body.get("sites") or []
     llm_config = _merge_llm_config(body)
     merged_conn = _merge_agent_connection(connection if isinstance(connection, dict) else {})
-    merged_sites = _enrich_agent_sites(sites) if isinstance(sites, list) else []
+    normalized_options = _agent_options(options, require_confirm_default=require_confirm_default)
+    site_input = _merge_overview_sites({"sites": sites}) if normalized_options["run_summary"] else sites
+    merged_sites = _enrich_agent_sites(site_input) if isinstance(site_input, list) else []
 
     if not raw_text and not merged_sites:
-        # 仅导出令牌、⑤上游、⑥总览/分析时允许无原文/站点
+        # 仅汇总、导出令牌、⑤上游、⑥总览/分析时允许无原文/站点
         opts = options if isinstance(options, dict) else {}
         if not _agent_has_standalone_work(opts):
             raise ValueError("请提供原始文本（提取）或汇总站点列表")
-    if not llm_config.get("api_base"):
+    needs_llm = normalized_options["run_extract"] or normalized_options["use_llm_plan"]
+    if needs_llm and not llm_config.get("api_base"):
         raise ValueError("智能体需要配置 LLM API 地址（用于规划与提取）")
 
     return agent_jobs.STORE.create(
+        scenario=str(body.get("scenario") or "custom"),
         goal=goal,
         raw_text=raw_text,
         connection=merged_conn,
         sites=merged_sites,
-        options=_agent_options(options, require_confirm_default=require_confirm_default),
+        options=normalized_options,
         llm_config=llm_config,
         channel_lines=str(body.get("channel_lines") or ""),
     )
+
+
+@app.get("/api/agent/jobs")
+def api_agent_jobs_list():
+    import agent_jobs
+
+    try:
+        limit = int(request.args.get("limit") or 30)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "limit 必须是整数"}), 400
+    items = agent_jobs.STORE.list_summaries(
+        status=str(request.args.get("status") or ""),
+        search=str(request.args.get("search") or request.args.get("q") or ""),
+        limit=limit,
+    )
+    return jsonify({"success": True, "jobs": items, "items": items, "count": len(items)})
 
 
 @app.post("/api/agent/jobs")
@@ -4410,6 +4438,77 @@ def api_agent_jobs_get(job_id: str):
     if not job:
         return jsonify({"success": False, "message": "任务不存在"}), 404
     return jsonify({"success": True, "job": job.to_dict()})
+
+
+@app.post("/api/agent/jobs/<job_id>/preflight")
+def api_agent_jobs_preflight(job_id: str):
+    import agent_jobs
+    from pipeline_runner import _build_auth
+
+    job = agent_jobs.STORE.get(job_id)
+    if not job:
+        return jsonify({"success": False, "message": "任务不存在"}), 404
+    body = request.get_json(silent=True) or {}
+    conn = body.get("connection") if isinstance(body.get("connection"), dict) else None
+    sites = body.get("sites") if isinstance(body.get("sites"), list) else None
+    if conn or sites or body.get("otp_code"):
+        agent_jobs.apply_auth_refresh(
+            job,
+            otp_code=str(body.get("otp_code") or ""),
+            connection=conn,
+            sites=sites,
+        )
+    _enrich_job_from_env(job)
+    lines = str(body.get("channel_lines") if body.get("channel_lines") is not None else job.channel_lines or "")
+    try:
+        base_url = BATCH["normalize_na_base_url"](str(job.connection.get("base_url") or "").strip())
+        if not base_url:
+            return jsonify({"success": False, "message": "缺少 New API 地址"}), 400
+        result = BATCH["run_agent_preflight"](
+            base_url=base_url,
+            batch_text=lines,
+            default_key=str(job.connection.get("default_key") or ""),
+            auth=_build_auth(job.connection),
+        )
+    except (ValueError, RuntimeError) as exc:
+        return jsonify({"success": False, "message": str(exc)}), 400
+    return jsonify({"success": True, "preflight": result})
+
+
+@app.get("/api/agent/jobs/<job_id>/artifacts/<kind>/download")
+def api_agent_job_artifact_download(job_id: str, kind: str):
+    import agent_jobs
+
+    job = agent_jobs.STORE.get(job_id)
+    if not job:
+        return jsonify({"success": False, "message": "任务不存在"}), 404
+    requested_kind = "analysis" if kind == "analyze" else str(kind or "").strip().lower()
+    step_id = {value: key for key, value in agent_jobs.ARTIFACT_STEP_KINDS.items()}.get(requested_kind)
+    if not step_id:
+        return jsonify({"success": False, "message": "不支持的智能体产物类型"}), 400
+    requested_file = str(request.args.get("file") or "").strip().replace("\\", "/")
+    candidates = []
+    for step in job.steps:
+        data = step.get("data") or {}
+        file = str(data.get("file") or "").strip().replace("\\", "/")
+        if step.get("id") != step_id or not file or step.get("status") not in ("ok", "warn"):
+            continue
+        if requested_file and file != requested_file and file.rsplit("/", 1)[-1] != requested_file.rsplit("/", 1)[-1]:
+            continue
+        candidates.append(file)
+    if not candidates:
+        return jsonify({"success": False, "message": "该任务没有匹配的产物"}), 404
+    try:
+        excel_path = BATCH["resolve_excel_path"](NEW_DIR, candidates[-1])
+    except (ValueError, FileNotFoundError) as exc:
+        return jsonify({"success": False, "message": str(exc)}), 404
+    actual_kind = BATCH["artifact_kind_for_filename"](NEW_DIR, excel_path.name)
+    required_feature = artifact_feature(actual_kind)
+    if actual_kind != requested_kind:
+        return jsonify({"success": False, "message": "产物类型与任务记录不一致"}), 404
+    if not required_feature or not IDENTITY.has_feature(required_feature):
+        return jsonify({"success": False, "message": "当前角色无权下载该产物", "code": "FORBIDDEN"}), 403
+    return _send_excel_attachment(excel_path)
 
 
 @app.get("/api/agent/jobs/<job_id>/events")
