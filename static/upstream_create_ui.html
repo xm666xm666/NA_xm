@@ -247,8 +247,9 @@
       background: color-mix(in srgb, var(--na-panel-solid) 62%, transparent);
     }
     .creation-table { width: 100%; border-collapse: collapse; font-size: .76rem; }
-    .creation-table.project-table { min-width: 60rem; table-layout: fixed; }
+    .creation-table.project-table { min-width: 72rem; table-layout: fixed; }
     .project-table .project-name-col { width: clamp(12rem, 20vw, 18rem); }
+    .project-table .display-name-col { width: clamp(10rem, 16vw, 18rem); }
     .project-table .owner-col { width: 4rem; }
     .project-table .parent-col { width: 5.5rem; }
     .project-table .created-col { width: 7rem; }
@@ -843,7 +844,7 @@
 
         <div class="table-wrap">
         <table class="creation-table project-table">
-          <colgroup><col class="project-name-col"><col><col class="owner-col"><col class="parent-col"><col><col class="created-col"><col class="actions-col"></colgroup>
+          <colgroup><col class="project-name-col"><col class="display-name-col"><col class="owner-col"><col class="parent-col"><col><col class="created-col"><col class="actions-col"></colgroup>
           <thead><tr><th>项目名称</th><th>显示名称 / 项目方</th><th>负责人</th><th>父项目</th><th class="wrap">备注</th><th class="sortable"><button id="sortProjectCreated" class="sort-button" type="button" aria-label="按创建时间排序">创建时间<span id="projectCreatedSort">↓</span></button></th><th>操作</th></tr></thead>
           <tbody id="projectRows"><tr><td colspan="7">先加载项目，再新建或选择项目。</td></tr></tbody>
         </table>
