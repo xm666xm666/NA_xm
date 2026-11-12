@@ -247,7 +247,17 @@
       background: color-mix(in srgb, var(--na-panel-solid) 62%, transparent);
     }
     .creation-table { width: 100%; border-collapse: collapse; font-size: .76rem; }
-    .creation-table.project-table { min-width: 44rem; }
+    .creation-table.project-table { min-width: 60rem; table-layout: fixed; }
+    .project-table .project-name-col { width: clamp(12rem, 20vw, 18rem); }
+    .project-table .owner-col { width: 4rem; }
+    .project-table .parent-col { width: 5.5rem; }
+    .project-table .created-col { width: 7rem; }
+    .project-table .actions-col { width: 20rem; }
+    .project-table td.project-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .creation-table.model-table { min-width: 40rem; }
     .creation-table.endpoint-table { min-width: 50rem; }
     .creation-table th, .creation-table td {
@@ -725,7 +735,7 @@
       .search-row { flex-wrap: wrap; }
       .search-row input { flex-basis: 100%; }
       .search-row .na-btn { flex: 1 1 auto; }
-      .creation-table.project-table, .creation-table.model-table { min-width: 36rem; }
+      .creation-table.model-table { min-width: 36rem; }
       .api-key-row { grid-template-columns: 1fr; align-items: start; }
       .creation-table.endpoint-table { min-width: 44rem; }
       .row-actions button { padding: .3rem .45rem; }
@@ -833,6 +843,7 @@
 
         <div class="table-wrap">
         <table class="creation-table project-table">
+          <colgroup><col class="project-name-col"><col><col class="owner-col"><col class="parent-col"><col><col class="created-col"><col class="actions-col"></colgroup>
           <thead><tr><th>项目名称</th><th>显示名称 / 项目方</th><th>负责人</th><th>父项目</th><th class="wrap">备注</th><th class="sortable"><button id="sortProjectCreated" class="sort-button" type="button" aria-label="按创建时间排序">创建时间<span id="projectCreatedSort">↓</span></button></th><th>操作</th></tr></thead>
           <tbody id="projectRows"><tr><td colspan="7">先加载项目，再新建或选择项目。</td></tr></tbody>
         </table>
@@ -1244,7 +1255,7 @@
       );
       rows.innerHTML = visibleProjects.map((p) => `
         <tr class="${p.project_name === selectedProject ? "selected-row" : ""}">
-          <td class="wrap">${esc(p.project_name)}</td>
+          <td class="project-name" title="${esc(p.project_name)}">${esc(p.project_name)}</td>
           <td class="wrap">${esc(p.display_name || "-")}</td>
           <td>${esc(p.owner || "N/A")}</td>
           <td>${esc(p.parent_project_name || "-")}</td>
