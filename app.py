@@ -1170,6 +1170,74 @@ def api_platform_token_delete(env: str, token_id: int):
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
+@app.post("/api/platform/<env>/<kind>/batch")
+def api_platform_batch_action(env: str, kind: str):
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify({"success": False, "message": "请提交有效的批量操作参数"}), 400
+    if kind not in {"channels", "tokens"}:
+        return jsonify({"success": False, "message": "批量操作仅支持渠道或令牌"}), 400
+    action = str(body.get("action") or "").strip().lower()
+    if action not in {"enable", "disable", "delete"}:
+        return jsonify({"success": False, "message": "批量操作仅支持启用、禁用或删除"}), 400
+    raw_ids = body.get("ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return jsonify({"success": False, "message": "请至少选择一条记录"}), 400
+    if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in raw_ids):
+        return jsonify({"success": False, "message": "所选记录包含无效 ID"}), 400
+    ids = list(dict.fromkeys(raw_ids))
+
+    resource = "channel" if kind == "channels" else "token"
+    label = "渠道" if kind == "channels" else "令牌"
+    action_label = {"enable": "启用", "disable": "禁用", "delete": "删除"}[action]
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        items = []
+        if action == "delete":
+            delete_method = client.delete_channels_batch if kind == "channels" else client.delete_tokens_batch
+            succeeded = int(delete_method(ids) or 0)
+            if succeeded < 0 or succeeded > len(ids):
+                raise RuntimeError(f"上游返回了无效的删除数量：{succeeded}")
+            failed = len(ids) - succeeded
+            if not failed:
+                items = [{"id": item_id, "success": True} for item_id in ids]
+        else:
+            status = 1 if action == "enable" else 2
+            status_key = f"platform_update_{resource}_status"
+            succeeded = 0
+            failed = 0
+            for item_id in ids:
+                try:
+                    BATCH[status_key](client, item_id, status)
+                    succeeded += 1
+                    items.append({"id": item_id, "success": True})
+                except Exception as exc:  # noqa: BLE001
+                    failed += 1
+                    items.append({"id": item_id, "success": False, "message": _user_facing_error(exc)})
+
+        data = {
+            "action": action,
+            "kind": kind,
+            "total": len(ids),
+            "succeeded": succeeded,
+            "failed": failed,
+            "items": items,
+        }
+        audit_action = f"platform.{resource}.batch_{'deleted' if action == 'delete' else 'status_updated'}"
+        IDENTITY.store.audit(
+            audit_action,
+            resource=f"{env_key}:{resource}:batch",
+            outcome="success" if not failed else "partial",
+            detail={"env": env_key, "action": action, "ids": ids, "total": len(ids), "succeeded": succeeded, "failed": failed},
+        )
+        message = f"批量{action_label}{label}完成：成功 {succeeded} 项"
+        if failed:
+            message += f"，失败 {failed} 项"
+        return jsonify({"success": True, "env": env_key, "data": data, "message": message})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
 _PLATFORM_UPSTREAM_ALLOWED_PREFIXES = (
     "api/channel",
     "api/group",

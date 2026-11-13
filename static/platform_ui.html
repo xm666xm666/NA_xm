@@ -304,6 +304,23 @@
       font-size: 0.78rem;
     }
     .platform-meta[data-kind="error"] { color: var(--na-danger); border-color: rgba(239, 68, 68, 0.24); background: rgba(239, 68, 68, 0.06); }
+    .platform-batch-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+      min-height: 2.55rem;
+    }
+    .platform-selection-count { margin-right: auto; color: var(--na-text-muted); font-size: 0.78rem; }
+    .platform-batch-bar .na-btn { min-height: 2.3rem; padding: 0.5rem 0.85rem; font-size: 0.76rem; }
+    .platform-batch-enable { color: var(--na-success); }
+    .platform-batch-disable { color: #f59e0b; }
+    .platform-batch-delete { color: #fff; background: #dc2626; border-color: #dc2626; }
+    .platform-batch-delete:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
+    .platform-table .platform-select-cell { width: 42px; min-width: 42px; padding-left: 0.65rem; padding-right: 0.35rem; text-align: center; }
+    .platform-select-checkbox { width: 16px; height: 16px; margin: 0; vertical-align: middle; accent-color: var(--na-accent); cursor: pointer; }
+    .platform-select-checkbox:disabled { cursor: not-allowed; opacity: 0.45; }
+    .platform-table tbody tr.is-selected td { background: rgba(34, 211, 238, 0.065); }
     .platform-table-wrap {
       max-height: calc(100vh - 350px);
       min-height: 280px;
@@ -535,6 +552,12 @@
           <option value="disabled">已禁用</option>
         </select>
       </div>
+      <div class="platform-batch-bar" aria-label="批量操作">
+        <span class="platform-selection-count" id="selectionCount" role="status">未选择记录</span>
+        <button type="button" class="na-btn na-btn-secondary platform-batch-enable" id="batchEnableBtn" disabled>批量启用</button>
+        <button type="button" class="na-btn na-btn-secondary platform-batch-disable" id="batchDisableBtn" disabled>批量禁用</button>
+        <button type="button" class="na-btn na-btn-secondary platform-batch-delete" id="batchDeleteBtn" disabled>批量删除</button>
+      </div>
       <div class="platform-meta" id="tableMeta">选择已配置环境后读取列表。</div>
       <div class="platform-table-wrap"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
       <div class="platform-pagination" id="paginationBar"></div>
@@ -619,7 +642,7 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 20, siteEditingEnv: null, siteManageWasOpen: false, search: { name: "", group: "", model: "", status: "" } };
+      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 20, siteEditingEnv: null, siteManageWasOpen: false, selectedIds: new Set(), loading: false, batchBusy: false, search: { name: "", group: "", model: "", status: "" } };
 
       function cleanNaBaseUrlInput(raw) {
         return String(raw ?? "")
@@ -647,7 +670,7 @@
           ["优先级", (r) => r.priority ?? ""], ["权重", (r) => r.weight ?? ""], ["批量配置", () => ""], ["操作", () => ""],
         ],
         tokens: [
-          ["名称", (r) => r.name || ""], ["状态", (r) => tokenStatePill(r.status)],
+          ["ID", (r) => r.id], ["名称", (r) => r.name || ""], ["状态", (r) => tokenStatePill(r.status)],
           ["剩余额度/总额度", (r) => quotaText(r)], ["分组", (r) => r.group === "auto" ? "智能熔断" : (r.group || "")],
           ["密钥", (r) => tokenKeyText(r.key || r.token || "")], ["可用模型", (r) => r.token_model_limit_enabled && r.token_model_limit ? r.token_model_limit : "无限制"],
           ["模型限流", (r) => rateLimitText(r)], ["IP限制", (r) => r.allow_ips ? r.allow_ips.replace(/\s*[\r\n]+\s*/g, ", ") : "无限制"],
@@ -782,6 +805,19 @@
         return wrap;
       }
       function setMeta(message, kind = "") { const el = $("tableMeta"); el.textContent = message; el.dataset.kind = kind; }
+      function validRecordId(record) {
+        const id = Number(record?.id);
+        return Number.isInteger(id) && id > 0 ? id : 0;
+      }
+      function updateBatchActions() {
+        const count = state.selectedIds.size;
+        const disabled = state.loading || state.batchBusy || count === 0;
+        ["batchEnableBtn", "batchDisableBtn", "batchDeleteBtn"].forEach((id) => { $(id).disabled = disabled; });
+        $("refreshBtn").disabled = state.loading || state.batchBusy;
+        const counter = $("selectionCount");
+        counter.textContent = state.batchBusy ? "正在执行批量操作…" : (state.loading ? "正在读取列表…" : (count ? `已选择 ${count} 项` : "未选择记录"));
+        counter.title = count ? "选择可跨筛选和分页保留；刷新、切换环境或资源后清空" : "";
+      }
       function copyColumnClass(name) {
         if (name === "名称") return "name";
         if (name === "近一月活跃统计") return "activity";
@@ -923,6 +959,7 @@
           button.textContent = site.label;
           button.title = site.configured ? site.base_url : `${site.label} 未配置`;
           button.addEventListener("click", async () => {
+            if (state.batchBusy) { NAUi.toast("批量操作进行中，请稍候", "warn"); return; }
             if (state.env === site.env) return;
             state.env = site.env;
             renderEnvButtons();
@@ -1148,16 +1185,51 @@
         const columns = tableColumns[state.kind];
         const head = $("tableHead"), body = $("tableBody");
         head.replaceChildren(); body.replaceChildren();
+        const rows = getPaginatedRows();
+        const pageIds = rows.map(validRecordId).filter(Boolean);
+        const selectedOnPage = pageIds.filter((id) => state.selectedIds.has(id)).length;
         const headerRow = document.createElement("tr");
+        const selectHeader = document.createElement("th");
+        selectHeader.className = "platform-select-cell";
+        const selectAll = document.createElement("input");
+        selectAll.type = "checkbox";
+        selectAll.className = "platform-select-checkbox";
+        selectAll.setAttribute("aria-label", "选择当前页全部记录");
+        selectAll.checked = pageIds.length > 0 && selectedOnPage === pageIds.length;
+        selectAll.indeterminate = selectedOnPage > 0 && selectedOnPage < pageIds.length;
+        selectAll.disabled = state.loading || state.batchBusy || pageIds.length === 0;
+        selectAll.addEventListener("change", () => {
+          pageIds.forEach((id) => { if (selectAll.checked) state.selectedIds.add(id); else state.selectedIds.delete(id); });
+          renderTable();
+        });
+        selectHeader.append(selectAll);
+        headerRow.append(selectHeader);
         columns.forEach(([name]) => { const th = document.createElement("th"); th.textContent = name; headerRow.append(th); });
         head.append(headerRow);
-        const rows = getPaginatedRows();
+        updateBatchActions();
         if (!rows.length) {
-          const tr = document.createElement("tr"), td = document.createElement("td"); td.colSpan = columns.length; td.className = "platform-empty";
+          const tr = document.createElement("tr"), td = document.createElement("td"); td.colSpan = columns.length + 1; td.className = "platform-empty";
           td.textContent = "当前环境没有可显示的记录。"; tr.append(td); body.append(tr); return;
         }
         rows.forEach((record) => {
           const tr = document.createElement("tr");
+          const recordId = validRecordId(record);
+          tr.classList.toggle("is-selected", recordId > 0 && state.selectedIds.has(recordId));
+          const selectCell = document.createElement("td");
+          selectCell.className = "platform-select-cell";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.className = "platform-select-checkbox";
+          checkbox.checked = recordId > 0 && state.selectedIds.has(recordId);
+          checkbox.disabled = state.loading || state.batchBusy || !recordId;
+          checkbox.setAttribute("aria-label", `选择${state.kind === "channels" ? "渠道" : "令牌"} #${recordId || "-"}`);
+          checkbox.addEventListener("change", () => {
+            if (!recordId) return;
+            if (checkbox.checked) state.selectedIds.add(recordId); else state.selectedIds.delete(recordId);
+            renderTable();
+          });
+          selectCell.append(checkbox);
+          tr.append(selectCell);
           columns.forEach(([name, value], index) => {
             const td = document.createElement("td");
             if (name === "批量配置") {
@@ -1236,14 +1308,17 @@
       async function loadRows() {
         if (!state.env) return;
         const button = $("refreshBtn"); setBusy(button, true); setMeta(`正在读取 ${state.env.toUpperCase()} 的${state.kind === "channels" ? "渠道" : "令牌"}…`);
+        state.loading = true;
+        state.selectedIds.clear();
+        renderTable();
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}`);
           state.rows = Array.isArray(payload.data) ? payload.data : [];
           state.page = 1;
-          renderGroupOptions(); renderTable(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
+          renderGroupOptions(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
         } catch (error) {
-          state.rows = []; renderTable(); setMeta(error.message, "error"); NAUi.toast(error.message, "err");
-        } finally { setBusy(button, false); }
+          state.rows = []; setMeta(error.message, "error"); NAUi.toast(error.message, "err");
+        } finally { state.loading = false; setBusy(button, false); renderTable(); }
       }
 
       // --- Editor form ---
@@ -1409,6 +1484,47 @@
           NAUi.toast(payload.message || "令牌已删除", "ok"); await loadRows();
         } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
       }
+      async function runBatchAction(action) {
+        const ids = [...state.selectedIds];
+        if (!ids.length || state.loading || state.batchBusy) return;
+        const env = state.env;
+        const kind = state.kind;
+        const resourceLabel = kind === "channels" ? "渠道" : "令牌";
+        const actionLabel = { enable: "启用", disable: "禁用", delete: "删除" }[action];
+        if (!actionLabel) return;
+        if (action === "delete" && !confirm(`确定删除已选中的 ${ids.length} 个${resourceLabel}吗？此操作不可撤销。`)) return;
+        state.batchBusy = true;
+        renderTable();
+        setMeta(`正在批量${actionLabel} ${ids.length} 个${resourceLabel}…`);
+        let result;
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(env)}/${kind}/batch`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action, ids }),
+          });
+          const data = payload.data || {};
+          const failed = Number(data.failed || 0);
+          const details = (Array.isArray(data.items) ? data.items : [])
+            .filter((item) => !item.success && item.message)
+            .slice(0, 2)
+            .map((item) => `#${item.id}：${item.message}`)
+            .join("；");
+          result = {
+            message: `${payload.message || `批量${actionLabel}完成`}${details ? `；${details}` : ""}`,
+            metaKind: failed ? "error" : "",
+            toastKind: failed ? "warn" : "ok",
+          };
+          if (state.env === env && state.kind === kind) await loadRows();
+        } catch (error) {
+          result = { message: error.message, metaKind: "error", toastKind: "err" };
+        } finally {
+          state.batchBusy = false;
+          renderTable();
+        }
+        setMeta(result.message, result.metaKind);
+        NAUi.toast(result.message, result.toastKind);
+      }
       async function init() {
         try {
           const payload = await request("/api/platform/sites"); state.sites = Array.isArray(payload.data) ? payload.data : [];
@@ -1451,6 +1567,7 @@
         }
       }
       document.querySelectorAll(".platform-tabs button").forEach((button) => button.addEventListener("click", () => {
+        if (state.batchBusy) { NAUi.toast("批量操作进行中，请稍候", "warn"); return; }
         const next = button.dataset.kind; if (next === state.kind) return; state.kind = next;
         document.querySelectorAll(".platform-tabs button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-selected", String(active)); });
         state.search = { name: "", group: "", model: "", status: "" };
@@ -1476,6 +1593,9 @@
         setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
       });
       $("refreshBtn").addEventListener("click", loadRows);
+      $("batchEnableBtn").addEventListener("click", () => runBatchAction("enable"));
+      $("batchDisableBtn").addEventListener("click", () => runBatchAction("disable"));
+      $("batchDeleteBtn").addEventListener("click", () => runBatchAction("delete"));
       $("siteConfigBtn").addEventListener("click", openSiteConfig);
       $("cancelSiteConfig").addEventListener("click", closeSiteConfig);
       $("saveSiteConfig").addEventListener("click", saveSiteConfig);
