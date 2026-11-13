@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
@@ -159,3 +160,109 @@ def test_group_proxy_falls_back_to_user_groups(monkeypatch):
 
     assert response.status_code == 200
     assert json.loads(response.get_data(as_text=True))["data"] == ["default", "vip"]
+
+
+@pytest.mark.parametrize(
+    "dashboard_path",
+    [
+        "api/status",
+        "api/user/self",
+        "api/data",
+        "api/data/",
+        "api/data/self",
+        "api/data/self/",
+        "api/uptime/status",
+    ],
+)
+def test_dashboard_proxy_allows_only_upstream_dashboard_reads(monkeypatch, dashboard_path):
+    client = NewAPIClient("https://upstream.example", user_id=17)
+    calls = []
+
+    def request(method, url, **kwargs):
+        calls.append((method, url, kwargs))
+        response = _response(200, {"success": True, "data": []})
+        response.headers = {"Content-Type": "application/json; charset=utf-8"}
+        response.content = b'{"success":true,"data":[]}'
+        return response
+
+    client.session = SimpleNamespace(request=request)
+    monkeypatch.setattr(server, "_platform_site_client", lambda env: (env, {}, client))
+
+    with server.app.test_request_context(f"/api/platform/test/dashboard/{dashboard_path}"):
+        response = server.api_platform_dashboard_proxy("test", dashboard_path)
+
+    assert response.status_code == 200
+    assert response.content_type == "application/json; charset=utf-8"
+    method, url, kwargs = calls[0]
+    assert method == "GET"
+    assert url == f"https://upstream.example/{dashboard_path}"
+    assert kwargs["headers"] == {"New-Api-User": "17", "Accept": "application/json"}
+    assert kwargs["timeout"] == 120
+
+
+def test_dashboard_proxy_preserves_query_and_extends_existing_timeout(monkeypatch):
+    client = NewAPIClient("https://upstream.example", timeout=180)
+    captured = {}
+
+    def request(method, url, **kwargs):
+        captured.update(method=method, url=url, **kwargs)
+        response = _response(200, {"success": True, "data": []})
+        response.headers = {"Content-Type": "application/json"}
+        response.content = b'{"success":true,"data":[]}'
+        return response
+
+    client.session = SimpleNamespace(request=request)
+    monkeypatch.setattr(server, "_platform_site_client", lambda env: (env, {}, client))
+    query = "token_name=my%20token&start_timestamp=100&end_timestamp=200"
+
+    with server.app.test_request_context(f"/api/platform/test/dashboard/api/data/self/?{query}"):
+        response = server.api_platform_dashboard_proxy("test", "api/data/self/")
+
+    assert response.status_code == 200
+    assert captured["url"] == f"https://upstream.example/api/data/self/?{query}"
+    assert captured["timeout"] == 180
+
+
+@pytest.mark.parametrize("dashboard_path", ["api/channel/", "api/data/export", "../api/status"])
+def test_dashboard_proxy_rejects_unlisted_paths(monkeypatch, dashboard_path):
+    def fail_if_called(env):
+        raise AssertionError("未白名单路径不应创建上游会话")
+
+    monkeypatch.setattr(server, "_platform_site_client", fail_if_called)
+    with server.app.test_request_context(f"/api/platform/test/dashboard/{dashboard_path}"):
+        response, status = server.api_platform_dashboard_proxy("test", dashboard_path)
+
+    assert status == 404
+    assert response.get_json()["message"] == "不支持的看板接口"
+
+
+def test_dashboard_proxy_returns_bad_gateway_for_upstream_timeout(monkeypatch):
+    client = NewAPIClient("https://upstream.example")
+
+    def request(method, url, **kwargs):
+        raise server.requests.Timeout("dashboard timed out")
+
+    client.session = SimpleNamespace(request=request)
+    monkeypatch.setattr(server, "_platform_site_client", lambda env: (env, {}, client))
+
+    with server.app.test_request_context("/api/platform/test/dashboard/api/data/"):
+        response, status = server.api_platform_dashboard_proxy("test", "api/data/")
+
+    assert status == 502
+    assert response.get_json()["success"] is False
+
+
+def test_dashboard_html_requires_platform_feature_and_disables_cache(monkeypatch):
+    guarded_features = []
+
+    def allow_and_record(feature=None):
+        guarded_features.append(feature)
+        return None
+
+    monkeypatch.setattr(server.IDENTITY, "page_guard", allow_and_record)
+    with server.app.test_request_context("/static/platform-dashboard/platform-dashboard.html?env=test"):
+        response = server.static_files("platform-dashboard/platform-dashboard.html")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    assert guarded_features == [server.FEATURE_PLATFORM]

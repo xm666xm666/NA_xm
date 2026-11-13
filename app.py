@@ -580,13 +580,14 @@ def static_files(filename: str):
         "upstream_ui.html": FEATURE_UPSTREAM,
         "overview_ui.html": FEATURE_OVERVIEW,
         "bill_ui.html": FEATURE_UPSTREAM_BILL,
+        "platform-dashboard/platform-dashboard.html": FEATURE_PLATFORM,
     }
     feature = guarded_pages.get(filename)
     if feature:
         blocked = IDENTITY.page_guard(feature)
         if blocked:
             return blocked
-    if filename == "platform-edit/platform-edit.html":
+    if filename in {"platform-edit/platform-edit.html", "platform-dashboard/platform-dashboard.html"}:
         response = send_from_directory(STATIC_DIR, filename)
         response.headers["Cache-Control"] = "no-store"
         return response
@@ -1236,6 +1237,48 @@ def api_platform_batch_action(env: str, kind: str):
         return jsonify({"success": True, "env": env_key, "data": data, "message": message})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+_PLATFORM_DASHBOARD_ALLOWED_PATHS = {
+    "api/status",
+    "api/user/self",
+    "api/data",
+    "api/data/self",
+    "api/uptime/status",
+}
+
+
+@app.get("/api/platform/<env>/dashboard/<path:dashboard_path>")
+def api_platform_dashboard_proxy(env: str, dashboard_path: str):
+    """性能参数看板专用只读代理；仅放行上游 Dashboard 所需接口。"""
+    raw_path = dashboard_path.strip()
+    path = raw_path.strip("/")
+    if path not in _PLATFORM_DASHBOARD_ALLOWED_PATHS or ".." in path.split("/"):
+        return jsonify({"success": False, "message": "不支持的看板接口"}), 404
+    try:
+        _env_key, _site, client = _platform_site_client(env)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+    target = f"{client.base_url.rstrip('/')}/{path}"
+    if raw_path.endswith("/") and not target.endswith("/"):
+        target += "/"
+    if request.query_string:
+        target = f"{target}?{request.query_string.decode('latin-1')}"
+    try:
+        upstream = client.session.request(
+            "GET",
+            target,
+            headers={**client._headers(), "Accept": "application/json"},
+            timeout=max(int(client.timeout or 30), 120),
+        )
+    except requests.RequestException as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 502
+    return Response(
+        upstream.content,
+        status=upstream.status_code,
+        content_type=upstream.headers.get("Content-Type", "application/json"),
+    )
 
 
 _PLATFORM_UPSTREAM_ALLOWED_PREFIXES = (

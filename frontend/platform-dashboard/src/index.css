@@ -1,0 +1,83 @@
+@layer tailwind-base, semi, tailwind-components, tailwind-utils;
+
+@layer tailwind-base {
+  @tailwind base;
+}
+
+@layer tailwind-components {
+  @tailwind components;
+}
+
+@layer tailwind-utils {
+  @tailwind utilities;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei', sans-serif;
+  color: var(--semi-color-text-0);
+  background-color: var(--semi-color-bg-0);
+}
+
+.dashboard-page {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  margin: 0;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  box-sizing: border-box;
+}
+
+.card-content-container {
+  position: relative;
+}
+
+.card-content-fade-indicator {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  height: 30px;
+  background: linear-gradient(transparent, var(--semi-color-bg-1));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.card-content-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.card-content-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.semi-tabs-content .semi-tabs-pane {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.semi-tabs-content .semi-tabs-pane > div {
+  height: 100% !important;
+}
+
+.semi-card-header,
+.semi-card-body {
+  padding: 10px !important;
+}
+
+.semi-button,
+.semi-select,
+.semi-input-wrapper,
+.semi-tabs-tab-button {
+  border-radius: 10px !important;
+}

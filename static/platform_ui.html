@@ -229,7 +229,9 @@
     }
     .platform-tabs button[data-kind="channels"]::before { background: linear-gradient(135deg, #22d3ee, #0ea5e9); }
     .platform-tabs button[data-kind="tokens"]::before { background: linear-gradient(135deg, #a78bfa, #f472b6); }
+    .platform-tabs button[data-action="performance"]::before { background: linear-gradient(135deg, #34d399, #22d3ee); }
     .platform-tabs button:hover { color: var(--na-text); background: rgba(255, 255, 255, 0.045); }
+    .platform-tabs button:disabled { opacity: 0.45; cursor: not-allowed; }
     .platform-tabs button.active {
       color: var(--na-text);
       border-color: rgba(34, 211, 238, 0.30);
@@ -541,6 +543,7 @@
       <div class="platform-tabs" role="tablist" aria-label="NA信息资源">
         <button type="button" class="active" data-kind="channels" role="tab" aria-selected="true">NA渠道</button>
         <button type="button" data-kind="tokens" role="tab" aria-selected="false">NA令牌</button>
+        <button type="button" id="performanceBtn" data-action="performance" aria-label="在新页面打开性能参数看板" disabled>性能参数</button>
       </div>
       <div class="platform-search" aria-label="列表筛选">
         <input type="search" id="searchName" placeholder="搜索名称" autocomplete="off" />
@@ -970,6 +973,7 @@
         });
         const current = siteFor(state.env);
         $("siteConfigBtn").disabled = false;
+        $("performanceBtn").disabled = !current?.configured;
         renderSessionStatus();
       }
       function renderSessionStatus() {
@@ -1566,10 +1570,10 @@
           NAUi.toast(error.message, "err");
         }
       }
-      document.querySelectorAll(".platform-tabs button").forEach((button) => button.addEventListener("click", () => {
+      document.querySelectorAll(".platform-tabs button[data-kind]").forEach((button) => button.addEventListener("click", () => {
         if (state.batchBusy) { NAUi.toast("批量操作进行中，请稍候", "warn"); return; }
         const next = button.dataset.kind; if (next === state.kind) return; state.kind = next;
-        document.querySelectorAll(".platform-tabs button").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-selected", String(active)); });
+        document.querySelectorAll(".platform-tabs button[data-kind]").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-selected", String(active)); });
         state.search = { name: "", group: "", model: "", status: "" };
         $("searchName").value = ""; $("searchGroup").value = ""; $("searchModel").value = ""; $("searchStatus").value = "";
         state.page = 1; loadRows();
@@ -1593,6 +1597,12 @@
         setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
       });
       $("refreshBtn").addEventListener("click", loadRows);
+      $("performanceBtn").addEventListener("click", () => {
+        const current = siteFor(state.env);
+        if (!current?.configured) { NAUi.toast("请先选择已配置的环境", "warn"); return; }
+        const url = `/static/platform-dashboard/platform-dashboard.html?env=${encodeURIComponent(state.env)}`;
+        window.open(url, "_blank", "noopener,noreferrer");
+      });
       $("batchEnableBtn").addEventListener("click", () => runBatchAction("enable"));
       $("batchDisableBtn").addEventListener("click", () => runBatchAction("disable"));
       $("batchDeleteBtn").addEventListener("click", () => runBatchAction("delete"));
