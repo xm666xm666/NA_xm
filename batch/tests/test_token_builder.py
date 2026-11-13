@@ -87,6 +87,26 @@ def test_optional_tokens_support_space_and_csv_input():
     assert csv_row["额度(tokens)"] == "2000000"
 
 
+def test_mixed_tab_and_space_quota_is_not_part_of_model_name():
+    model = "security-model-test-k8s-glm-5.3-flash"
+    row = parse_token_line(
+        f"security-model-test-k8s-glm5.3-f-蔡佳佳\tsecurity-model-test\t{model} 100000"
+    )
+
+    assert row["模型限制"] == model
+    assert row["额度(tokens)"] == "100000"
+
+    monthly_payload = build_token_payload(row, monthly_tokens=True)
+    assert monthly_payload["model_limits"] == model
+    assert monthly_payload["input_token_limit_enabled"] is True
+    assert monthly_payload["input_token_limit_k"] == "100"
+
+    legacy_payload = build_token_payload(row)
+    assert legacy_payload["model_limits"] == model
+    assert legacy_payload["unlimited_quota"] is False
+    assert legacy_payload["remain_quota"] == 100000
+
+
 def test_missing_tokens_stays_unlimited():
     payload = build_token_payload(parse_token_line("tok-a g1 m1,m2"))
     assert payload["unlimited_quota"] is True
@@ -110,6 +130,7 @@ if __name__ == "__main__":
     test_optional_tokens_create_limited_quota()
     test_monthly_tokens_use_v103_fields()
     test_optional_tokens_support_space_and_csv_input()
+    test_mixed_tab_and_space_quota_is_not_part_of_model_name()
     test_missing_tokens_stays_unlimited()
     test_negative_tokens_rejected()
     print("ok")

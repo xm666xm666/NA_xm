@@ -92,6 +92,11 @@ def split_token_columns(line: str) -> tuple[str, str, str, str]:
         if len(parts) > 3 and _looks_like_quota_value(parts[-1]):
             models_raw = "、".join(part for part in parts[2:-1] if part)
             return name, group, models_raw, parts[-1]
+        tail_parts = parts[-1].rsplit(maxsplit=1)
+        if len(tail_parts) == 2 and _looks_like_quota_value(tail_parts[-1]):
+            model_parts = [*parts[2:-1], tail_parts[0].strip()]
+            models_raw = "、".join(part for part in model_parts if part)
+            return name, group, models_raw, tail_parts[-1]
         models_raw = "、".join(part for part in parts[2:] if part)
         return name, group, models_raw, ""
 

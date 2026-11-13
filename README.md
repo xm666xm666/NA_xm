@@ -1381,7 +1381,7 @@ v1.0.3 及以上上游使用独立的自然月 Token 限制字段，工具自动
 | 50 万 tokens | `demo-b  team-a  model-a、model-b  500000` | `unlimited_quota=false`，`remain_quota=500000` |
 | 100 万 tokens | `demo-c<Tab>team-a<Tab>model-c<Tab>1000000` | `unlimited_quota=false`，`remain_quota=1000000` |
 
-列可用 Tab、空格或英文逗号分隔；模型列表仍支持顿号、中文逗号或英文逗号。额度必须为不超过 New API 上限的非负整数；负数、小数或非数值会被工具拒绝。
+列可用 Tab、空格或英文逗号分隔，也支持前三列使用 Tab、额度前使用空格的混合格式；尾部额度不会拼入模型名。模型列表仍支持顿号、中文逗号或英文逗号。额度必须为不超过 New API 上限的非负整数；负数、小数或非数值会被工具拒绝。
 
 #### 更新已有令牌额度
 
