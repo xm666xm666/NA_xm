@@ -229,6 +229,7 @@
     }
     .platform-tabs button[data-kind="channels"]::before { background: linear-gradient(135deg, #22d3ee, #0ea5e9); }
     .platform-tabs button[data-kind="tokens"]::before { background: linear-gradient(135deg, #a78bfa, #f472b6); }
+    .platform-tabs button[data-kind="users"]::before { background: linear-gradient(135deg, #60a5fa, #818cf8); }
     .platform-tabs button[data-action="performance"]::before { background: linear-gradient(135deg, #34d399, #22d3ee); }
     .platform-tabs button:hover { color: var(--na-text); background: rgba(255, 255, 255, 0.045); }
     .platform-tabs button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -490,6 +491,15 @@
       border-color: rgba(34, 211, 238, 0.7);
       box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
     }
+    .platform-resource[hidden], .platform-users-view[hidden] { display: none !important; }
+    .platform-users-view { min-width: 0; }
+    .platform-users-frame {
+      display: block;
+      width: 100%;
+      height: max(620px, calc(100vh - 310px));
+      border: 0;
+      background: transparent;
+    }
     html[data-theme="light"] .platform-toolbar,
     html[data-theme="light"] .platform-table-wrap,
     html[data-theme="light"] .platform-meta {
@@ -503,8 +513,9 @@
     @media (max-width: 700px) {
       .platform-toolbar { padding: 0.85rem; }
       .platform-address { width: 100%; max-width: none; margin-left: 0; }
-      .platform-tabs { width: 100%; }
-      .platform-tabs button { flex: 1; justify-content: center; }
+      .platform-tabs { width: 100%; flex-wrap: wrap; }
+      .platform-tabs button { flex: 1 1 calc(50% - 0.5rem); justify-content: center; }
+      .platform-users-frame { height: 720px; }
       .platform-search { grid-template-columns: 1fr; }
       .platform-table-wrap { max-height: none; }
       .platform-table td.copyable { max-width: min(68vw, 320px); }
@@ -529,7 +540,7 @@
   <main class="na-wrap">
     <header class="na-hero na-animate-in">
       <h1>NA<em>信息</em></h1>
-      <p class="na-subtitle"><span class="na-badge"><span class="na-badge-dot"></span>Platform Console</span>按 test、uat、prod 统一查看并编辑 ai-cloud 的 NA渠道和NA令牌。账号、密码与 TOTP 仅由服务端从 <code>env/sites.json</code> 读取。</p>
+      <p class="na-subtitle"><span class="na-badge"><span class="na-badge-dot"></span>Platform Console</span>按 test、uat、prod 统一查看并编辑 ai-cloud 的 NA渠道、NA令牌和上游用户。账号、密码与 TOTP 仅由服务端从 <code>env/sites.json</code> 读取。</p>
     </header>
 
     <section class="na-panel na-panel-static na-animate-in na-animate-in-1 platform-shell">
@@ -543,10 +554,10 @@
       <div class="platform-tabs" role="tablist" aria-label="NA信息资源">
         <button type="button" class="active" data-kind="channels" role="tab" aria-selected="true">NA渠道</button>
         <button type="button" data-kind="tokens" role="tab" aria-selected="false">NA令牌</button>
+        <button type="button" id="userManagementBtn" data-kind="users" role="tab" aria-selected="false" disabled>上游用户管理</button>
         <button type="button" id="performanceBtn" data-action="performance" aria-label="在新页面打开性能参数看板" disabled>性能参数</button>
-        <button type="button" id="userManagementBtn" data-action="user-management" aria-label="在新页面打开上游用户管理" disabled>上游用户管理</button>
       </div>
-      <div class="platform-search" aria-label="列表筛选">
+      <div class="platform-search platform-resource" id="resourceFilters" aria-label="列表筛选">
         <input type="search" id="searchName" placeholder="搜索名称" autocomplete="off" />
         <select id="searchGroup" aria-label="选择分组"></select>
         <input type="search" id="searchModel" placeholder="搜索模型" autocomplete="off" />
@@ -556,15 +567,18 @@
           <option value="disabled">已禁用</option>
         </select>
       </div>
-      <div class="platform-batch-bar" aria-label="批量操作">
+      <div class="platform-batch-bar platform-resource" id="batchActions" aria-label="批量操作">
         <span class="platform-selection-count" id="selectionCount" role="status">未选择记录</span>
         <button type="button" class="na-btn na-btn-secondary platform-batch-enable" id="batchEnableBtn" disabled>批量启用</button>
         <button type="button" class="na-btn na-btn-secondary platform-batch-disable" id="batchDisableBtn" disabled>批量禁用</button>
         <button type="button" class="na-btn na-btn-secondary platform-batch-delete" id="batchDeleteBtn" disabled>批量删除</button>
       </div>
-      <div class="platform-meta" id="tableMeta">选择已配置环境后读取列表。</div>
-      <div class="platform-table-wrap"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
-      <div class="platform-pagination" id="paginationBar"></div>
+      <div class="platform-meta platform-resource" id="tableMeta">选择已配置环境后读取列表。</div>
+      <div class="platform-table-wrap platform-resource" id="resourceTable"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
+      <div class="platform-pagination platform-resource" id="paginationBar"></div>
+      <div class="platform-users-view" id="usersView" hidden>
+        <iframe class="platform-users-frame" id="userManagementFrame" title="上游用户管理"></iframe>
+      </div>
     </section>
   </main>
 
@@ -899,6 +913,40 @@
         NAUi.toast(state.kind === "channels" ? "已填入批量配置「更新原配置」" : "已填入批量配置「令牌管理」", "ok");
       }
       function siteFor(env) { return state.sites.find((site) => site.env === env); }
+      function syncResourceView() {
+        const usersActive = state.kind === "users";
+        ["resourceFilters", "batchActions", "tableMeta", "resourceTable", "paginationBar"].forEach((id) => {
+          $(id).hidden = usersActive;
+        });
+        $("usersView").hidden = !usersActive;
+      }
+      function syncUsersFrame() {
+        const frame = $("userManagementFrame");
+        const env = state.env && siteFor(state.env)?.configured ? state.env : "";
+        if (frame.dataset.env === env && frame.src) return false;
+        frame.dataset.env = env;
+        frame.src = env
+          ? `/static/platform-users/platform-users.html?embed=1&env=${encodeURIComponent(env)}`
+          : "about:blank";
+        return true;
+      }
+      async function refreshUsers() {
+        const reloading = syncUsersFrame();
+        const frame = $("userManagementFrame");
+        const button = $("refreshBtn");
+        setBusy(button, true);
+        try {
+          const api = frame.contentWindow?.NAPlatformUsers;
+          if (!reloading && api) await api.refresh();
+          else if (reloading || frame.contentDocument?.readyState !== "complete") {
+            await new Promise((resolve) => frame.addEventListener("load", resolve, { once: true }));
+          }
+        } catch (error) {
+          NAUi.toast(error.message || "用户列表刷新失败", "err");
+        } finally {
+          setBusy(button, false);
+        }
+      }
       function safeText(value) { return value == null ? "" : String(value); }
       function groupOptionValues() {
         const values = new Set(state.groupOptions.map((group) => safeText(group).trim()).filter(Boolean));
@@ -967,7 +1015,11 @@
             if (state.env === site.env) return;
             state.env = site.env;
             renderEnvButtons();
-            try { await warmupSession(site.env); await loadGroupOptions(site.env); await loadRows(); }
+            try {
+              await warmupSession(site.env);
+              if (state.kind !== "users") await loadGroupOptions(site.env);
+              await loadRows();
+            }
             catch (_) { state.rows = []; renderTable(); }
           });
           box.append(button);
@@ -976,6 +1028,7 @@
         $("siteConfigBtn").disabled = false;
         $("performanceBtn").disabled = !current?.configured;
         $("userManagementBtn").disabled = !current?.configured;
+        if (state.kind === "users") syncUsersFrame();
         renderSessionStatus();
       }
       function renderSessionStatus() {
@@ -1071,7 +1124,7 @@
             renderEnvButtons();
             if (state.env) {
               await warmupSession(state.env);
-              await loadGroupOptions(state.env);
+              if (state.kind !== "users") await loadGroupOptions(state.env);
               await loadRows();
             } else {
               state.rows = [];
@@ -1187,6 +1240,7 @@
 
       }
       function renderTable() {
+        if (state.kind === "users") return;
         renderPagination();
         const columns = tableColumns[state.kind];
         const head = $("tableHead"), body = $("tableBody");
@@ -1313,6 +1367,7 @@
       }
       async function loadRows() {
         if (!state.env) return;
+        if (state.kind === "users") { syncUsersFrame(); return; }
         const button = $("refreshBtn"); setBusy(button, true); setMeta(`正在读取 ${state.env.toUpperCase()} 的${state.kind === "channels" ? "渠道" : "令牌"}…`);
         state.loading = true;
         state.selectedIds.clear();
@@ -1538,7 +1593,7 @@
           renderEnvButtons();
           if (state.env) {
             await warmupSession(state.env);
-            await loadGroupOptions(state.env);
+            if (state.kind !== "users") await loadGroupOptions(state.env);
             await loadRows();
           }
           else { renderTable(); setMeta("未检测到已配置的 test / uat / prod；请填写 env/sites.json。", "error"); }
@@ -1576,6 +1631,7 @@
         if (state.batchBusy) { NAUi.toast("批量操作进行中，请稍候", "warn"); return; }
         const next = button.dataset.kind; if (next === state.kind) return; state.kind = next;
         document.querySelectorAll(".platform-tabs button[data-kind]").forEach((item) => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-selected", String(active)); });
+        syncResourceView();
         state.search = { name: "", group: "", model: "", status: "" };
         $("searchName").value = ""; $("searchGroup").value = ""; $("searchModel").value = ""; $("searchStatus").value = "";
         state.page = 1; loadRows();
@@ -1598,17 +1654,14 @@
         state.page = 1; renderTable();
         setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
       });
-      $("refreshBtn").addEventListener("click", loadRows);
+      $("refreshBtn").addEventListener("click", () => {
+        if (state.kind === "users") void refreshUsers();
+        else void loadRows();
+      });
       $("performanceBtn").addEventListener("click", () => {
         const current = siteFor(state.env);
         if (!current?.configured) { NAUi.toast("请先选择已配置的环境", "warn"); return; }
         const url = `/static/platform-dashboard/platform-dashboard.html?env=${encodeURIComponent(state.env)}`;
-        window.open(url, "_blank", "noopener,noreferrer");
-      });
-      $("userManagementBtn").addEventListener("click", () => {
-        const current = siteFor(state.env);
-        if (!current?.configured) { NAUi.toast("请先选择已配置的环境", "warn"); return; }
-        const url = `/static/platform-users/platform-users.html?env=${encodeURIComponent(state.env)}`;
         window.open(url, "_blank", "noopener,noreferrer");
       });
       $("batchEnableBtn").addEventListener("click", () => runBatchAction("enable"));

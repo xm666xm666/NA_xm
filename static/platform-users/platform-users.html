@@ -8,55 +8,21 @@
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/static/na-theme.css?v=auth-1" />
   <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
-  <link rel="stylesheet" href="/static/platform-users/platform-users.css?v=1" />
+  <link rel="stylesheet" href="/static/platform-users/platform-users.css?v=2" />
   <script src="/static/na-theme.js"></script>
   <script src="/static/na-ui.js?v=auth-1"></script>
   <script src="/static/auth-shell.js?v=web-5"></script>
   <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+  <script>if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.classList.add("na-embed");</script>
 </head>
-<body class="na-app">
-  <div class="na-bg" aria-hidden="true"><div class="na-bg-grid"></div><div class="na-bg-orb na-bg-orb-1"></div><div class="na-bg-orb na-bg-orb-2"></div><div class="na-bg-noise"></div></div>
-  <nav class="users-nav" aria-label="用户管理导航">
-    <a class="users-brand" id="backLink" href="/#platform" aria-label="返回 NA信息">
-      <span class="na-brand-mark" aria-hidden="true">N</span>
-      <span>NA<em>信息</em></span>
-      <span class="users-nav-divider">/</span>
-      <strong>用户管理</strong>
-    </a>
-    <div class="users-nav-actions">
-      <span class="users-site-state" id="siteState">正在读取环境…</span>
-      <label class="users-env-label" for="envSelect">环境</label>
-      <select id="envSelect" aria-label="选择上游环境" disabled></select>
-      <div id="authUserMenu"></div>
-    </div>
-  </nav>
-
-  <main class="na-wrap users-wrap">
-    <header class="users-hero na-animate-in">
-      <div>
-        <span class="na-badge"><span class="na-badge-dot"></span>Upstream Accounts</span>
-        <h1>上游用户管理</h1>
-        <p>集中管理当前 NA 站点的用户账户、角色、额度与安全设置。操作权限由上游账户角色决定。</p>
-      </div>
-      <a class="na-btn na-btn-ghost" id="returnButton" href="/#platform">返回 NA信息</a>
-    </header>
-
-    <section class="users-summary na-animate-in na-animate-in-1" aria-label="用户概览">
-      <article><span>用户总数</span><strong id="totalUsers">—</strong><small>当前筛选结果</small></article>
-      <article><span>本页已启用</span><strong id="enabledUsers">—</strong><small id="enabledHint">等待加载</small></article>
-      <article><span>本页管理员</span><strong id="adminUsers">—</strong><small>管理员与超级管理员</small></article>
-    </section>
-
-    <section class="na-panel na-panel-static users-panel na-animate-in na-animate-in-2">
+<body class="na-app users-embed">
+  <main class="users-wrap">
+    <section class="users-panel" aria-label="上游用户管理">
       <div class="users-toolbar">
         <div class="users-toolbar-actions">
           <button type="button" class="na-btn na-btn-primary" id="addUserBtn" disabled>
             <svg class="na-btn-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19a6 6 0 0 0-12 0M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM18 8v6M15 11h6"/></svg>
             添加用户
-          </button>
-          <button type="button" class="na-btn na-btn-secondary" id="refreshBtn" disabled>
-            <svg class="na-btn-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18 6.5L20 11M4 13l2 4.5A7 7 0 0 0 17.9 15"/></svg>
-            <span id="refreshLabel">刷新列表</span>
           </button>
         </div>
         <span class="users-refresh-time" id="refreshTime">尚未刷新</span>
@@ -138,6 +104,6 @@
     <footer class="users-dialog-footer"><button type="button" class="na-btn na-btn-ghost" data-close-dialog="confirmDialog">取消</button><button type="button" class="na-btn na-btn-primary" id="confirmActionBtn">确认</button></footer>
   </dialog>
 
-  <script src="/static/platform-users/platform-users.js?v=1"></script>
+  <script src="/static/platform-users/platform-users.js?v=2"></script>
 </body>
 </html>

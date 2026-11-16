@@ -20,7 +20,6 @@
     "root123", "test1234", "welcome",
   ]);
   const state = {
-    sites: [],
     env: "",
     users: [],
     total: 0,
@@ -59,12 +58,8 @@
     };
   }
 
-  function currentSite() {
-    return state.sites.find((site) => site.env === state.env) || null;
-  }
-
   function hasSite() {
-    return Boolean(currentSite()?.configured);
+    return Boolean(state.env);
   }
 
   function showNotice(message = "", kind = "error") {
@@ -78,14 +73,10 @@
     const configured = hasSite();
     const busy = state.loading || state.saving || state.confirming;
     const mutationBusy = state.saving || state.confirming;
-    $("envSelect").disabled = state.sites.length === 0 || state.saving || state.confirming;
     $("addUserBtn").disabled = !configured || busy;
     ["searchBtn", "resetFilterBtn", "pageSize", "keywordInput", "groupFilter"].forEach((id) => {
       $(id).disabled = !configured || mutationBusy;
     });
-    $("refreshBtn").disabled = !configured || busy;
-    $("refreshLabel").textContent = state.loading ? "正在刷新…" : "刷新列表";
-    $("refreshBtn").classList.toggle("is-loading", state.loading);
     $("tableWrap").setAttribute("aria-busy", String(state.loading));
   }
 
@@ -103,16 +94,6 @@
       suggestions.append(new Option(name, name));
     });
     filter.value = names.includes(selected) ? selected : "";
-  }
-
-  function updateEnvironmentView() {
-    const site = currentSite();
-    $("envSelect").value = state.env;
-    $("siteState").textContent = site
-      ? `${site.label || site.env.toUpperCase()} · ${site.base_url}${site.configured ? "" : " · 未配置"}`
-      : "未检测到上游环境";
-    document.title = `${site?.label || state.env.toUpperCase() || "上游"}用户管理 · NA信息`;
-    setControls();
   }
 
   function renderMessage(title, detail = "", loading = false) {
@@ -356,15 +337,6 @@
     $("usersTableBody").replaceChildren(fragment);
   }
 
-  function renderSummary() {
-    $("totalUsers").textContent = formatInteger(state.total);
-    const active = state.users.filter((user) => !isDeleted(user) && Number(user.status) === 1).length;
-    const admins = state.users.filter((user) => Number(user.role) >= 10).length;
-    $("enabledUsers").textContent = formatInteger(active);
-    $("enabledHint").textContent = `本页共 ${state.users.length} 个账户`;
-    $("adminUsers").textContent = formatInteger(admins);
-  }
-
   function pageButton(label, page, { active = false, disabled = false } = {}) {
     const button = document.createElement("button");
     button.type = "button";
@@ -414,7 +386,6 @@
     if (!hasSite()) {
       state.users = [];
       state.total = 0;
-      renderSummary();
       renderPagination();
       renderMessage("请先配置上游环境", "返回 NA 信息页，在站点配置中补齐连接信息。" );
       setControls();
@@ -447,7 +418,6 @@
       }
       state.page = Math.max(1, Number(data.page) || requestedPage);
       $("refreshTime").textContent = `更新于 ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`;
-      renderSummary();
       updateTableMeta();
       renderPagination();
       return true;
@@ -457,7 +427,6 @@
       state.total = 0;
       showNotice(error.message || "用户列表加载失败");
       renderMessage("用户列表加载失败", "请检查上游登录状态、账户权限或网络连接后重试。" );
-      renderSummary();
       renderPagination();
       updateTableMeta();
       return false;
@@ -525,52 +494,6 @@
       state.page = 1;
       void loadUsers();
     }, FILTER_DEBOUNCE_MS);
-  }
-
-  async function switchEnvironment(env) {
-    state.env = env;
-    state.options = { ...DEFAULT_OPTIONS };
-    state.users = [];
-    state.total = 0;
-    state.listSequence += 1;
-    state.optionsSequence += 1;
-    state.loading = false;
-    clearFilters();
-    const url = new URL(window.location.href);
-    if (env) url.searchParams.set("env", env);
-    else url.searchParams.delete("env");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-    showNotice();
-    updateEnvironmentView();
-    renderSummary();
-    updateTableMeta();
-    renderPagination();
-    if (hasSite()) await Promise.allSettled([loadOptions(), loadUsers()]);
-    else await loadUsers();
-  }
-
-  async function loadSites() {
-    try {
-      const payload = await request("/api/platform/sites");
-      state.sites = Array.isArray(payload.data) ? payload.data : [];
-      const select = $("envSelect");
-      select.replaceChildren();
-      state.sites.forEach((site) => {
-        const label = `${site.label || site.env.toUpperCase()}${site.configured ? "" : "（未配置）"}`;
-        select.append(new Option(label, site.env));
-      });
-      const requested = new URLSearchParams(window.location.search).get("env") || "";
-      const selected = state.sites.find((site) => site.env === requested && site.configured)
-        || state.sites.find((site) => site.configured)
-        || state.sites[0];
-      await switchEnvironment(selected?.env || "");
-    } catch (error) {
-      state.sites = [];
-      state.env = "";
-      updateEnvironmentView();
-      showNotice(error.message || "环境配置读取失败");
-      renderMessage("无法读取环境配置", "请刷新页面或返回 NA 信息页检查站点配置。" );
-    }
   }
 
   function passwordError(password, required) {
@@ -820,8 +743,6 @@
   }
 
   function bindEvents() {
-    $("envSelect").addEventListener("change", (event) => { void switchEnvironment(event.target.value); });
-    $("refreshBtn").addEventListener("click", () => { void Promise.allSettled([loadOptions(), loadUsers()]); });
     $("addUserBtn").addEventListener("click", openCreateDialog);
     $("filterForm").addEventListener("submit", (event) => {
       event.preventDefault();
@@ -895,8 +816,15 @@
   async function init() {
     bindEvents();
     renderGroupOptions();
-    await loadSites();
+    state.env = (new URLSearchParams(window.location.search).get("env") || "").trim();
+    document.title = `${state.env.toUpperCase() || "上游"}用户管理 · NA信息`;
+    setControls();
+    if (hasSite()) await Promise.allSettled([loadOptions(), loadUsers()]);
+    else await loadUsers();
   }
 
+  window.NAPlatformUsers = {
+    refresh: () => Promise.allSettled([loadOptions(), loadUsers()]),
+  };
   void init();
 })();

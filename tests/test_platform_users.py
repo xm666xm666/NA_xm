@@ -335,7 +335,7 @@ def test_users_html_requires_platform_feature_and_disables_cache(monkeypatch):
         return None
 
     monkeypatch.setattr(server.IDENTITY, "page_guard", allow_and_record)
-    with server.app.test_request_context("/static/platform-users/platform-users.html?env=test"):
+    with server.app.test_request_context("/static/platform-users/platform-users.html?embed=1&env=test"):
         response = server.static_files("platform-users/platform-users.html")
 
     assert response.status_code == 200
@@ -343,8 +343,16 @@ def test_users_html_requires_platform_feature_and_disables_cache(monkeypatch):
     assert guarded_features == [server.FEATURE_PLATFORM]
 
 
-def test_na_information_entry_opens_user_management_page():
+def test_na_information_user_management_switches_inline_before_performance():
     html = (PROJECT_ROOT / "static" / "platform_ui.html").read_text(encoding="utf-8")
 
-    assert 'id="userManagementBtn"' in html
-    assert "platform-users/platform-users.html?env=" in html
+    users_entry = html.index('id="userManagementBtn" data-kind="users"')
+    performance_entry = html.index('id="performanceBtn" data-action="performance"')
+    assert users_entry < performance_entry
+    assert 'id="userManagementFrame"' in html
+    assert "platform-users/platform-users.html?embed=1&env=" in html
+    assert 'data-action="user-management"' not in html
+
+    users_html = (PROJECT_ROOT / "static" / "platform-users" / "platform-users.html").read_text(encoding="utf-8")
+    assert 'id="envSelect"' not in users_html
+    assert 'id="refreshBtn"' not in users_html
