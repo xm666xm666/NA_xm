@@ -11,6 +11,7 @@
     custom_currency_exchange_rate: 1,
     warnings: [],
   };
+  const FILTER_DEBOUNCE_MS = 350;
   const WEAK_PASSWORDS = new Set([
     "000000", "111111", "123456", "12345678", "123456789", "1234567890",
     "1q2w3e4r", "1qaz2wsx", "abc123", "admin", "admin123", "admin1234",
@@ -34,6 +35,7 @@
     listSequence: 0,
     optionsSequence: 0,
     editorSequence: 0,
+    filterTimer: null,
     confirmAction: null,
   };
 
@@ -75,9 +77,11 @@
   function setControls() {
     const configured = hasSite();
     const busy = state.loading || state.saving || state.confirming;
+    const mutationBusy = state.saving || state.confirming;
     $("envSelect").disabled = state.sites.length === 0 || state.saving || state.confirming;
-    ["addUserBtn", "searchBtn", "resetFilterBtn", "pageSize", "keywordInput", "groupFilter"].forEach((id) => {
-      $(id).disabled = !configured || busy;
+    $("addUserBtn").disabled = !configured || busy;
+    ["searchBtn", "resetFilterBtn", "pageSize", "keywordInput", "groupFilter"].forEach((id) => {
+      $(id).disabled = !configured || mutationBusy;
     });
     $("refreshBtn").disabled = !configured || busy;
     $("refreshLabel").textContent = state.loading ? "正在刷新…" : "刷新列表";
@@ -489,11 +493,38 @@
   }
 
   function clearFilters() {
+    if (state.filterTimer !== null) {
+      clearTimeout(state.filterTimer);
+      state.filterTimer = null;
+    }
     state.filters = { keyword: "", group: "" };
     state.page = 1;
     $("keywordInput").value = "";
     renderGroupOptions();
     $("groupFilter").value = "";
+  }
+
+  function applyFilters() {
+    if (state.filterTimer !== null) {
+      clearTimeout(state.filterTimer);
+      state.filterTimer = null;
+    }
+    state.filters = { keyword: $("keywordInput").value.trim(), group: $("groupFilter").value };
+    state.page = 1;
+    void loadUsers();
+  }
+
+  function scheduleFilterSearch() {
+    if (state.filterTimer !== null) clearTimeout(state.filterTimer);
+    state.filterTimer = setTimeout(() => {
+      state.filterTimer = null;
+      const keyword = $("keywordInput").value.trim();
+      const group = $("groupFilter").value;
+      if (keyword === state.filters.keyword && group === state.filters.group) return;
+      state.filters = { keyword, group };
+      state.page = 1;
+      void loadUsers();
+    }, FILTER_DEBOUNCE_MS);
   }
 
   async function switchEnvironment(env) {
@@ -794,10 +825,10 @@
     $("addUserBtn").addEventListener("click", openCreateDialog);
     $("filterForm").addEventListener("submit", (event) => {
       event.preventDefault();
-      state.filters = { keyword: $("keywordInput").value.trim(), group: $("groupFilter").value };
-      state.page = 1;
-      void loadUsers();
+      applyFilters();
     });
+    $("keywordInput").addEventListener("input", scheduleFilterSearch);
+    $("groupFilter").addEventListener("change", applyFilters);
     $("resetFilterBtn").addEventListener("click", () => { clearFilters(); void loadUsers(); });
     $("pageSize").addEventListener("change", (event) => {
       state.pageSize = Number(event.target.value) || 20;

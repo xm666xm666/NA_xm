@@ -7,6 +7,7 @@ from typing import Any
 
 
 MANAGE_ACTIONS = {"enable", "disable", "delete", "promote", "demote"}
+SEARCH_PAGE_SIZE = 100
 CREATE_FIELDS = {"username", "display_name", "password", "remark"}
 UPDATE_FIELDS = CREATE_FIELDS | {"group", "quota"}
 PUBLIC_USER_FIELDS = {
@@ -232,19 +233,7 @@ def _request(client: Any, method: str, path: str, *, params: dict[str, Any] | No
     return body.get("data")
 
 
-def list_users(client: Any, query: dict[str, Any]) -> dict[str, Any]:
-    page = query["page"]
-    page_size = query["page_size"]
-    keyword = query["keyword"]
-    group = query["group"]
-    params: dict[str, Any] = {
-        "p": 0 if page == 1 else page,
-        "page_size": page_size,
-    }
-    path = "/api/user/"
-    if keyword or group:
-        path = "/api/user/search"
-        params.update({"keyword": keyword, "group": group})
+def _user_page(client: Any, path: str, params: dict[str, Any]) -> tuple[list[Any], int]:
     data = _request(client, "GET", path, params=params, fallback="获取用户列表失败")
     if isinstance(data, list):
         items = data
@@ -260,6 +249,69 @@ def list_users(client: Any, query: dict[str, Any]) -> dict[str, Any]:
         total = max(0, int(total))
     except (TypeError, ValueError) as exc:
         raise RuntimeError("用户总数格式异常") from exc
+    return items, total
+
+
+def _matches_username_or_id(record: Any, keyword: str) -> bool:
+    if not isinstance(record, dict):
+        return False
+    username = str(record.get("username") or "")
+    if keyword.casefold() in username.casefold():
+        return True
+    if keyword.isascii() and keyword.isdigit():
+        raw_id = record.get("id")
+        if raw_id is None or isinstance(raw_id, bool):
+            return False
+        try:
+            return int(str(raw_id)) == int(keyword)
+        except (TypeError, ValueError):
+            return False
+    return False
+
+
+def _search_usernames(client: Any, keyword: str, group: str) -> list[Any]:
+    """上游宽匹配可能命中邮箱或显示名称，这里收敛为用户名或 ID 并保留准确总数。"""
+    matches: list[Any] = []
+    upstream_page = 1
+    scanned = 0
+    while True:
+        items, total = _user_page(
+            client,
+            "/api/user/search",
+            {
+                "p": 0 if upstream_page == 1 else upstream_page,
+                "page_size": SEARCH_PAGE_SIZE,
+                "keyword": keyword,
+                "group": group,
+            },
+        )
+        matches.extend(item for item in items if _matches_username_or_id(item, keyword))
+        scanned += len(items)
+        if not items or scanned >= total or len(items) < SEARCH_PAGE_SIZE:
+            return matches
+        upstream_page += 1
+
+
+def list_users(client: Any, query: dict[str, Any]) -> dict[str, Any]:
+    page = query["page"]
+    page_size = query["page_size"]
+    keyword = query["keyword"]
+    group = query["group"]
+    if keyword:
+        matches = _search_usernames(client, keyword, group)
+        start = (page - 1) * page_size
+        items = matches[start:start + page_size]
+        total = len(matches)
+    else:
+        params: dict[str, Any] = {
+            "p": 0 if page == 1 else page,
+            "page_size": page_size,
+        }
+        path = "/api/user/"
+        if group:
+            path = "/api/user/search"
+            params.update({"keyword": "", "group": group})
+        items, total = _user_page(client, path, params)
     return {
         "items": [public_user(item) for item in items if isinstance(item, dict)],
         "page": page,

@@ -154,16 +154,65 @@ def test_list_uses_zero_based_first_page_and_filters_sensitive_fields():
     assert result == {"items": [{"id": 2, "username": "alice", "status": 1}], "page": 1, "page_size": 20, "total": 2}
 
 
-def test_search_uses_keyword_group_and_second_page():
+def test_search_only_matches_username_and_paginates_filtered_results():
+    calls = []
+
     def handler(method, url, **kwargs):
         assert url == "https://upstream.example/api/user/search"
-        assert kwargs["params"] == {"p": 2, "page_size": 50, "keyword": "alice", "group": "vip"}
-        return _response({"success": True, "data": [{"id": 1, "username": "alice", "totp_secret": "secret"}]})
+        calls.append(kwargs["params"])
+        return _response(
+            {
+                "success": True,
+                "data": {
+                    "items": [
+                        {"id": 1, "username": "admin", "display_name": "Root User", "totp_secret": "secret"},
+                        {"id": 6, "username": "sunliutao", "display_name": "—"},
+                        {"id": 7, "username": "other", "email": "s@example.com"},
+                    ],
+                    "total": 3,
+                },
+            }
+        )
 
-    result = platform_users.list_users(_client(handler), platform_users.normalize_list_query(2, 50, "alice", "vip"))
+    result = platform_users.list_users(_client(handler), platform_users.normalize_list_query(1, 50, "s", "default"))
 
-    assert result["items"] == [{"id": 1, "username": "alice"}]
+    assert calls == [{"p": 0, "page_size": 100, "keyword": "s", "group": "default"}]
+    assert result["items"] == [{"id": 6, "username": "sunliutao", "display_name": "—"}]
     assert result["total"] == 1
+
+
+def test_search_scans_upstream_pages_before_slicing_and_matches_numeric_id():
+    calls = []
+
+    def handler(method, url, **kwargs):
+        calls.append(kwargs["params"])
+        page = kwargs["params"]["p"]
+        if page == 0:
+            items = [{"id": index, "username": "other", "display_name": "alice"} for index in range(100)]
+        else:
+            items = [{"id": 100, "username": "alice", "display_name": "Root User"}]
+        return _response({"success": True, "data": {"items": items, "total": 101}})
+
+    result = platform_users.list_users(_client(handler), platform_users.normalize_list_query(1, 20, "alice", ""))
+
+    assert [call["p"] for call in calls] == [0, 2]
+    assert result["items"] == [{"id": 100, "username": "alice", "display_name": "Root User"}]
+    assert result["total"] == 1
+
+    calls.clear()
+    result = platform_users.list_users(_client(handler), platform_users.normalize_list_query(1, 20, "100", ""))
+    assert result["items"] == [{"id": 100, "username": "alice", "display_name": "Root User"}]
+
+
+def test_group_only_search_keeps_requested_upstream_page():
+    def handler(method, url, **kwargs):
+        assert url == "https://upstream.example/api/user/search"
+        assert kwargs["params"] == {"p": 2, "page_size": 50, "keyword": "", "group": "vip"}
+        return _response({"success": True, "data": {"items": [{"id": 8, "username": "alice", "group": "vip"}], "total": 51}})
+
+    result = platform_users.list_users(_client(handler), platform_users.normalize_list_query(2, 50, "", "vip"))
+
+    assert result == {"items": [{"id": 8, "username": "alice", "group": "vip"}], "page": 2, "page_size": 50, "total": 51}
 
 
 def test_detail_adds_empty_password_without_exposing_upstream_secrets():
