@@ -22,6 +22,7 @@ from urllib.parse import quote, urlparse
 from flask import Flask, Response, g, jsonify, request, send_from_directory, stream_with_context
 
 import na_logger
+from webapp import platform_users
 from webapp.identity import (
     FEATURE_AGENT,
     FEATURE_BATCH,
@@ -581,13 +582,18 @@ def static_files(filename: str):
         "overview_ui.html": FEATURE_OVERVIEW,
         "bill_ui.html": FEATURE_UPSTREAM_BILL,
         "platform-dashboard/platform-dashboard.html": FEATURE_PLATFORM,
+        "platform-users/platform-users.html": FEATURE_PLATFORM,
     }
     feature = guarded_pages.get(filename)
     if feature:
         blocked = IDENTITY.page_guard(feature)
         if blocked:
             return blocked
-    if filename in {"platform-edit/platform-edit.html", "platform-dashboard/platform-dashboard.html"}:
+    if filename in {
+        "platform-edit/platform-edit.html",
+        "platform-dashboard/platform-dashboard.html",
+        "platform-users/platform-users.html",
+    }:
         response = send_from_directory(STATIC_DIR, filename)
         response.headers["Cache-Control"] = "no-store"
         return response
@@ -1169,6 +1175,115 @@ def api_platform_token_delete(env: str, token_id: int):
         return jsonify({"success": True, "env": env_key, "data": data, "message": "令牌已删除"})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
+def _platform_user_failure(exc: BaseException):
+    status = 502 if isinstance(exc, requests.RequestException) else 400
+    return jsonify({"success": False, "message": _user_facing_error(exc)}), status
+
+
+@app.get("/api/platform/<env>/users")
+def api_platform_users(env: str):
+    try:
+        query = platform_users.normalize_list_query(
+            request.args.get("page"),
+            request.args.get("page_size"),
+            request.args.get("keyword"),
+            request.args.get("group"),
+        )
+        env_key, _site, client = _platform_site_client(env)
+        data = platform_users.list_users(client, query)
+        return jsonify({"success": True, "env": env_key, "data": data})
+    except Exception as exc:  # noqa: BLE001
+        return _platform_user_failure(exc)
+
+
+@app.get("/api/platform/<env>/users/options")
+def api_platform_user_options(env: str):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = platform_users.get_user_options(client)
+        return jsonify({"success": True, "env": env_key, "data": data})
+    except Exception as exc:  # noqa: BLE001
+        return _platform_user_failure(exc)
+
+
+@app.get("/api/platform/<env>/users/<int:user_id>")
+def api_platform_user_detail(env: str, user_id: int):
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = platform_users.get_user(client, user_id)
+        return jsonify({"success": True, "env": env_key, "data": data})
+    except Exception as exc:  # noqa: BLE001
+        return _platform_user_failure(exc)
+
+
+@app.post("/api/platform/<env>/users")
+def api_platform_user_create(env: str):
+    try:
+        record = platform_users.validate_create_record(request.get_json(silent=True))
+        env_key, _site, client = _platform_site_client(env)
+        data = platform_users.create_user(client, record)
+        IDENTITY.store.audit(
+            "platform.user.created",
+            resource=f"{env_key}:user:new",
+            detail={"env": env_key, "username": record["username"]},
+        )
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "用户创建成功"})
+    except Exception as exc:  # noqa: BLE001
+        return _platform_user_failure(exc)
+
+
+@app.put("/api/platform/<env>/users/<int:user_id>")
+def api_platform_user_update(env: str, user_id: int):
+    try:
+        record = platform_users.validate_update_record(user_id, request.get_json(silent=True))
+        env_key, _site, client = _platform_site_client(env)
+        data = platform_users.update_user(client, record)
+        IDENTITY.store.audit(
+            "platform.user.updated",
+            resource=f"{env_key}:user:{user_id}",
+            detail={"env": env_key, "user_id": user_id},
+        )
+        return jsonify({"success": True, "env": env_key, "data": data, "message": "用户信息已更新"})
+    except Exception as exc:  # noqa: BLE001
+        return _platform_user_failure(exc)
+
+
+@app.post("/api/platform/<env>/users/<int:user_id>/manage")
+def api_platform_user_manage(env: str, user_id: int):
+    try:
+        body = request.get_json(silent=True) or {}
+        parsed_id, action = platform_users.validate_manage_action(user_id, body.get("action"))
+        env_key, _site, client = _platform_site_client(env)
+        data = platform_users.manage_user(client, parsed_id, action)
+        IDENTITY.store.audit(
+            f"platform.user.{action}",
+            resource=f"{env_key}:user:{parsed_id}",
+            detail={"env": env_key, "user_id": parsed_id, "action": action},
+        )
+        labels = {"enable": "启用", "disable": "禁用", "delete": "注销", "promote": "提升", "demote": "降级"}
+        return jsonify({"success": True, "env": env_key, "data": data, "message": f"用户{labels[action]}成功"})
+    except Exception as exc:  # noqa: BLE001
+        return _platform_user_failure(exc)
+
+
+@app.delete("/api/platform/<env>/users/<int:user_id>/<kind>")
+def api_platform_user_security_reset(env: str, user_id: int, kind: str):
+    if kind not in {"passkey", "2fa"}:
+        return jsonify({"success": False, "message": "不支持的安全重置操作"}), 404
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        data = platform_users.reset_user_security(client, user_id, kind)
+        IDENTITY.store.audit(
+            f"platform.user.{kind}_reset",
+            resource=f"{env_key}:user:{user_id}",
+            detail={"env": env_key, "user_id": user_id, "kind": kind},
+        )
+        message = "Passkey 已重置" if kind == "passkey" else "2FA 已重置，用户下次登录需重新绑定"
+        return jsonify({"success": True, "env": env_key, "data": data, "message": message})
+    except Exception as exc:  # noqa: BLE001
+        return _platform_user_failure(exc)
 
 
 @app.post("/api/platform/<env>/<kind>/batch")

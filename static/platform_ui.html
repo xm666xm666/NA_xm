@@ -544,6 +544,7 @@
         <button type="button" class="active" data-kind="channels" role="tab" aria-selected="true">NA渠道</button>
         <button type="button" data-kind="tokens" role="tab" aria-selected="false">NA令牌</button>
         <button type="button" id="performanceBtn" data-action="performance" aria-label="在新页面打开性能参数看板" disabled>性能参数</button>
+        <button type="button" id="userManagementBtn" data-action="user-management" aria-label="在新页面打开上游用户管理" disabled>上游用户管理</button>
       </div>
       <div class="platform-search" aria-label="列表筛选">
         <input type="search" id="searchName" placeholder="搜索名称" autocomplete="off" />
@@ -974,6 +975,7 @@
         const current = siteFor(state.env);
         $("siteConfigBtn").disabled = false;
         $("performanceBtn").disabled = !current?.configured;
+        $("userManagementBtn").disabled = !current?.configured;
         renderSessionStatus();
       }
       function renderSessionStatus() {
@@ -1601,6 +1603,12 @@
         const current = siteFor(state.env);
         if (!current?.configured) { NAUi.toast("请先选择已配置的环境", "warn"); return; }
         const url = `/static/platform-dashboard/platform-dashboard.html?env=${encodeURIComponent(state.env)}`;
+        window.open(url, "_blank", "noopener,noreferrer");
+      });
+      $("userManagementBtn").addEventListener("click", () => {
+        const current = siteFor(state.env);
+        if (!current?.configured) { NAUi.toast("请先选择已配置的环境", "warn"); return; }
+        const url = `/static/platform-users/platform-users.html?env=${encodeURIComponent(state.env)}`;
         window.open(url, "_blank", "noopener,noreferrer");
       });
       $("batchEnableBtn").addEventListener("click", () => runBatchAction("enable"));

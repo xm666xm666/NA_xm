@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN" class="na-brand-bridge">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
+  <title>上游用户管理 · NA信息</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/na-theme.css?v=auth-1" />
+  <link rel="stylesheet" href="/static/na-components.css?v=auth-1" />
+  <link rel="stylesheet" href="/static/platform-users/platform-users.css?v=1" />
+  <script src="/static/na-theme.js"></script>
+  <script src="/static/na-ui.js?v=auth-1"></script>
+  <script src="/static/auth-shell.js?v=web-5"></script>
+  <script>NATheme.init({ bindToggles: false }); NAUi.initReducedMotion();</script>
+</head>
+<body class="na-app">
+  <div class="na-bg" aria-hidden="true"><div class="na-bg-grid"></div><div class="na-bg-orb na-bg-orb-1"></div><div class="na-bg-orb na-bg-orb-2"></div><div class="na-bg-noise"></div></div>
+  <nav class="users-nav" aria-label="用户管理导航">
+    <a class="users-brand" id="backLink" href="/#platform" aria-label="返回 NA信息">
+      <span class="na-brand-mark" aria-hidden="true">N</span>
+      <span>NA<em>信息</em></span>
+      <span class="users-nav-divider">/</span>
+      <strong>用户管理</strong>
+    </a>
+    <div class="users-nav-actions">
+      <span class="users-site-state" id="siteState">正在读取环境…</span>
+      <label class="users-env-label" for="envSelect">环境</label>
+      <select id="envSelect" aria-label="选择上游环境" disabled></select>
+      <div id="authUserMenu"></div>
+    </div>
+  </nav>
+
+  <main class="na-wrap users-wrap">
+    <header class="users-hero na-animate-in">
+      <div>
+        <span class="na-badge"><span class="na-badge-dot"></span>Upstream Accounts</span>
+        <h1>上游用户管理</h1>
+        <p>集中管理当前 NA 站点的用户账户、角色、额度与安全设置。操作权限由上游账户角色决定。</p>
+      </div>
+      <a class="na-btn na-btn-ghost" id="returnButton" href="/#platform">返回 NA信息</a>
+    </header>
+
+    <section class="users-summary na-animate-in na-animate-in-1" aria-label="用户概览">
+      <article><span>用户总数</span><strong id="totalUsers">—</strong><small>当前筛选结果</small></article>
+      <article><span>本页已启用</span><strong id="enabledUsers">—</strong><small id="enabledHint">等待加载</small></article>
+      <article><span>本页管理员</span><strong id="adminUsers">—</strong><small>管理员与超级管理员</small></article>
+    </section>
+
+    <section class="na-panel na-panel-static users-panel na-animate-in na-animate-in-2">
+      <div class="users-toolbar">
+        <div class="users-toolbar-actions">
+          <button type="button" class="na-btn na-btn-primary" id="addUserBtn" disabled>
+            <svg class="na-btn-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19a6 6 0 0 0-12 0M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM18 8v6M15 11h6"/></svg>
+            添加用户
+          </button>
+          <button type="button" class="na-btn na-btn-secondary" id="refreshBtn" disabled>
+            <svg class="na-btn-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18 6.5L20 11M4 13l2 4.5A7 7 0 0 0 17.9 15"/></svg>
+            <span id="refreshLabel">刷新列表</span>
+          </button>
+        </div>
+        <span class="users-refresh-time" id="refreshTime">尚未刷新</span>
+      </div>
+
+      <form class="users-filters" id="filterForm">
+        <label class="users-search-field">
+          <span class="sr-only">搜索用户</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input type="search" id="keywordInput" maxlength="100" placeholder="搜索用户 ID、用户名、显示名称或备注" autocomplete="off" />
+        </label>
+        <select id="groupFilter" aria-label="按分组筛选" disabled><option value="">全部分组</option></select>
+        <button type="submit" class="na-btn na-btn-secondary" id="searchBtn" disabled>查询</button>
+        <button type="button" class="na-btn na-btn-ghost" id="resetFilterBtn" disabled>重置</button>
+      </form>
+
+      <div class="users-notice" id="pageNotice" role="status" hidden></div>
+      <div class="users-table-meta">
+        <span id="tableMeta">请选择已配置的环境</span>
+        <span>额度与角色权限以上游实时数据为准</span>
+      </div>
+      <div class="users-table-wrap" id="tableWrap" aria-busy="false">
+        <table class="users-table">
+          <thead><tr><th>ID</th><th>用户名</th><th>状态</th><th>剩余额度 / 总额度</th><th>分组</th><th>角色</th><th>邀请信息</th><th class="users-actions-head">操作</th></tr></thead>
+          <tbody id="usersTableBody"><tr><td colspan="8"><div class="users-empty">正在读取环境配置…</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="users-pagination">
+        <div class="users-page-size">每页<select id="pageSize" aria-label="每页用户数量" disabled><option>10</option><option selected>20</option><option>50</option><option>100</option></select>条</div>
+        <span id="pageInfo">第 0 / 0 页</span>
+        <div class="users-page-buttons" id="pageButtons"></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="users-dialog users-editor" id="userDialog" aria-labelledby="userDialogTitle">
+    <form id="userForm">
+      <header class="users-dialog-header">
+        <div><span class="users-dialog-kicker" id="userDialogKicker">新建账户</span><h2 id="userDialogTitle">添加用户</h2><p id="userDialogDescription">创建一个上游普通用户账户。</p></div>
+        <button type="button" class="users-icon-button" data-close-dialog="userDialog" aria-label="关闭">×</button>
+      </header>
+      <div class="users-dialog-body">
+        <section class="users-form-section">
+          <h3>基本信息</h3>
+          <div class="users-form-grid">
+            <label><span>用户名 <b>*</b></span><input id="formUsername" name="username" maxlength="20" required autocomplete="off" placeholder="请输入用户名" /></label>
+            <label><span>显示名称</span><input id="formDisplayName" name="display_name" maxlength="20" autocomplete="off" placeholder="留空时与用户名一致" /></label>
+            <label class="users-form-full"><span>密码 <b id="passwordRequired">*</b></span><div class="users-password-field"><input id="formPassword" name="password" type="password" maxlength="72" autocomplete="new-password" placeholder="8–20 位，至少包含三类字符" /><button type="button" id="togglePassword" aria-label="显示密码">显示</button></div><small id="passwordHint">大写、小写、数字、特殊符号至少三类；UTF-8 不超过 72 字节。</small><small class="users-field-error" id="passwordError" role="alert"></small></label>
+            <label class="users-form-full"><span>备注</span><textarea id="formRemark" name="remark" maxlength="255" rows="3" placeholder="仅管理员可见"></textarea></label>
+          </div>
+        </section>
+        <section class="users-form-section" id="permissionFields" hidden>
+          <h3>权限与额度</h3>
+          <div class="users-form-grid">
+            <label><span>分组 <b>*</b></span><input id="formGroup" name="group" list="groupSuggestions" maxlength="64" required placeholder="选择或输入分组" /><datalist id="groupSuggestions"></datalist></label>
+            <label><span>剩余额度 <b>*</b></span><input id="formQuota" name="quota" type="number" step="1" required /><small id="quotaHint">等价金额：$0.00</small></label>
+            <div class="users-form-full users-quota-add"><label><span>增加 / 扣减额度</span><input id="quotaDelta" type="number" step="1" placeholder="输入正数增加，负数扣减" /></label><button type="button" class="na-btn na-btn-secondary" id="applyQuotaDelta">应用到剩余额度</button></div>
+          </div>
+        </section>
+        <details class="users-bindings" id="bindingFields" hidden>
+          <summary>第三方绑定信息 <span>只读，需由用户在个人设置中修改</span></summary>
+          <div class="users-form-grid">
+            <label><span>GitHub</span><input id="bindGithub" readonly placeholder="未绑定" /></label>
+            <label><span>Discord</span><input id="bindDiscord" readonly placeholder="未绑定" /></label>
+            <label><span>OIDC</span><input id="bindOidc" readonly placeholder="未绑定" /></label>
+            <label><span>微信</span><input id="bindWechat" readonly placeholder="未绑定" /></label>
+            <label><span>邮箱</span><input id="bindEmail" readonly placeholder="未绑定" /></label>
+            <label><span>Telegram</span><input id="bindTelegram" readonly placeholder="未绑定" /></label>
+          </div>
+        </details>
+      </div>
+      <footer class="users-dialog-footer"><button type="button" class="na-btn na-btn-ghost" data-close-dialog="userDialog">取消</button><button type="submit" class="na-btn na-btn-primary" id="saveUserBtn"><span id="saveUserLabel">创建用户</span></button></footer>
+    </form>
+  </dialog>
+
+  <dialog class="users-dialog users-confirm" id="confirmDialog" aria-labelledby="confirmTitle">
+    <header class="users-dialog-header"><div><span class="users-dialog-kicker" id="confirmKicker">确认操作</span><h2 id="confirmTitle">确认操作</h2></div><button type="button" class="users-icon-button" data-close-dialog="confirmDialog" aria-label="关闭">×</button></header>
+    <div class="users-confirm-body"><div class="users-confirm-icon" id="confirmIcon">!</div><div><p id="confirmMessage"></p><small id="confirmDetail"></small></div></div>
+    <footer class="users-dialog-footer"><button type="button" class="na-btn na-btn-ghost" data-close-dialog="confirmDialog">取消</button><button type="button" class="na-btn na-btn-primary" id="confirmActionBtn">确认</button></footer>
+  </dialog>
+
+  <script src="/static/platform-users/platform-users.js?v=1"></script>
+</body>
+</html>
