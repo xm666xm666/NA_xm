@@ -356,3 +356,14 @@ def test_na_information_user_management_switches_inline_before_performance():
     users_html = (PROJECT_ROOT / "static" / "platform-users" / "platform-users.html").read_text(encoding="utf-8")
     assert 'id="envSelect"' not in users_html
     assert 'id="refreshBtn"' not in users_html
+
+
+def test_na_information_resource_lists_reuse_cache_until_forced_refresh():
+    html = (PROJECT_ROOT / "static" / "platform_ui.html").read_text(encoding="utf-8")
+
+    assert "const rowCache = new Map();" in html
+    assert "const rowRequests = new Map();" in html
+    assert "if (!force && rowCache.has(cacheKey))" in html
+    assert "state.rows = rowCache.get(cacheKey);" in html
+    assert 'else void loadRows({ force: true });' in html
+    assert "state.page = 1; loadRows();" in html

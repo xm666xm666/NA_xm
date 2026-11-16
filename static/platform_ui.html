@@ -660,7 +660,18 @@
     (() => {
       "use strict";
       const $ = (id) => document.getElementById(id);
-      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 20, siteEditingEnv: null, siteManageWasOpen: false, selectedIds: new Set(), loading: false, batchBusy: false, search: { name: "", group: "", model: "", status: "" } };
+      const state = { env: "", kind: "channels", sites: [], rows: [], groupOptions: [], sessions: {}, editingId: null, editingRecord: null, page: 1, pageSize: 20, siteEditingEnv: null, siteManageWasOpen: false, selectedIds: new Set(), loading: false, batchBusy: false, loadSequence: 0, search: { name: "", group: "", model: "", status: "" } };
+      const rowCache = new Map();
+      const rowRequests = new Map();
+      const groupCache = new Map();
+
+      function rowCacheKey(env, kind) { return `${env}:${kind}`; }
+      function invalidateSiteCache(env) {
+        const prefix = `${env}:`;
+        [...rowCache.keys()].filter((key) => key.startsWith(prefix)).forEach((key) => rowCache.delete(key));
+        [...rowRequests.keys()].filter((key) => key.startsWith(prefix)).forEach((key) => rowRequests.delete(key));
+        groupCache.delete(env);
+      }
 
       function cleanNaBaseUrlInput(raw) {
         return String(raw ?? "")
@@ -995,12 +1006,19 @@
         return payload;
       }
       async function loadGroupOptions(env) {
+        if (groupCache.has(env)) {
+          state.groupOptions = groupCache.get(env);
+          return;
+        }
         state.groupOptions = [];
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(env)}/groups`);
-          state.groupOptions = Array.isArray(payload.data) ? payload.data : [];
+          const groups = Array.isArray(payload.data) ? payload.data : [];
+          groupCache.set(env, groups);
+          if (state.env === env) state.groupOptions = groups;
         } catch (_) {
-          state.groupOptions = [];
+          groupCache.delete(env);
+          if (state.env === env) state.groupOptions = [];
         }
       }
       function renderEnvButtons() {
@@ -1118,6 +1136,7 @@
         if (!confirm(`确定删除 ${site.label || site.env} 吗？此操作不可撤销。`)) return;
         try {
           await request(`/api/platform/sites/${encodeURIComponent(site.env)}`, { method: "DELETE" });
+          invalidateSiteCache(site.env);
           await loadSites();
           if (state.env === site.env) {
             state.env = state.sites[0]?.env || "";
@@ -1365,21 +1384,56 @@
           body.append(tr);
         });
       }
-      async function loadRows() {
+      async function loadRows({ force = false } = {}) {
+        const loadSequence = ++state.loadSequence;
         if (!state.env) return;
-        if (state.kind === "users") { syncUsersFrame(); return; }
-        const button = $("refreshBtn"); setBusy(button, true); setMeta(`正在读取 ${state.env.toUpperCase()} 的${state.kind === "channels" ? "渠道" : "令牌"}…`);
-        state.loading = true;
+        if (state.kind === "users") { state.loading = false; syncUsersFrame(); return; }
+        const env = state.env;
+        const kind = state.kind;
+        const cacheKey = rowCacheKey(env, kind);
+        const resourceLabel = kind === "channels" ? "渠道" : "令牌";
         state.selectedIds.clear();
-        renderTable();
-        try {
-          const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}`);
-          state.rows = Array.isArray(payload.data) ? payload.data : [];
+        if (!force && rowCache.has(cacheKey)) {
+          state.rows = rowCache.get(cacheKey);
           state.page = 1;
-          renderGroupOptions(); setMeta(`${state.env.toUpperCase()} · ${state.kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
+          state.loading = false;
+          setBusy($("refreshBtn"), false);
+          renderGroupOptions();
+          setMeta(`${env.toUpperCase()} · ${kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
+          renderTable();
+          return;
+        }
+        const button = $("refreshBtn"); setBusy(button, true); setMeta(`正在读取 ${env.toUpperCase()} 的${resourceLabel}…`);
+        state.loading = true;
+        renderTable();
+        let pendingRequest = force ? null : rowRequests.get(cacheKey);
+        if (!pendingRequest) {
+          pendingRequest = request(`/api/platform/${encodeURIComponent(env)}/${kind}`)
+            .then((payload) => Array.isArray(payload.data) ? payload.data : []);
+          rowRequests.set(cacheKey, pendingRequest);
+        }
+        try {
+          const rows = await pendingRequest;
+          if (rowRequests.get(cacheKey) === pendingRequest) {
+            rowCache.set(cacheKey, rows);
+            rowRequests.delete(cacheKey);
+          }
+          if (loadSequence !== state.loadSequence || state.env !== env || state.kind !== kind) return;
+          state.rows = rows;
+          state.page = 1;
+          renderGroupOptions(); setMeta(`${env.toUpperCase()} · ${kind === "channels" ? "NA渠道" : "NA令牌"} · 匹配 ${filteredRows().length} / ${state.rows.length} 条记录`);
         } catch (error) {
+          if (rowRequests.get(cacheKey) === pendingRequest) {
+            rowRequests.delete(cacheKey);
+            rowCache.delete(cacheKey);
+          }
+          if (loadSequence !== state.loadSequence || state.env !== env || state.kind !== kind) return;
           state.rows = []; setMeta(error.message, "error"); NAUi.toast(error.message, "err");
-        } finally { state.loading = false; setBusy(button, false); renderTable(); }
+        } finally {
+          if (loadSequence === state.loadSequence && state.env === env && state.kind === kind) {
+            state.loading = false; setBusy(button, false); renderTable();
+          }
+        }
       }
 
       // --- Editor form ---
@@ -1479,7 +1533,7 @@
         const button = $("saveEdit"); setBusy(button, true);
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/${state.kind}/${id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ record }) });
-          closeEditor(); NAUi.toast(payload.message || "已保存", "ok"); await loadRows();
+          closeEditor(); NAUi.toast(payload.message || "已保存", "ok"); await loadRows({ force: true });
         } catch (error) { NAUi.toast(error.message, "err"); } finally { setBusy(button, false); }
       }
       async function testChannel(record) {
@@ -1512,7 +1566,7 @@
         const label = next === 1 ? "启用" : "禁用";
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/channels/${id}/status`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) });
-          NAUi.toast(payload.message || `渠道已${label}`, "ok"); await loadRows();
+          NAUi.toast(payload.message || `渠道已${label}`, "ok"); await loadRows({ force: true });
         } catch (error) { NAUi.toast(error.message, "err"); }
       }
       async function toggleTokenStatus(record) {
@@ -1522,7 +1576,7 @@
         const label = next === 1 ? "启用" : "禁用";
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/tokens/${id}/status`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) });
-          NAUi.toast(payload.message || `令牌已${label}`, "ok"); await loadRows();
+          NAUi.toast(payload.message || `令牌已${label}`, "ok"); await loadRows({ force: true });
         } catch (error) { NAUi.toast(error.message, "err"); }
       }
       async function deleteChannel(record) {
@@ -1532,7 +1586,7 @@
         setMeta(`正在删除渠道 #${id}…`);
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/channels/${id}`, { method: "DELETE" });
-          NAUi.toast(payload.message || "渠道已删除", "ok"); await loadRows();
+          NAUi.toast(payload.message || "渠道已删除", "ok"); await loadRows({ force: true });
         } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
       }
       async function deleteToken(record) {
@@ -1542,7 +1596,7 @@
         setMeta(`正在删除令牌 #${id}…`);
         try {
           const payload = await request(`/api/platform/${encodeURIComponent(state.env)}/tokens/${id}`, { method: "DELETE" });
-          NAUi.toast(payload.message || "令牌已删除", "ok"); await loadRows();
+          NAUi.toast(payload.message || "令牌已删除", "ok"); await loadRows({ force: true });
         } catch (error) { setMeta(error.message, "error"); NAUi.toast(error.message, "err"); }
       }
       async function runBatchAction(action) {
@@ -1576,7 +1630,7 @@
             metaKind: failed ? "error" : "",
             toastKind: failed ? "warn" : "ok",
           };
-          if (state.env === env && state.kind === kind) await loadRows();
+          if (state.env === env && state.kind === kind) await loadRows({ force: true });
         } catch (error) {
           result = { message: error.message, metaKind: "error", toastKind: "err" };
         } finally {
@@ -1615,6 +1669,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
+          invalidateSiteCache(saved.data.env);
           state.env = saved.data.env;
           await loadSites();
           closeSiteConfig();
@@ -1656,7 +1711,7 @@
       });
       $("refreshBtn").addEventListener("click", () => {
         if (state.kind === "users") void refreshUsers();
-        else void loadRows();
+        else void loadRows({ force: true });
       });
       $("performanceBtn").addEventListener("click", () => {
         const current = siteFor(state.env);
@@ -1695,7 +1750,7 @@
         $("upstreamEditorBackdrop").hidden = true;
         $("upstreamEditorFrame").src = "";
         state.editingId = null; state.editingRecord = null;
-        if (event.data.changed) loadRows();
+        if (event.data.changed) loadRows({ force: true });
       });
       init();
     })();
