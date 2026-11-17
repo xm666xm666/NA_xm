@@ -413,6 +413,8 @@
     const batchFrame = $("batchFrame");
     let batchReady = false;
     let llmPresets = [];
+    let serverLlmHasApiKey = false;
+    let serverLlmApiBase = "";
     let extractMode = "channel";
     let updateExtractArmed = false;
     let lastExtractForUpdate = false;
@@ -500,22 +502,22 @@
 
     batchFrame.addEventListener("load", () => {
       batchReady = true;
-      try { batchFrame.contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+      try { batchFrame.contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, location.origin); } catch (_) {}
     });
     $("summaryFrame").addEventListener("load", () => {
-      try { $("summaryFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+      try { $("summaryFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, location.origin); } catch (_) {}
     });
     $("upstreamFrame").addEventListener("load", () => {
-      try { $("upstreamFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+      try { $("upstreamFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, location.origin); } catch (_) {}
     });
     $("billFrame").addEventListener("load", () => {
-      try { $("billFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+      try { $("billFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, location.origin); } catch (_) {}
     });
     $("overviewFrame").addEventListener("load", () => {
-      try { $("overviewFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+      try { $("overviewFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, location.origin); } catch (_) {}
     });
     $("pipelineFrame").addEventListener("load", () => {
-      try { $("pipelineFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, "*"); } catch (_) {}
+      try { $("pipelineFrame").contentWindow?.postMessage({ type: "na-theme-change", theme: NATheme.get() }, location.origin); } catch (_) {}
     });
     NATheme.bindToggle($("naThemeToggle"));
 
@@ -529,14 +531,32 @@
       if (cfg.model != null) $("llmModel").value = cfg.model;
       updateLlmNote();
     }
-    function saveLlmConfig() { try { localStorage.setItem(LLM_STORAGE_KEY, JSON.stringify(readLlmForm())); } catch (_) {} }
-    function loadStoredLlmConfig() { try { const raw = localStorage.getItem(LLM_STORAGE_KEY); return raw ? JSON.parse(raw) : {}; } catch (_) { return {}; } }
+    function nonSecretLlmConfig(cfg = {}) { return { provider: cfg.provider || "openai", api_base: cfg.api_base || "", model: cfg.model || "gpt-4o-mini" }; }
+    function saveLlmConfig() { try { localStorage.setItem(LLM_STORAGE_KEY, JSON.stringify(nonSecretLlmConfig(readLlmForm()))); } catch (_) {} }
+    function loadStoredLlmConfig() {
+      try {
+        const raw = localStorage.getItem(LLM_STORAGE_KEY);
+        if (!raw) return {};
+        const config = nonSecretLlmConfig(JSON.parse(raw));
+        localStorage.setItem(LLM_STORAGE_KEY, JSON.stringify(config));
+        return config;
+      } catch (_) { return {}; }
+    }
     function findPreset(id) { return llmPresets.find((p) => p.id === id) || null; }
+    function normalizeLlmApiBase(value) { return String(value || "").trim().replace(/\/+$/, ""); }
+    function canUseServerLlmApiKey(apiBase = $("llmApiBase").value) {
+      const current = normalizeLlmApiBase(apiBase);
+      return Boolean(serverLlmHasApiKey && current && current === serverLlmApiBase);
+    }
     function updateLlmNote() {
       const preset = findPreset($("llmProvider").value);
       const note = $("llmNote");
+      $("llmApiKey").placeholder = canUseServerLlmApiKey()
+        ? "留空使用服务端已配置的 API Key"
+        : "sk-...";
       if (!preset) { note.textContent = "支持 OpenAI、DeepSeek、百炼、火山方舟、智谱、Moonshot、硅基流动、Ollama 及自定义兼容 API。"; return; }
-      note.textContent = `${preset.label}：${preset.api_key_required ? "需填写 API Key" : "API Key 可留空"}；${preset.json_mode ? "支持 JSON 模式" : "不支持 JSON 模式，将自动降级"}`;
+      const keyHint = preset.api_key_required && !canUseServerLlmApiKey() ? "需填写 API Key" : "API Key 可留空";
+      note.textContent = `${preset.label}：${keyHint}；${preset.json_mode ? "支持 JSON 模式" : "不支持 JSON 模式，将自动降级"}`;
     }
     function applyPreset(id, forceFill = false) {
       const preset = findPreset(id);
@@ -548,7 +568,7 @@
     function validateLlmConfig(llm) {
       if (!llm.api_base) return "启用 LLM 增强需填写 API 地址";
       const preset = findPreset(llm.provider);
-      if (preset?.api_key_required && !llm.api_key) return `厂商 ${preset.label} 需填写 API Key`;
+      if (preset?.api_key_required && !llm.api_key && !canUseServerLlmApiKey(llm.api_base)) return `厂商 ${preset.label} 需填写 API Key`;
       return "";
     }
     function formatLlmStatus(llm) {
@@ -569,7 +589,9 @@
       select.innerHTML = "";
       llmPresets.forEach((p) => { const opt = document.createElement("option"); opt.value = p.id; opt.textContent = p.label; select.appendChild(opt); });
       const stored = loadStoredLlmConfig();
-      const merged = { provider: stored.provider || fileDefaults.provider || "openai", api_base: stored.api_base || fileDefaults.api_base || "", api_key: stored.api_key || fileDefaults.api_key || "", model: stored.model || fileDefaults.model || "gpt-4o-mini" };
+      serverLlmHasApiKey = Boolean(fileDefaults.has_api_key);
+      serverLlmApiBase = normalizeLlmApiBase(fileDefaults.api_base);
+      const merged = { provider: stored.provider || fileDefaults.provider || "openai", api_base: stored.api_base || fileDefaults.api_base || "", api_key: "", model: stored.model || fileDefaults.model || "gpt-4o-mini" };
       writeLlmForm(merged);
       if (!merged.api_base) applyPreset(merged.provider, true);
     }
@@ -690,7 +712,7 @@
       if (!frame || !extra) return;
       const payload = { type: "na-hygiene-select" };
       if (extra.analysis) payload.analysis = extra.analysis;
-      try { frame.contentWindow.postMessage(payload, "*"); } catch (_) {}
+      try { frame.contentWindow.postMessage(payload, location.origin); } catch (_) {}
     }
 
     const VIEW_FRAME = {
@@ -730,7 +752,7 @@
       const frame = VIEW_FRAME[name] && $(VIEW_FRAME[name]);
       if (!frame) return;
       try {
-        frame.contentWindow?.postMessage({ type: NAUi.ARTIFACTS_MSG, kinds: [] }, "*");
+        frame.contentWindow?.postMessage({ type: NAUi.ARTIFACTS_MSG, kinds: [] }, location.origin);
       } catch (_) {}
     }
 
@@ -811,9 +833,7 @@
     };
 
     function escapeHtml(text) {
-      return String(text ?? "").replace(/[&<>"']/g, (ch) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-      })[ch]);
+      return NAUi.escapeHtml(text);
     }
 
     function jobStatusLabel(status) {
@@ -1073,7 +1093,7 @@
           jobBar.innerHTML = jobs.map((job) => {
             const live = job.status === "running" || job.status === "waiting_confirm" ? " live" : "";
             const title = escapeHtml(job.goal || job.message || job.id || "智能体任务");
-            return `<button type="button" class="na-job-chip${live}" data-task="pipeline">${jobStatusLabel(job.status)} · ${title}</button>`;
+            return `<button type="button" class="na-job-chip${live}" data-task="pipeline">${escapeHtml(jobStatusLabel(job.status))} · ${title}</button>`;
           }).join("");
         }
       }
@@ -1103,7 +1123,7 @@
       if (todoGrid) {
         todoGrid.hidden = !cards.length;
         todoGrid.innerHTML = cards.map((c) =>
-          `<button type="button" class="na-ws-stat${c.empty ? " is-empty" : ""}${c.warn ? " is-warn" : ""}" data-task="${c.task}"><span class="na-ws-stat-title">${c.title}</span><span class="na-ws-stat-value">${c.value}</span>${c.sub ? `<span class="na-ws-sub">${c.sub}</span>` : ""}</button>`
+          `<button type="button" class="na-ws-stat${c.empty ? " is-empty" : ""}${c.warn ? " is-warn" : ""}" data-task="${escapeHtml(c.task)}"><span class="na-ws-stat-title">${escapeHtml(c.title)}</span><span class="na-ws-stat-value">${escapeHtml(c.value)}</span>${c.sub ? `<span class="na-ws-sub">${escapeHtml(c.sub)}</span>` : ""}</button>`
         ).join("");
       }
 
@@ -1127,7 +1147,7 @@
       if (pulseEl) {
         pulseEl.hidden = !pulse.length;
         pulseEl.innerHTML = pulse.map((p) =>
-          `<button type="button" class="na-ws-pulse-item${p.empty ? " is-empty" : ""}" data-task="${p.task}"><span>${p.title}</span><strong>${p.value}</strong></button>`
+          `<button type="button" class="na-ws-pulse-item${p.empty ? " is-empty" : ""}" data-task="${escapeHtml(p.task)}"><span>${escapeHtml(p.title)}</span><strong>${escapeHtml(p.value)}</strong></button>`
         ).join("");
       }
 
@@ -1145,7 +1165,7 @@
         arts.forEach((item) => {
           const li = document.createElement("li");
           const left = document.createElement("div");
-          left.innerHTML = `<strong>${kindLabel(item.kind)}</strong> ${escapeHtml(item.filename)}${item.has_secrets ? '<span class="na-secret-tag">含密钥</span>' : ""}<div class="meta">${escapeHtml(formatAgo(item.created_at || item.mtime) || item.created_at || item.mtime || "")}</div>`;
+          left.innerHTML = `<strong>${escapeHtml(kindLabel(item.kind))}</strong> ${escapeHtml(item.filename)}${item.has_secrets ? '<span class="na-secret-tag">含密钥</span>' : ""}<div class="meta">${escapeHtml(formatAgo(item.created_at || item.mtime) || item.created_at || item.mtime || "")}</div>`;
           const actions = document.createElement("div");
           actions.className = "na-ws-inline-actions";
           if (ARTIFACT_VIEW[item.kind]) {
@@ -1449,10 +1469,10 @@
         card.className = "na-result-card" + (item.success ? "" : " fail");
         card.style.animationDelay = `${idx * 0.05}s`;
         const fields = item.fields || {};
-        const fieldHtml = Object.entries(fields).slice(0, 6).map(([k, v]) => `<dt>${k}</dt><dd>${v || "—"}</dd>`).join("");
+        const fieldHtml = Object.entries(fields).slice(0, 6).map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v || "—")}</dd>`).join("");
         const title = fields["名称"] || item.name || "未识别";
         const line = item.token_line || item.channel_line || item.message || "提取失败";
-        card.innerHTML = `<div class="na-result-head"><h3>#${item.index} ${title}</h3><span class="na-result-badge ${item.success ? "ok" : "fail"}">${item.success ? "成功" : "失败"}</span></div>${fieldHtml ? `<dl class="na-result-fields">${fieldHtml}</dl>` : ""}<div class="na-result-line">${line}</div>`;
+        card.innerHTML = `<div class="na-result-head"><h3>#${escapeHtml(item.index)} ${escapeHtml(title)}</h3><span class="na-result-badge ${item.success ? "ok" : "fail"}">${item.success ? "成功" : "失败"}</span></div>${fieldHtml ? `<dl class="na-result-fields">${fieldHtml}</dl>` : ""}<div class="na-result-line">${escapeHtml(line)}</div>`;
         container.appendChild(card);
       });
     }
@@ -1523,7 +1543,14 @@
 
     async function loadMergedBatchConfig() {
       let stored = {};
-      try { const raw = localStorage.getItem("na_batch_connection_config"); if (raw) stored = JSON.parse(raw); } catch (_) {}
+      try {
+        const raw = localStorage.getItem("na_batch_connection_config");
+        if (raw) {
+          stored = JSON.parse(raw);
+          ["password", "access_token", "default_key", "otp_code", "totp_secret"].forEach((key) => delete stored[key]);
+          localStorage.setItem("na_batch_connection_config", JSON.stringify(stored));
+        }
+      } catch (_) {}
       let fileConfig = {};
       try { const resp = await fetch("/api/batch-config"); const data = await resp.json(); if (data.success) fileConfig = data.data || {}; } catch (_) {}
       return { ...fileConfig, ...stored };
@@ -1713,6 +1740,7 @@
     };
 
     window.addEventListener("message", (e) => {
+      if (e.origin !== location.origin) return;
       if (e.data?.type === "na-flow-progress") NAUi.setFlowProgress(e.data.progress || {});
     });
   </script>

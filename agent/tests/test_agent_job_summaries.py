@@ -23,6 +23,7 @@ def test_summary_is_safe_filterable_and_contains_only_job_artifacts():
         options={"run_extract": True},
         llm_config={"api_key": "llm-key-should-not-leak"},
         channel_lines="channel-key-should-not-leak",
+        owner_user_id=1,
     )
     job.steps = [
         {
@@ -36,7 +37,7 @@ def test_summary_is_safe_filterable_and_contains_only_job_artifacts():
             "data": {"export_text": "token-plaintext-should-not-leak"},
         },
     ]
-    summaries = store.list_summaries(status="queued", search="alpha", limit=30)
+    summaries = store.list_summaries(status="queued", search="alpha", limit=30, owner_user_id=1)
     assert len(summaries) == 1
     summary = summaries[0]
     serialized = json.dumps(summary, ensure_ascii=False)
@@ -52,7 +53,8 @@ def test_summary_is_safe_filterable_and_contains_only_job_artifacts():
             "download_url": f"/api/agent/jobs/{job.id}/artifacts/summary/download",
         }
     ]
-    assert store.list_summaries(status="failed") == []
+    assert store.list_summaries(status="failed", owner_user_id=1) == []
+    assert store.list_summaries(status="queued", owner_user_id=2) == []
 
 
 def test_analysis_artifact_is_available_in_history_and_job_detail():

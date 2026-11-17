@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -13,8 +14,12 @@ import app as app_module
 
 
 class FakeIdentity:
-    def __init__(self, allowed: bool):
+    def __init__(self, allowed: bool, user_id: int = 1, role: str = "user"):
         self.allowed = allowed
+        self.user = SimpleNamespace(id=user_id, role=role)
+
+    def current_user(self):
+        return self.user
 
     def has_feature(self, feature: str) -> bool:
         return self.allowed
@@ -28,6 +33,7 @@ def _job_with_summary(store, filename: str):
         sites=[],
         options={},
         llm_config={},
+        owner_user_id=1,
     )
     job.steps = [
         {
@@ -54,6 +60,7 @@ def test_job_artifact_download_enforces_ownership_and_permissions(tmp_path, monk
         sites=[],
         options={},
         llm_config={},
+        owner_user_id=1,
     )
     monkeypatch.setattr(agent_jobs, "STORE", store)
     monkeypatch.setattr(app_module, "NEW_DIR", tmp_path)
@@ -97,6 +104,7 @@ def test_analysis_job_artifact_download_uses_task_owned_file(tmp_path, monkeypat
         sites=[],
         options={},
         llm_config={},
+        owner_user_id=1,
     )
     job.steps = [{"id": "analyze", "status": "ok", "data": {"file": f"excel/{filename}"}}]
     monkeypatch.setattr(agent_jobs, "STORE", store)

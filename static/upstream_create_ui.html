@@ -2421,7 +2421,11 @@
       const deleteButton = event.target.closest("button[data-delete-endpoint]");
       if (deleteButton) await deleteEndpoint(deleteButton.dataset.deleteEndpoint);
     });
-    window.addEventListener("message", (event) => { const data = event.data || {}; if (data.type === "na-theme-change") NATheme.apply(data.theme); });
+    window.addEventListener("message", (event) => {
+      if (event.origin !== location.origin) return;
+      const data = event.data || {};
+      if (data.type === "na-theme-change") NATheme.apply(data.theme);
+    });
     window.addEventListener("message", async (event) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === "na-upstream-endpoint-refresh") await loadEndpoints();

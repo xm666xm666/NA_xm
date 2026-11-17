@@ -353,7 +353,7 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 
 工作台仅在账户没有任何可见功能栏目时显示「尚未分配功能权限」提示；超管拥有全部功能，因此不会看到该提示。功能权限加载完成后，界面按账户权限显示栏目，并隐藏无权限的提示和内容。
 
-工作台摘要也按能力拆分：每个账户只会收到并渲染已授权模块的数据和产物；未授权的总览/分析、账单、智能体任务及卫生策略不会返回给该账户。通用产物接口按 `kind` 授权（数据汇总/余额、上游、总览/分析、账单、使用日志分别归属对应功能），专用下载接口还会验证所选文件的真实类型，不能通过手工拼接 `file` 参数跨栏目下载。
+工作台摘要也按能力拆分：每个账户只会收到并渲染已授权模块的数据和产物；未授权的总览/分析、账单、智能体任务及卫生策略不会返回给该账户。通用产物接口按 `kind` 授权（数据汇总/余额、上游、总览/分析、账单、使用日志分别归属对应功能），下载时还会按磁盘上的真实文件类型复核；非超管必须显式传入匹配的 `kind`，不能通过省略或伪造参数跨栏目下载。
 
 ### 首个超管与用户管理
 
@@ -368,6 +368,9 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 - `alembic.ini` 保留无凭据的 SQLite 本地回退，注释使用 ASCII 以兼容 Windows 系统区域编码。本地开发启动时会自动执行 Alembic 迁移，更新已有 SQLite 账户库；容器入口与 Kubernetes initContainer 也会执行迁移。生产仍必须配置 PostgreSQL 与 Redis；真实 `DATABASE_URL` 只能通过环境变量或 Secret 注入，不能写入 Git。
 - 所有写 API 需要会话和 `X-CSRF-Token`；页面表单使用同源 CSRF 令牌。前端脚本会自动附带该头。
 - `/api/*` 使用显式功能映射；未登记的新 API 默认拒绝，而不会自动继承“批量配置”权限。页面、iframe 和 API 均独立验证，不能通过直接访问 URL 绕过。
+- 智能体任务创建时绑定 `owner_user_id`；任务列表、详情、SSE、启停/重试/确认和任务产物均按当前账户隔离，跨账户访问统一返回 404，超管可显式管理全部任务。
+- `/api/env-sites`、`/api/batch-config` 与 `/api/llm-presets` 只返回公开配置和 `has_password` / `has_access_token` / `has_default_key` / `has_totp_secret` / `has_api_key` 等状态，不返回密码、Access Token、默认渠道 Key、TOTP 或 LLM API Key。服务端仅在规范化后的请求地址与配置地址一致时回填对应秘密，避免凭据被用于攻击者指定的服务。
+- 所有响应带 `X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options` 与 Content Security Policy；API 和 HTML 响应禁止浏览器缓存。第一方动态 HTML 统一转义，跨 iframe `postMessage` 只发送到当前源，接收方同时校验 `event.origin`。
 - 工作台的“退出登录”使用同源 `POST /logout` 及 CSRF 令牌清除会话；仅在服务端确认退出成功后跳转至 `/login`，不会返回仍受会话保护的工作台。
 - 注册成功、修改密码成功或忘记密码成功时，系统会生成一份**12 位恢复验证码**（格式如 `ABCD-EFGH-JKLM`），明文仅在当次页面显示；数据库只保存 Argon2id 哈希。忘记密码必须同时提交账户与恢复码，连续 5 次失败会锁定该恢复码 15 分钟；成功后旧码立即失效并换发新码。
 - 网站账户不再发送注册验证或密码重置邮件，也不需要配置 `SMTP_*`、`WEB_PUBLIC_URL` 或 `REQUIRE_EMAIL_VERIFICATION`。历史邮件链接只会跳转到恢复验证码页面，不能作为重置凭据。
@@ -420,6 +423,8 @@ Web Pod 的 initContainer 会执行 `alembic upgrade head`，因此只有数据�
 | `na_data_summary_sites`      | 数据汇总站点列表；若为空且存在 `env/sites.json` 则自动填入 |
 | `na_flow_progress`           | 历史键：曾记录提取/批量/汇总链式完成状态；顶栏已不再显示步骤圆圈，可忽略 |
 | `na_onboarding_dismissed`    | 首次引导是否已关闭                                  |
+
+业务缓存只保存非敏感偏好与连接字段。密码、Access Token、TOTP 原始密钥/一次性验证码、默认渠道 Key 和 LLM API Key 均不写入 `localStorage`；页面加载时会清理旧版本缓存中的这些字段。留空秘密只能由服务端在请求地址与同地址配置匹配时回填。
 
 
 ---
@@ -1207,7 +1212,7 @@ CLI 等价：`python app.py extract` 默认为创建；程序内 `extract_channe
 | 自定义      | `custom`       | 自行填写                                                |
 
 
-配置方式：Web 界面（存 `localStorage`）、`agent/config.json`、或 API/CLI 参数。
+配置方式：Web 界面（仅 `provider` / `api_base` / `model` 等非敏感字段存 `localStorage`，API Key 不保存）、`agent/config.json`、或 API/CLI 参数。留空使用服务端 LLM Key 时，当前 API 地址必须与服务端配置地址一致。
 
 ---
 
@@ -1229,7 +1234,7 @@ CLI 等价：`python app.py extract` 默认为创建；程序内 `extract_channe
 | **跳过 SSL**        | 默认关闭。仅内网证书 Hostname mismatch 时勾选 |
 
 
-连接信息优先读 `localStorage`（`na_batch_connection_config`），其次 `batch/config.json`。建议先点「测试连接」再执行批量操作。二次验证码**不会**写入 localStorage。
+连接信息优先读 `localStorage`（`na_batch_connection_config`），其次 `batch/config.json`。本地缓存只保存地址、用户名、认证模式、User ID 与 SSL 偏好，不保存密码、Access Token、TOTP、默认渠道 Key 或二次验证码；建议先点「测试连接」再执行批量操作。留空秘密由服务端按相同 `base_url` 回填。
 
 #### 登录两步验证（渠道 / 令牌）
 
@@ -1295,15 +1300,15 @@ cp env/sites.example.json env/sites.json
 | ---- | ---- |
 | **未配置** | 无 `env/sites.json`，或已配置站点均无有效 `base_url` → **按钮整组隐藏** |
 | **部分配置** | 仅显示/启用已填写的站点；未填的不出现。两站齐全即为覆盖完成，不必写满三站 |
-| **点击** | 立即填入地址、账号密码（或 Token），并写入 `localStorage` |
+| **点击** | 填入地址、用户名与认证模式等公开配置；密码、Token 和 TOTP 不下发，留空时由服务端按同地址补齐，本地只持久化非敏感字段 |
 | **数据汇总** | 本地站点列表为空时**自动识别**同一文件并填入卡片；也可点「从 env 载入」覆盖 |
 | **智能体** | 网关连接同样显示快捷按钮；汇总站点与数据汇总共用列表，为空时自动载入；密码与 `totp_secret` 也可不填，服务端按地址补齐 |
 
-示例结构见 `env/sites.example.json`（含 `_comment_totp`）。也支持某环境使用 `access_token` + `user_id`（不填 username/password 时按 Token 模式填入）。`GET /api/env-sites` 不会返回 `totp_secret` 明文。
+示例结构见 `env/sites.example.json`（含 `_comment_totp`）。也支持某环境使用 `access_token` + `user_id`（不填 username/password 时按 Token 模式填入）。`GET /api/env-sites` 不返回密码、Access Token、默认渠道 Key 或 `totp_secret` 明文，只返回相应 `has_*` 状态。
 
 接口：`GET /api/env-sites`（批量配置快捷按钮、网站列表、智能体共用）。
 
-测试连接、批量写入、智能体任务在页面未填密码 / TOTP 时，会按 `base_url`（或站点 `env`）从 `env/sites.json` 补齐 `username`、`password`、`access_token`、`totp_secret`。已手填的字段不会被覆盖。`GET /api/env-sites` 仍不返回 `totp_secret` 明文，只给 `has_totp_secret`。
+测试连接、批量写入、智能体任务在页面未填密码 / TOTP 时，会按相同 `base_url`（或站点 `env`）从 `env/sites.json` 补齐 `username`、`password`、`access_token`、`totp_secret`。已手填的字段不会被覆盖，自定义其他地址不会继承服务端秘密。
 
 ### 渠道管理
 
@@ -2231,7 +2236,7 @@ excel/ai网关令牌及渠道列表_YYYYMMDDHHmmss.xlsx
 
 ## 全流程智能体
 
-**智能体** Tab（`static/agent_ui.html`）为异步场景任务工作台：七类场景、可选 LLM 规划、可视化步骤开关、渠道真实只读预检与逐行审批、渠道/令牌写入、SSE 真进度、取消 / 从失败步重试。历史任务支持搜索、状态筛选、最多 100 条展示、恢复和复制草稿；产物与任务绑定，可从历史任务再次下载。连接与批量 Tab 共用 `na_batch_connection_config`（**不含**二次验证码），站点与汇总 Tab 共用 `na_data_summary_sites`。
+**智能体** Tab（`static/agent_ui.html`）为异步场景任务工作台：七类场景、可选 LLM 规划、可视化步骤开关、渠道真实只读预检与逐行审批、渠道/令牌写入、SSE 真进度、取消 / 从失败步重试。历史任务支持搜索、状态筛选、最多 100 条展示、恢复和复制草稿；产物与任务绑定，可从历史任务再次下载。任务及产物按网站账户隔离，跨账户不可见、不可操作。连接与批量 Tab 共用 `na_batch_connection_config`，站点与汇总 Tab 共用 `na_data_summary_sites`；两者均不保存密码、Access Token、TOTP、默认渠道 Key 或 LLM API Key。
 
 网关连接与汇总站点均可从 `env/sites.json` 读取账号密码与二次验证密钥：页面可留空，服务端按地址补齐；已配置 env 时连接区显示已配置站点快捷按钮，汇总区可点「从 env 载入」（本地无站点地址时自动载入）。已预置 `totp_secret` 时，测试连接、写入与门禁确认都不必再填 6 位码。
 
@@ -2417,6 +2422,10 @@ cd batch && python main.py token -c config.json -f ../examples/batch/tokens/inpu
 ### 运行测试
 
 ```bash
+python -m pytest tests -q
+python -m pytest agent/tests -q
+python -m pytest batch/tests -q
+
 python tests/test_web_identity.py
 python agent/tests/test_channel_line_parser.py
 python agent/tests/test_extract_for_update.py
@@ -2464,11 +2473,11 @@ python agent/tests/test_pipeline_runner.py
 
 | 方法     | 路径                   | 说明                                                                 |
 | ------ | -------------------- | ------------------------------------------------------------------ |
-| `GET`  | `/api/llm-presets`   | LLM 厂商预设                                                           |
+| `GET`  | `/api/llm-presets`   | LLM 厂商预设与公开默认配置；默认 Key 仅返回 `has_api_key`，不返回明文             |
 | `POST` | `/api/extract`       | 渠道智能提取（`use_llm` 默认 false）；`for_update: true` 时不要求密钥；传 `extract_mode=token` 时等价于令牌提取 |
 | `POST` | `/api/extract-token` | 令牌智能提取（规则拼接，无 LLM）                                                  |
-| `GET`  | `/api/batch-config`  | 默认 NA 连接配置                                                         |
-| `GET`  | `/api/env-sites`     | test/uat/prod 快捷连接；无 `env/sites.json` 时 `configured=false`；含 `has_totp_secret`，不含密钥明文 |
+| `GET`  | `/api/batch-config`  | 默认 NA 公开连接配置与 `has_*` 状态；不返回密码、Token、TOTP 或默认 Key       |
+| `GET`  | `/api/env-sites`     | test/uat/prod 快捷连接；无 `env/sites.json` 时 `configured=false`；只含公开配置与 `has_*` 状态，不含秘密明文 |
 
 
 #### `POST /api/extract`（渠道）
@@ -3012,7 +3021,7 @@ cp env/sites.example.json env/sites.json   # 快捷按钮 + 上游凭证都写�
 | `access_token` | NA **个人设置 → 系统访问令牌**（或管理员签发的 Token） | 与 `user_id` 一起用，**可代替** username/password | 不要和账密混填同一套（填了 Token 且未填账密时按 Token 模式） |
 | `user_id` | 同上，创建 Token 时显示的用户 ID；或 NA 用户管理里的数字 ID | 整数 | 不要填用户名 |
 
-`GET /api/env-sites` **不会**把 `totp_secret` / `password` 明文下发到浏览器，只给 `has_totp_secret`。测试连接、批量、汇总、智能体在页面留空时，服务端按 `base_url`（或站点 `env`）从本文件补齐。NA信息默认按所选 `test` / `uat` / `prod` 从本文件建立服务端会话；页内「新增站点」和「预设列表」可新增、编辑或删除站点条目，NA信息站点配置仅保存 TOTP 原始密钥。
+`GET /api/env-sites` **不会**把 `totp_secret`、`password`、`access_token` 或 `default_key` 明文下发到浏览器，只给公开的 `has_*` 状态。测试连接、批量、汇总、智能体在页面留空时，服务端按相同 `base_url`（或站点 `env`）从本文件补齐。NA信息默认按所选 `test` / `uat` / `prod` 从本文件建立服务端会话；页内「新增站点」和「预设列表」可新增、编辑或删除站点条目，NA信息站点配置仅保存 TOTP 原始密钥。
 
 未开登录 2FA 的环境：`totp_secret` 可留空。但**含渠道密钥导出** 仍要走 `/api/verify`，未预置密钥时会弹窗要码。
 
@@ -3078,7 +3087,7 @@ https://portal.azure.com/#@xxxx/resource/subscriptions/00000000-0000-0000-0000-0
 | `llm_model` | 控制台模型名 | 如 `gpt-4o-mini` |
 | `llm_timeout` | 秒 | 默认 60 |
 
-也可只在 Web 页填写（存浏览器 `localStorage`），不必落盘。
+也可只在 Web 页填写；`provider`、API 地址和模型名存浏览器 `localStorage`，LLM API Key 不持久化。需要复用服务端 Key 时可留空，但 API 地址必须与 `agent/config.json` 中的地址一致。
 
 **`batch/config.json`**：从 `batch/config.example.json` 复制。字段与 NA 站点相同（`base_url` / `username` / `password` / `default_key`，或 `access_token` + `user_id`）。有 `env/sites.json` 时，批量配置快捷按钮与服务端补齐优先走 env；本文件只作单站点兜底。
 

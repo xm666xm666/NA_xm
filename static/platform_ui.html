@@ -1741,6 +1741,7 @@
       $("editorBackdrop").addEventListener("click", (event) => { if (event.target === event.currentTarget) closeEditor(); });
       document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$("editorBackdrop").hidden) closeEditor(); });
       window.addEventListener("message", (event) => {
+        if (event.origin !== location.origin) return;
         if (event.data?.type === "na-platform-edit-result") {
           const ok = event.data.status === "success";
           NAUi.toast(event.data.message || (ok ? "保存成功" : "保存失败"), ok ? "ok" : "err");

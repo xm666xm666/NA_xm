@@ -370,6 +370,8 @@
     const $ = (id) => document.getElementById(id);
 
     let llmPresets = [];
+    let serverLlmHasApiKey = false;
+    let serverLlmApiBase = "";
     let currentJobId = "";
     let eventSource = null;
     let sseIntentionalClose = false;
@@ -627,7 +629,17 @@
     }
 
     function notifyParentProgress(progress) {
-      try { window.parent.postMessage({ type: "na-flow-progress", progress }, "*"); } catch (_) {}
+      try { window.parent.postMessage({ type: "na-flow-progress", progress }, location.origin); } catch (_) {}
+    }
+
+    function normalizeLlmApiBase(value) {
+      return String(value || "").trim().replace(/\/+$/, "");
+    }
+
+    function updateLlmKeyPlaceholder() {
+      const current = normalizeLlmApiBase($("llmApiBase").value);
+      const useServerKey = Boolean(serverLlmHasApiKey && current && current === serverLlmApiBase);
+      $("llmApiKey").placeholder = useServerKey ? "留空使用服务端已配置的 API Key" : "sk-...";
     }
 
     function readLlm() {
@@ -641,14 +653,25 @@
     }
 
     function saveLlm() {
+      updateLlmKeyPlaceholder();
       try {
         localStorage.setItem(LLM_KEY, JSON.stringify({
           provider: $("llmProvider").value,
           api_base: $("llmApiBase").value.trim(),
-          api_key: $("llmApiKey").value.trim(),
           model: $("llmModel").value.trim(),
         }));
       } catch (_) {}
+    }
+
+    function loadStoredLlm() {
+      try {
+        const raw = localStorage.getItem(LLM_KEY);
+        if (!raw) return {};
+        const stored = JSON.parse(raw);
+        const config = { provider: stored.provider || "openai", api_base: stored.api_base || "", model: stored.model || "gpt-4o-mini" };
+        localStorage.setItem(LLM_KEY, JSON.stringify(config));
+        return config;
+      } catch (_) { return {}; }
     }
 
     function switchAuthMode(mode) {
@@ -703,8 +726,23 @@
       try {
         const config = readConnection();
         delete config.otp_code;
+        delete config.totp_secret;
+        delete config.password;
+        delete config.access_token;
+        delete config.default_key;
         localStorage.setItem(CONN_KEY, JSON.stringify(config));
       } catch (_) {}
+    }
+
+    function loadStoredConnection() {
+      try {
+        const raw = localStorage.getItem(CONN_KEY);
+        if (!raw) return {};
+        const config = JSON.parse(raw);
+        ["otp_code", "totp_secret", "password", "access_token", "default_key"].forEach((key) => delete config[key]);
+        localStorage.setItem(CONN_KEY, JSON.stringify(config));
+        return config;
+      } catch (_) { return {}; }
     }
 
     const ENV_ORDER = ["test", "uat", "prod"];
@@ -894,7 +932,7 @@
         return {
           ...s,
           username: s.username && s.username !== "admin" ? s.username : (envSite?.username || s.username || "admin"),
-          password: s.password || (envSite && envSite.password) || "",
+          password: s.password || "",
           has_totp_secret: Boolean(s.has_totp_secret || (envSite && envSite.has_totp_secret)),
         };
       });
@@ -917,7 +955,15 @@
       try {
         const raw = localStorage.getItem(SITES_KEY);
         const data = raw ? JSON.parse(raw) : null;
-        if (Array.isArray(data) && data.length) return data.map(normalizeSite);
+        if (Array.isArray(data) && data.length) {
+          const rows = data.map((site) => {
+            const row = normalizeSite(site);
+            row.password = "";
+            return row;
+          });
+          saveSites(rows);
+          return rows;
+        }
       } catch (_) {}
       return null;
     }
@@ -929,6 +975,7 @@
         const row = normalizeSite(s);
         delete row.otp_code;
         delete row.has_totp_secret;
+        delete row.password;
         return row;
       });
       localStorage.setItem(SITES_KEY, JSON.stringify(persisted));
@@ -1626,7 +1673,9 @@
         const data = await resp.json();
         if (data.success) llmPresets = data.data?.presets || [];
         const defs = data.data?.defaults || {};
-        const stored = JSON.parse(localStorage.getItem(LLM_KEY) || "{}");
+        const stored = loadStoredLlm();
+        serverLlmHasApiKey = Boolean(defs.has_api_key);
+        serverLlmApiBase = normalizeLlmApiBase(defs.api_base);
         $("llmProvider").replaceChildren();
         llmPresets.forEach((preset) => {
           const option = document.createElement("option");
@@ -1636,14 +1685,15 @@
         });
         $("llmProvider").value = stored.provider || defs.provider || "openai";
         $("llmApiBase").value = stored.api_base || defs.api_base || "";
-        $("llmApiKey").value = stored.api_key || defs.api_key || "";
+        $("llmApiKey").value = "";
         $("llmModel").value = stored.model || defs.model || "gpt-4o-mini";
+        updateLlmKeyPlaceholder();
       } catch (_) {}
     }
 
     async function loadDefaults() {
       try {
-        const stored = JSON.parse(localStorage.getItem(CONN_KEY) || "{}");
+        const stored = loadStoredConnection();
         if (stored && (stored.base_url || stored.access_token || stored.username)) {
           applyConnection(stored);
         }
@@ -1654,11 +1704,8 @@
           const cur = readConnection();
           if (!cur.base_url && c.base_url) $("baseUrl").value = c.base_url;
           if (!$("username").value && c.username) $("username").value = c.username;
-          if (!$("password").value && c.password) $("password").value = c.password;
-          if (!$("defaultKey").value && c.default_key) $("defaultKey").value = c.default_key;
-          if (!$("accessToken").value && c.access_token) {
+          if (c.auth_mode === "token") {
             switchAuthMode("token");
-            $("accessToken").value = c.access_token;
             if (c.user_id) $("userId").value = c.user_id;
           }
         }
@@ -1667,11 +1714,8 @@
         if (hit) {
           const site = hit.site;
           if (!$("username").value && site.username) $("username").value = site.username;
-          if (!$("password").value && site.password) $("password").value = site.password;
-          if (!$("defaultKey").value && site.default_key) $("defaultKey").value = site.default_key;
-          if (!$("accessToken").value && site.access_token && !site.username && !site.password) {
+          if (site.auth_mode === "token") {
             switchAuthMode("token");
-            $("accessToken").value = site.access_token;
             if (site.user_id) $("userId").value = site.user_id;
           }
           setEnvSwitchActive(hit.key);
@@ -1819,7 +1863,7 @@
 
     $("btnTestConn").onclick = async () => {
       const conn = readConnection();
-      const body = { base_url: conn.base_url };
+      const body = { base_url: conn.base_url, auth_mode: conn.auth_mode };
       if (conn.auth_mode === "token") {
         body.access_token = conn.access_token;
         body.user_id = conn.user_id;

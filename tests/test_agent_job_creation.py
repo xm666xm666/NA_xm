@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -10,6 +11,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import agent_jobs
 import app as app_module
+
+
+class FakeIdentity:
+    def current_user(self):
+        return SimpleNamespace(id=7, role="user")
 
 
 def test_summary_only_job_loads_env_sites_without_llm(tmp_path, monkeypatch):
@@ -24,6 +30,7 @@ def test_summary_only_job_loads_env_sites_without_llm(tmp_path, monkeypatch):
     ]
     monkeypatch.setattr(agent_jobs, "STORE", store)
     monkeypatch.setattr(app_module, "NEW_DIR", tmp_path)
+    monkeypatch.setattr(app_module, "IDENTITY", FakeIdentity())
     monkeypatch.setattr(app_module, "_merge_agent_connection", lambda connection: dict(connection))
     monkeypatch.setattr(app_module, "_merge_llm_config", lambda body: {})
     monkeypatch.setattr(app_module, "_env_site_payloads", lambda: [dict(site) for site in env_sites])
@@ -50,3 +57,4 @@ def test_summary_only_job_loads_env_sites_without_llm(tmp_path, monkeypatch):
     assert job.options["run_summary"] is True
     assert job.options["use_llm_plan"] is False
     assert job.llm_config == {}
+    assert job.owner_user_id == 7

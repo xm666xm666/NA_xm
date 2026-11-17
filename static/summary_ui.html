@@ -350,7 +350,15 @@
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         const data = raw ? JSON.parse(raw) : null;
-        if (Array.isArray(data) && data.length) return data.map(normalizeSite);
+        if (Array.isArray(data) && data.length) {
+          const rows = data.map((site) => {
+            const row = normalizeSite(site);
+            row.password = "";
+            return row;
+          });
+          saveSites(rows);
+          return rows;
+        }
       } catch (_) {}
       return null;
     }
@@ -360,7 +368,11 @@
     function defaultEmptySites() {
       return [emptySite("test"), emptySite("uat"), emptySite("prod")];
     }
-    function saveSites(sites) { localStorage.setItem(STORAGE_KEY, JSON.stringify(sites.map(normalizeSite))); }
+    function saveSites(sites) {
+      const rows = sites.map(normalizeSite);
+      rows.forEach((row) => { delete row.password; });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+    }
 
     function envSitesToSummaryCards(payload) {
       const sitesMap = payload?.sites || {};
@@ -488,17 +500,17 @@
         const env = site.env || "";
         card.innerHTML = `
           <div class="na-site-card-head">
-            <span class="env-pill ${envPillClass(env)}">${env || "auto"}</span>
+            <span class="env-pill ${escapeHtml(envPillClass(env))}">${escapeHtml(env || "auto")}</span>
             <button type="button" class="na-btn na-btn-ghost" style="padding:0.3rem 0.55rem;font-size:0.72rem" data-remove aria-label="删除站点">删除</button>
           </div>
           <div class="na-site-card-body">
-            <label>备注<input data-field="label" value="${site.label || ""}" placeholder="可选" /></label>
-            <label class="full">站点地址<input data-field="base_url" value="${site.base_url || ""}" placeholder="https://na-test.example.com" /></label>
-            <label>用户名<input data-field="username" value="${site.username || ""}" placeholder="admin" /></label>
-            <label>密码<input data-field="password" type="password" value="${site.password || ""}" placeholder="密码" autocomplete="off" /></label>
+            <label>备注<input data-field="label" value="${escapeHtml(site.label || "")}" placeholder="可选" /></label>
+            <label class="full">站点地址<input data-field="base_url" value="${escapeHtml(site.base_url || "")}" placeholder="https://na-test.example.com" /></label>
+            <label>用户名<input data-field="username" value="${escapeHtml(site.username || "")}" placeholder="admin" /></label>
+            <label>密码<input data-field="password" type="password" value="${escapeHtml(site.password || "")}" placeholder="密码" autocomplete="off" /></label>
             <label>环境<select data-field="env">
               <option value="" ${!env ? "selected" : ""}>自动</option>
-              ${envOptions.map((option) => `<option value="${option}" ${env === option ? "selected" : ""}>${option}</option>`).join("")}
+              ${envOptions.map((option) => `<option value="${escapeHtml(option)}" ${env === option ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
             </select></label>
           </div>`;
         list.appendChild(card);
@@ -663,10 +675,10 @@
         (items || []).forEach((item) => {
           const row = document.createElement("div");
           const status = String(item.status || "error");
-          row.className = `na-review-row ${status}`;
+          row.className = `na-review-row ${escapeHtml(status)}`;
           const env = String(item.env || "站点").toUpperCase();
           const url = item.base_url || item.label || "";
-          row.innerHTML = `<strong>${env}</strong><span>${item.message || status}${url ? ` · ${url}` : ""}</span>`;
+          row.innerHTML = `<strong>${escapeHtml(env)}</strong><span>${escapeHtml(`${item.message || status}${url ? ` · ${url}` : ""}`)}</span>`;
           fields.appendChild(row);
         });
         modal.hidden = false;
@@ -988,7 +1000,7 @@
         sites.forEach((site, idx) => {
           const env = (site.env || "").trim() || "站点";
           const label = document.createElement("label");
-          label.innerHTML = `${env.toUpperCase()} · ${site.base_url || site.label || ""}`
+          label.innerHTML = `${escapeHtml(env.toUpperCase())} · ${escapeHtml(site.base_url || site.label || "")}`
             + `<input type="text" autocomplete="one-time-code" maxlength="128" `
             + `placeholder="6 位码或 TOTP 原始密钥，回车确认" data-otp-idx="${idx}" />`;
           fields.appendChild(label);
@@ -1126,7 +1138,7 @@
         const otpError = !ok && isOtpError(errorText);
         if (data.success) {
           NAUi.showBanner("userBanner", data.message || "本站采集完成", "ok");
-          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: true } }, "*"); } catch (_) {}
+          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: true } }, location.origin); } catch (_) {}
         } else if (!(opts.quietOtpError && otpError)) {
           const rateLimited = /429|限流|Too Many Requests/i.test(errorText);
           NAUi.showBanner(
@@ -1136,7 +1148,7 @@
               : (data.message || "采集失败"),
             "err"
           );
-          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: false } }, "*"); } catch (_) {}
+          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: false } }, location.origin); } catch (_) {}
         }
         await refreshInfo();
         return { ok, otpError, errorText, file: data.data?.file || "" };
@@ -1146,7 +1158,7 @@
         addLog("采集失败: " + errorText, "warn");
         if (!(opts.quietOtpError && otpError)) {
           NAUi.showBanner("userBanner", "采集失败: " + errorText, "err");
-          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: false } }, "*"); } catch (_) {}
+          try { window.parent.postMessage({ type: "na-flow-progress", progress: { step3: false } }, location.origin); } catch (_) {}
         }
         return { ok: false, otpError, errorText, file: "" };
       } finally {
@@ -1176,6 +1188,7 @@
     $("btnRefreshSummaryFiles")?.addEventListener("click", refreshFileListManual);
     $("btnRefreshBalanceFiles")?.addEventListener("click", refreshFileListManual);
     window.addEventListener("message", (ev) => {
+      if (ev.origin !== location.origin) return;
       const data = ev.data || {};
       if (data.type === "na-theme-change" && data.theme) NATheme.apply(data.theme);
     });
@@ -1334,21 +1347,25 @@
         const checked = prev ? (prev.has(key) ? "checked" : "") : "checked";
         const env = item.env || "other";
         return `<tr>
-          <td><input type="checkbox" class="bal-check" value="${key.replace(/"/g, "&quot;")}" ${checked} data-id="${item.id}" data-env="${env}" data-url="${String(item.base_url || "").replace(/"/g, "&quot;")}" /></td>
-          <td><span class="bal-env ${env}">${env}</span></td>
-          <td title="${String(item.site_label || "").replace(/"/g, "&quot;")}">${item.site_label || "—"}</td>
-          <td class="num">${item.id ?? ""}</td>
-          <td>${item.name || ""}</td>
-          <td class="num">${item.group || ""}</td>
-          <td><span class="bal-badge ${on ? "on" : "off"}">${item.status_label || ""}</span></td>
-          <td class="num col-used">${usedOn ? (item.used_usd_label || "") : ""}</td>
-          <td class="num col-remain">${remainOn ? (item.remain_usd_label || "") : ""}</td>
-          <td class="col-activity">${String(item.activity_label || "N/A").replace(/</g, "&lt;")}</td>
-          <td class="num">${item.created_time_label || "—"}</td>
+          <td><input type="checkbox" class="bal-check" value="${escapeHtml(key)}" ${checked} data-id="${escapeHtml(item.id)}" data-env="${escapeHtml(env)}" data-url="${escapeHtml(item.base_url || "")}" /></td>
+          <td><span class="bal-env ${escapeHtml(env)}">${escapeHtml(env)}</span></td>
+          <td title="${escapeHtml(item.site_label || "")}">${escapeHtml(item.site_label || "—")}</td>
+          <td class="num">${escapeHtml(item.id ?? "")}</td>
+          <td>${escapeHtml(item.name || "")}</td>
+          <td class="num">${escapeHtml(item.group || "")}</td>
+          <td><span class="bal-badge ${on ? "on" : "off"}">${escapeHtml(item.status_label || "")}</span></td>
+          <td class="num col-used">${usedOn ? escapeHtml(item.used_usd_label || "") : ""}</td>
+          <td class="num col-remain">${remainOn ? escapeHtml(item.remain_usd_label || "") : ""}</td>
+          <td class="col-activity">${escapeHtml(item.activity_label || "N/A")}</td>
+          <td class="num">${escapeHtml(item.created_time_label || "—")}</td>
         </tr>`;
       }).join("");
       syncBalButtons();
       syncBalMetricUI();
+    }
+
+    function escapeHtml(value) {
+      return NAUi.escapeHtml(value);
     }
 
     $("btnBalDownload").onclick = async () => {

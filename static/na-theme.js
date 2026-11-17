@@ -29,7 +29,7 @@
       postToChildren(next);
       try {
         if (global.parent && global.parent !== global) {
-          global.parent.postMessage({ type: MSG_TYPE, theme: next }, "*");
+          global.parent.postMessage({ type: MSG_TYPE, theme: next }, global.location.origin);
         }
       } catch (_) { /* ignore */ }
     }
@@ -44,7 +44,7 @@
   function postToChildren(theme) {
     document.querySelectorAll("iframe").forEach((frame) => {
       try {
-        frame.contentWindow?.postMessage({ type: MSG_TYPE, theme }, "*");
+        frame.contentWindow?.postMessage({ type: MSG_TYPE, theme }, global.location.origin);
       } catch (_) { /* ignore */ }
     });
   }
@@ -72,6 +72,7 @@
   }
 
   function onMessage(ev) {
+    if (ev.origin !== global.location.origin) return;
     if (!ev.data || ev.data.type !== MSG_TYPE) return;
     if (!THEMES.includes(ev.data.theme)) return;
     applyTheme(ev.data.theme, { persist: true, broadcast: false });

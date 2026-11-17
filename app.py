@@ -32,6 +32,7 @@ from webapp.identity import (
     FEATURE_UPSTREAM,
     FEATURE_UPSTREAM_BILL,
     FEATURE_WORKSPACE,
+    ROLE_SUPERADMIN,
     artifact_feature,
     init_identity,
 )
@@ -452,6 +453,32 @@ _reload_batch_modules()
 app = Flask(__name__, static_folder=None, static_url_path=None)
 IDENTITY = init_identity(app, NEW_DIR)
 
+_CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; "
+    "font-src 'self' data:; "
+    "connect-src 'self'; "
+    "frame-src 'self'; "
+    "frame-ancestors 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "worker-src 'self' blob:"
+)
+
+
+@app.after_request
+def _security_response_headers(response: Response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Content-Security-Policy"] = _CONTENT_SECURITY_POLICY
+    if (request.path or "").startswith("/api/") or response.mimetype == "text/html":
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 def _request_client_ip() -> str:
     forwarded = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
@@ -652,6 +679,16 @@ def _load_llm_config() -> dict:
         return {}
 
 
+def _public_llm_config(data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "api_base": str(data.get("api_base") or ""),
+        "model": str(data.get("model") or "gpt-4o-mini"),
+        "provider": str(data.get("provider") or ""),
+        "timeout": data.get("timeout", 60),
+        "has_api_key": bool(data.get("api_key")),
+    }
+
+
 def _load_batch_config() -> dict:
     if not BATCH_CONFIG.exists():
         return {}
@@ -665,9 +702,37 @@ def _load_batch_config() -> dict:
             "access_token": str(data.get("access_token") or "").strip(),
             "user_id": data.get("user_id"),
             "default_key": str(data.get("default_key") or "").strip(),
+            "verify_ssl": data.get("verify_ssl"),
         }
     except (json.JSONDecodeError, OSError):
         return {}
+
+
+def _public_connection_config(data: dict[str, Any]) -> dict[str, Any]:
+    has_password = bool(data.get("password"))
+    has_access_token = bool(data.get("access_token"))
+    username = str(data.get("username") or "").strip()
+    configured_mode = str(data.get("auth_mode") or "").strip().lower()
+    if configured_mode in {"token", "access_token"}:
+        auth_mode = "token"
+    elif configured_mode == "password":
+        auth_mode = "password"
+    else:
+        auth_mode = "token" if has_access_token and not username and not has_password else "password"
+    public = {
+        "base_url": str(data.get("base_url") or ""),
+        "username": username,
+        "user_id": data.get("user_id"),
+        "label": str(data.get("label") or ""),
+        "auth_mode": auth_mode,
+        "has_password": has_password,
+        "has_access_token": has_access_token,
+        "has_default_key": bool(data.get("default_key")),
+        "has_totp_secret": bool(data.get("has_totp_secret") or data.get("totp_secret") or data.get("otp_secret")),
+    }
+    if data.get("verify_ssl") is not None:
+        public["verify_ssl"] = bool(data.get("verify_ssl"))
+    return public
 
 
 @app.get("/api/batch-config")
@@ -677,7 +742,7 @@ def batch_config():
         {
             "success": True,
             "source": "file" if data else "none",
-            "data": data,
+            "data": _public_connection_config(data),
         }
     )
 
@@ -920,7 +985,14 @@ def _delete_env_site_config(env_key: str) -> dict[str, Any]:
 def api_env_sites():
     """多环境快捷连接（按 sites.json 已配置站点）。未配置时 configured=false。"""
     payload = _load_env_sites()
-    return jsonify({"success": True, **payload})
+    public_payload = {
+        **payload,
+        "sites": {
+            key: _public_connection_config(site)
+            for key, site in (payload.get("sites") or {}).items()
+        },
+    }
+    return jsonify({"success": True, **public_payload})
 
 
 def _platform_site_client(env: str, *, otp_code: str = "", force_refresh: bool = False):
@@ -3763,13 +3835,16 @@ def api_artifacts_download():
     if not excel_path or not excel_path.exists():
         return jsonify({"success": False, "message": "请指定要下载的产物文件"}), 400
     requested_kind = str(request.args.get("kind") or "").strip().lower()
-    if requested_kind:
-        actual_kind = BATCH["artifact_kind_for_filename"](NEW_DIR, excel_path.name)
-        required_feature = artifact_feature(actual_kind)
-        # 守卫层按请求的 kind 决定能否进入此路由；这里再依据磁盘上文件的
-        # 实际归属校验，防止用低权限 kind 伪装超管专属文件。
-        if actual_kind != requested_kind or not required_feature or not IDENTITY.has_feature(required_feature):
-            return jsonify({"success": False, "message": "当前角色无权下载该产物", "code": "FORBIDDEN"}), 403
+    actual_kind = BATCH["artifact_kind_for_filename"](NEW_DIR, excel_path.name)
+    required_feature = artifact_feature(actual_kind)
+    user = IDENTITY.current_user()
+    is_superadmin = bool(user and user.role == ROLE_SUPERADMIN)
+    if not requested_kind and not is_superadmin:
+        return jsonify({"success": False, "message": "请指定产物类型", "code": "FORBIDDEN"}), 403
+    if not actual_kind or not required_feature or not IDENTITY.has_feature(required_feature):
+        return jsonify({"success": False, "message": "当前角色无权下载该产物", "code": "FORBIDDEN"}), 403
+    if requested_kind and actual_kind != requested_kind:
+        return jsonify({"success": False, "message": "产物类型与文件不匹配", "code": "FORBIDDEN"}), 403
     return _send_excel_attachment(excel_path)
 
 
@@ -3903,11 +3978,13 @@ def api_workspace_summary():
         import agent_jobs
 
         try:
-            jobs = [
-                j
-                for j in agent_jobs.STORE.snapshot_jobs()
-                if j.get("status") in {"queued", "planning", "running", "waiting_confirm"}
-            ]
+            owner_user_id, include_all = _agent_owner_scope()
+            jobs = agent_jobs.STORE.list_summaries(
+                status="active",
+                limit=100,
+                owner_user_id=owner_user_id,
+                include_all=include_all,
+            )
         except Exception:  # noqa: BLE001
             jobs = []
     env_pack = _load_env_sites()
@@ -4211,7 +4288,7 @@ def llm_presets():
         llm_client = importlib.import_module("lib.llm_client")
         presets = llm_client.list_provider_presets()
     file_config = _load_llm_config()
-    return jsonify({"success": True, "data": {"presets": presets, "defaults": file_config}})
+    return jsonify({"success": True, "data": {"presets": presets, "defaults": _public_llm_config(file_config)}})
 
 
 @app.post("/api/extract")
@@ -4227,20 +4304,7 @@ def api_extract():
 
     use_llm = bool(body.get("use_llm", False))
 
-    llm_override = {
-        "api_base": str(body.get("llm_api_base") or "").strip(),
-        "api_key": str(body.get("llm_api_key") or "").strip(),
-        "model": str(body.get("llm_model") or "").strip() or "gpt-4o-mini",
-        "provider": str(body.get("llm_provider") or "").strip(),
-    }
-    file_config = _load_llm_config()
-    llm_config = {
-        "api_base": llm_override["api_base"] or file_config.get("api_base", ""),
-        "api_key": llm_override["api_key"] or file_config.get("api_key", ""),
-        "model": llm_override["model"] or file_config.get("model", "gpt-4o-mini"),
-        "provider": llm_override["provider"] or file_config.get("provider", ""),
-        "timeout": file_config.get("timeout", 60),
-    }
+    llm_config = _merge_llm_config(body)
 
     if "require_key" in body:
         require_key = bool(body.get("require_key"))
@@ -4323,9 +4387,12 @@ def _merge_llm_config(body: dict) -> dict:
         "provider": provider,
     }
     file_config = _load_llm_config()
+    file_api_base = str(file_config.get("api_base") or "").strip().rstrip("/")
+    requested_api_base = llm_override["api_base"].rstrip("/")
+    use_file_key = not requested_api_base or (file_api_base and requested_api_base == file_api_base)
     return {
         "api_base": llm_override["api_base"] or file_config.get("api_base", ""),
-        "api_key": llm_override["api_key"] or file_config.get("api_key", ""),
+        "api_key": llm_override["api_key"] or (file_config.get("api_key", "") if use_file_key else ""),
         "model": llm_override["model"] or file_config.get("model", "gpt-4o-mini"),
         "provider": llm_override["provider"] or file_config.get("provider", ""),
         "timeout": file_config.get("timeout", 60),
@@ -4334,22 +4401,38 @@ def _merge_llm_config(body: dict) -> dict:
 
 def _merge_agent_connection(connection: dict) -> dict:
     file_batch = _load_batch_config()
+    base_url = _parse_base_url(connection.get("base_url") or file_batch.get("base_url") or "")
+    file_base_url = _parse_base_url(file_batch.get("base_url") or "")
+    use_file_auth = bool(file_batch) and (not base_url or base_url == file_base_url)
+    defaults = file_batch if use_file_auth else {}
+    auth_mode = str(connection.get("auth_mode") or "").strip().lower()
+    password = connection.get("password") if connection.get("password") not in (None, "") else defaults.get("password", "")
+    access_token = str(connection.get("access_token") or defaults.get("access_token") or "").strip()
+    if auth_mode == "password":
+        access_token = ""
+    elif auth_mode in {"token", "access_token"}:
+        password = ""
     merged = {
-        "base_url": _parse_base_url(connection.get("base_url") or file_batch.get("base_url") or ""),
-        "username": str(connection.get("username") or file_batch.get("username") or "").strip(),
-        "password": connection.get("password") if connection.get("password") not in (None, "") else file_batch.get("password", ""),
-        "access_token": str(connection.get("access_token") or file_batch.get("access_token") or "").strip(),
-        "user_id": connection.get("user_id") if connection.get("user_id") not in (None, "") else file_batch.get("user_id"),
-        "default_key": str(connection.get("default_key") or file_batch.get("default_key") or "").strip(),
+        "base_url": base_url,
+        "username": str(connection.get("username") or defaults.get("username") or "").strip(),
+        "password": password,
+        "access_token": access_token,
+        "user_id": connection.get("user_id") if connection.get("user_id") not in (None, "") else defaults.get("user_id"),
+        "default_key": str(connection.get("default_key") or defaults.get("default_key") or "").strip(),
         "otp_code": str(connection.get("otp_code") or connection.get("verification_code") or "").strip(),
         "totp_secret": str(connection.get("totp_secret") or connection.get("otp_secret") or "").strip(),
     }
     if connection.get("verify_ssl") is not None:
         merged["verify_ssl"] = BATCH["coerce_verify_ssl"](connection.get("verify_ssl"), True)
-    elif file_batch.get("verify_ssl") is not None:
-        merged["verify_ssl"] = BATCH["coerce_verify_ssl"](file_batch.get("verify_ssl"), True)
+    elif defaults.get("verify_ssl") is not None:
+        merged["verify_ssl"] = BATCH["coerce_verify_ssl"](defaults.get("verify_ssl"), True)
     _ensure_batch()
-    return BATCH["enrich_auth_from_env"](merged, base_url=merged.get("base_url") or "")
+    enriched = BATCH["enrich_auth_from_env"](merged, base_url=merged.get("base_url") or "")
+    if auth_mode == "password":
+        enriched["access_token"] = ""
+    elif auth_mode in {"token", "access_token"}:
+        enriched["password"] = ""
+    return enriched
 
 
 def _enrich_agent_sites(sites: list) -> list[dict[str, Any]]:
@@ -4605,9 +4688,30 @@ def _load_agent_job_deps():
     return extract_fn, plan_fn, batch_snapshot, NEW_DIR
 
 
+def _agent_owner_scope() -> tuple[int | None, bool]:
+    user = IDENTITY.current_user()
+    if not user or getattr(user, "id", None) is None:
+        return None, False
+    return int(user.id), user.role == ROLE_SUPERADMIN
+
+
+def _get_agent_job_for_request(job_id: str):
+    import agent_jobs
+
+    owner_user_id, include_all = _agent_owner_scope()
+    return agent_jobs.STORE.get_for_owner(
+        job_id,
+        owner_user_id=owner_user_id,
+        include_all=include_all,
+    )
+
+
 def _create_agent_job_from_body(body: dict, *, require_confirm_default: bool):
     import agent_jobs
 
+    owner_user_id, _include_all = _agent_owner_scope()
+    if owner_user_id is None:
+        raise ValueError("请先登录")
     raw_text = str(body.get("raw_text") or "").strip()
     goal = str(body.get("goal") or "").strip()
     options = body.get("options") or {}
@@ -4637,6 +4741,7 @@ def _create_agent_job_from_body(body: dict, *, require_confirm_default: bool):
         options=normalized_options,
         llm_config=llm_config,
         channel_lines=str(body.get("channel_lines") or ""),
+        owner_user_id=owner_user_id,
     )
 
 
@@ -4648,10 +4753,13 @@ def api_agent_jobs_list():
         limit = int(request.args.get("limit") or 30)
     except (TypeError, ValueError):
         return jsonify({"success": False, "message": "limit 必须是整数"}), 400
+    owner_user_id, include_all = _agent_owner_scope()
     items = agent_jobs.STORE.list_summaries(
         status=str(request.args.get("status") or ""),
         search=str(request.args.get("search") or request.args.get("q") or ""),
         limit=limit,
+        owner_user_id=owner_user_id,
+        include_all=include_all,
     )
     return jsonify({"success": True, "jobs": items, "items": items, "count": len(items)})
 
@@ -4677,7 +4785,7 @@ def api_agent_jobs_create():
 def api_agent_jobs_get(job_id: str):
     import agent_jobs
 
-    job = agent_jobs.STORE.get(job_id)
+    job = _get_agent_job_for_request(job_id)
     if not job:
         return jsonify({"success": False, "message": "任务不存在"}), 404
     return jsonify({"success": True, "job": job.to_dict()})
@@ -4688,7 +4796,7 @@ def api_agent_jobs_preflight(job_id: str):
     import agent_jobs
     from pipeline_runner import _build_auth
 
-    job = agent_jobs.STORE.get(job_id)
+    job = _get_agent_job_for_request(job_id)
     if not job:
         return jsonify({"success": False, "message": "任务不存在"}), 404
     body = request.get_json(silent=True) or {}
@@ -4722,7 +4830,7 @@ def api_agent_jobs_preflight(job_id: str):
 def api_agent_job_artifact_download(job_id: str, kind: str):
     import agent_jobs
 
-    job = agent_jobs.STORE.get(job_id)
+    job = _get_agent_job_for_request(job_id)
     if not job:
         return jsonify({"success": False, "message": "任务不存在"}), 404
     requested_kind = "analysis" if kind == "analyze" else str(kind or "").strip().lower()
@@ -4760,7 +4868,7 @@ def api_agent_jobs_events(job_id: str):
     import agent_jobs
     import json as _json
 
-    job = agent_jobs.STORE.get(job_id)
+    job = _get_agent_job_for_request(job_id)
     if not job:
         return jsonify({"success": False, "message": "任务不存在"}), 404
 
@@ -4799,6 +4907,8 @@ def api_agent_jobs_events(job_id: str):
 def api_agent_jobs_patch_plan(job_id: str):
     import agent_jobs
 
+    if not _get_agent_job_for_request(job_id):
+        return jsonify({"success": False, "message": "任务不存在"}), 404
     body = request.get_json(silent=True) or {}
     try:
         job = agent_jobs.patch_plan(job_id, body)
@@ -4814,6 +4924,8 @@ def api_agent_jobs_patch_plan(job_id: str):
 def api_agent_jobs_confirm(job_id: str):
     import agent_jobs
 
+    if not _get_agent_job_for_request(job_id):
+        return jsonify({"success": False, "message": "任务不存在"}), 404
     body = request.get_json(silent=True) or {}
     lines = body.get("channel_lines")
     conn = body.get("connection") if isinstance(body.get("connection"), dict) else None
@@ -4839,7 +4951,7 @@ def api_agent_jobs_confirm(job_id: str):
 def api_agent_jobs_start(job_id: str):
     import agent_jobs
 
-    job = agent_jobs.STORE.get(job_id)
+    job = _get_agent_job_for_request(job_id)
     if not job:
         return jsonify({"success": False, "message": "任务不存在"}), 404
     if job.status in ("running", "planning"):
@@ -4862,6 +4974,8 @@ def api_agent_jobs_start(job_id: str):
 def api_agent_jobs_cancel(job_id: str):
     import agent_jobs
 
+    if not _get_agent_job_for_request(job_id):
+        return jsonify({"success": False, "message": "任务不存在"}), 404
     job = agent_jobs.request_cancel(job_id)
     if not job:
         return jsonify({"success": False, "message": "任务不存在"}), 404
@@ -4872,6 +4986,8 @@ def api_agent_jobs_cancel(job_id: str):
 def api_agent_jobs_retry(job_id: str):
     import agent_jobs
 
+    if not _get_agent_job_for_request(job_id):
+        return jsonify({"success": False, "message": "任务不存在"}), 404
     try:
         job = agent_jobs.prepare_retry(job_id)
     except RuntimeError as exc:
@@ -4947,21 +5063,42 @@ def _parse_base_url(raw: str) -> str:
 
 def _parse_auth(body: dict) -> dict:
     _ensure_batch()
+    file_config = _load_batch_config()
+    requested_base_url = _parse_base_url(body.get("base_url") or file_config.get("base_url") or "")
+    file_base_url = _parse_base_url(file_config.get("base_url") or "")
+    use_file_auth = bool(file_config) and (not requested_base_url or requested_base_url == file_base_url)
+    defaults = file_config if use_file_auth else {}
+    auth_mode = str(body.get("auth_mode") or "").strip().lower()
     verify_ssl_explicit = "verify_ssl" in body
-    verify_ssl = BATCH["coerce_verify_ssl"](body.get("verify_ssl"), True) if verify_ssl_explicit else None
-    totp_secret = str(body.get("totp_secret") or body.get("otp_secret") or "").strip()
+    verify_ssl_value = body.get("verify_ssl") if verify_ssl_explicit else defaults.get("verify_ssl")
+    verify_ssl = BATCH["coerce_verify_ssl"](verify_ssl_value, True) if verify_ssl_value is not None else None
+    totp_secret = str(
+        body.get("totp_secret") or body.get("otp_secret") or defaults.get("totp_secret") or defaults.get("otp_secret") or ""
+    ).strip()
+    password = body.get("password") if body.get("password") not in (None, "") else defaults.get("password", "")
+    access_token = str(body.get("access_token") or defaults.get("access_token") or "").strip()
+    if auth_mode == "password":
+        access_token = ""
+    elif auth_mode in {"token", "access_token"}:
+        password = ""
     auth: dict[str, Any] = {
-        "username": str(body.get("username") or "").strip(),
-        "password": body.get("password") or "",
+        "base_url": requested_base_url,
+        "username": str(body.get("username") or defaults.get("username") or "").strip(),
+        "password": password,
         "otp_code": str(body.get("otp_code") or body.get("verification_code") or "").strip(),
-        "access_token": str(body.get("access_token") or "").strip(),
-        "user_id": body.get("user_id"),
+        "access_token": access_token,
+        "user_id": body.get("user_id") if body.get("user_id") not in (None, "") else defaults.get("user_id"),
+        "default_key": str(body.get("default_key") or defaults.get("default_key") or "").strip(),
     }
     if verify_ssl is not None:
         auth["verify_ssl"] = verify_ssl
     if totp_secret:
         auth["totp_secret"] = totp_secret
-    auth = BATCH["enrich_auth_from_env"](auth, base_url=body.get("base_url") or "")
+    auth = BATCH["enrich_auth_from_env"](auth, base_url=requested_base_url)
+    if auth_mode == "password":
+        auth["access_token"] = ""
+    elif auth_mode in {"token", "access_token"}:
+        auth["password"] = ""
     access_token = str(auth.get("access_token") or "").strip()
     if access_token:
         user_id = int(auth.get("user_id") or 0)
@@ -4970,6 +5107,7 @@ def _parse_auth(body: dict) -> dict:
         out = {
             "access_token": access_token,
             "user_id": user_id,
+            "default_key": str(auth.get("default_key") or "").strip(),
             "verify_ssl": auth.get("verify_ssl", True),
         }
         if auth.get("totp_secret"):
@@ -4982,6 +5120,7 @@ def _parse_auth(body: dict) -> dict:
         "password": auth.get("password") or "",
         "otp_code": str(auth.get("otp_code") or "").strip(),
         "totp_secret": str(auth.get("totp_secret") or "").strip(),
+        "default_key": str(auth.get("default_key") or "").strip(),
         "verify_ssl": auth.get("verify_ssl", True),
     }
 
@@ -5584,7 +5723,6 @@ def data_summary_download():
 def batch_create():
     body = request.get_json(silent=True) or {}
     base_url = _parse_base_url(body.get("base_url", ""))
-    default_key = str(body.get("default_key", "")).strip()
     batch_text = str(body.get("batch_text", "")).strip()
 
     if not base_url:
@@ -5593,6 +5731,7 @@ def batch_create():
         return jsonify({"success": False, "message": "请填写批量数据"}), 400
 
     auth = _parse_auth(body)
+    default_key = str(body.get("default_key") or auth.get("default_key") or "").strip()
 
     try:
         result = BATCH["run_batch_create"](

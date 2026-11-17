@@ -426,11 +426,11 @@
         return;
       }
       const cols = headers || Object.keys(rows[0]);
-      const thead = "<tr>" + cols.map((h) => `<th>${h}</th>`).join("") + "</tr>";
+      const thead = "<tr>" + cols.map((h) => `<th>${NAUi.escapeHtml(h)}</th>`).join("") + "</tr>";
       const body = rows.map((row) => (
         "<tr>" + cols.map((h, index) => {
           const value = Array.isArray(row) ? row[index] : row[h];
-          return `<td>${String(value ?? "").replace(/</g, "&lt;")}</td>`;
+          return `<td>${NAUi.escapeHtml(value)}</td>`;
         }).join("") + "</tr>"
       )).join("");
       table.innerHTML = thead + body;
@@ -963,6 +963,7 @@
     });
 
     window.addEventListener("message", (ev) => {
+      if (ev.origin !== location.origin) return;
       const data = ev.data || {};
       if (data.type === "na-theme-change" && data.theme) NATheme.apply(data.theme);
     });

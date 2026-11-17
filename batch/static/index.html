@@ -2297,6 +2297,10 @@ sample-azure-test
       try {
         const config = readConnectionConfig();
         delete config.otp_code;
+        delete config.totp_secret;
+        delete config.password;
+        delete config.access_token;
+        delete config.default_key;
         localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
       } catch (_) {
         /* ignore quota / private mode */
@@ -2313,7 +2317,15 @@ sample-azure-test
     function readStoredBatchConfig() {
       try {
         const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : {};
+        if (!raw) return {};
+        const config = JSON.parse(raw);
+        delete config.otp_code;
+        delete config.totp_secret;
+        delete config.password;
+        delete config.access_token;
+        delete config.default_key;
+        localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+        return config;
       } catch (_) {
         return {};
       }
@@ -2507,11 +2519,14 @@ sample-azure-test
       const prev = select.value;
       const names = groups || [];
       if (!names.length) {
-        select.innerHTML = `<option value="">${placeholder || "请先刷新已有分组"}</option>`;
+        select.innerHTML = `<option value="">${NAUi.escapeHtml(placeholder || "请先刷新已有分组")}</option>`;
         return;
       }
       select.innerHTML = [`<option value="">请选择</option>`]
-        .concat(names.map((g) => `<option value="${String(g).replace(/"/g, "&quot;")}">${g}</option>`))
+        .concat(names.map((group) => {
+          const name = NAUi.escapeHtml(group);
+          return `<option value="${name}">${name}</option>`;
+        }))
         .join("");
       if (prev && names.includes(prev)) select.value = prev;
     }
@@ -2526,7 +2541,7 @@ sample-azure-test
         return;
       }
       groupCountTag.textContent = `${cachedGroups.length} 个分组`;
-      groupCatalog.innerHTML = cachedGroups.map((group) => `<div><strong>${group}</strong></div>`).join('');
+      groupCatalog.innerHTML = cachedGroups.map((group) => `<div><strong>${NAUi.escapeHtml(group)}</strong></div>`).join('');
       fillGroupSelect($('switchSourceGroup'), cachedGroups, "请选择");
       fillGroupSelect($('switchTargetGroup'), cachedGroups, "请选择");
     }
@@ -2564,7 +2579,7 @@ sample-azure-test
       tokenModelSource.textContent = `${groups.length} 个分组`;
       modelCatalog.innerHTML = groups.map((group) => {
         const models = (groupModels[group] || []).join(', ');
-        return `<div><strong>${group}</strong>: ${models || '无'}</div>`;
+        return `<div><strong>${NAUi.escapeHtml(group)}</strong>: ${NAUi.escapeHtml(models || '无')}</div>`;
       }).join('');
     }
 
@@ -3048,18 +3063,22 @@ sample-azure-test
       statusListItems.forEach((item) => {
         const row = document.createElement('div');
         row.className = 'status-row';
-        row.dataset.id = String(item.target_id);
+        const id = Number(item.target_id || 0);
+        const name = NAUi.escapeHtml(item.name || '—');
+        const group = NAUi.escapeHtml(item.group || '—');
+        const status = NAUi.escapeHtml(item.status_label || '');
+        row.dataset.id = String(id);
         const enabled = !!item.enabled || Number(item.current_status) === 1;
-        const upstream = (item.matched_upstreams || []).join(', ') || '—';
+        const upstream = NAUi.escapeHtml((item.matched_upstreams || []).join(', ') || '—');
         row.innerHTML = `
-          <input type="checkbox" class="status-check" value="${item.target_id}" checked />
-          <div class="name" title="${item.name || ''}">${item.name || '—'}</div>
-          <div class="muted" title="${item.group || ''}">${item.group || '—'}</div>
-          <span class="status-badge ${enabled ? 'on' : 'off'}">${item.status_label || (enabled ? '已启用' : '已禁用')}</span>
+          <input type="checkbox" class="status-check" value="${id}" checked />
+          <div class="name" title="${name}">${name}</div>
+          <div class="muted" title="${group}">${group}</div>
+          <span class="status-badge ${enabled ? 'on' : 'off'}">${status || (enabled ? '已启用' : '已禁用')}</span>
           <div class="muted" title="${upstream}">${upstream}</div>
           <div class="status-row-actions">
-            <button type="button" class="btn-primary btn-row-enable" data-id="${item.target_id}" ${enabled ? 'disabled' : ''}>启用</button>
-            <button type="button" class="btn-danger btn-row-disable" data-id="${item.target_id}" ${enabled ? '' : 'disabled'}>禁用</button>
+            <button type="button" class="btn-primary btn-row-enable" data-id="${id}" ${enabled ? 'disabled' : ''}>启用</button>
+            <button type="button" class="btn-danger btn-row-disable" data-id="${id}" ${enabled ? '' : 'disabled'}>禁用</button>
           </div>
         `;
         list.appendChild(row);
@@ -3366,6 +3385,7 @@ sample-azure-test
         return {
           base_url,
           default_key,
+          auth_mode: 'token',
           access_token: $('accessToken').value.trim(),
           user_id: Number($('userId').value),
           verify_ssl: !($('skipSslVerify') && $('skipSslVerify').checked),
@@ -3374,6 +3394,7 @@ sample-azure-test
       return {
         base_url,
         default_key,
+        auth_mode: 'password',
         username: $('username').value.trim(),
         password: $('password').value,
         otp_code: ($('otpCode') && $('otpCode').value || '').trim(),
@@ -3390,9 +3411,7 @@ sample-azure-test
     }
 
     function escapeLogHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-      })[char]);
+      return NAUi.escapeHtml(value);
     }
 
     function logDisplay(value) {
@@ -3690,9 +3709,9 @@ sample-azure-test
       }
       list.innerHTML = rows.map((item) => {
         const id = Number(item.id || item.target_id || 0);
-        const name = String(item.name || '').replace(/</g, '&lt;');
-        const group = String(item.group || '').replace(/</g, '&lt;');
-        const status = String(item.status_label || '').replace(/</g, '&lt;');
+        const name = NAUi.escapeHtml(item.name || '');
+        const group = NAUi.escapeHtml(item.group || '');
+        const status = NAUi.escapeHtml(item.status_label || '');
         return `<div class="status-row switch-row">
           <input type="checkbox" class="switch-check" data-kind="${kind}" value="${id}" checked />
           <span class="muted">${id}</span>
@@ -4360,13 +4379,13 @@ sample-azure-test
             progress: data.success
               ? { step2: true }
               : { step2: false, step3: false },
-          }, '*');
+          }, window.location.origin);
         } catch (_) {}
       } catch (err) {
         lastCreatedChannels = [];
         refreshTestCreatedBtn();
         appendLog(err.message, 'fail');
-        try { window.parent.postMessage({ type: 'na-flow-progress', progress: { step2: false, step3: false } }, '*'); } catch (_) {}
+        try { window.parent.postMessage({ type: 'na-flow-progress', progress: { step2: false, step3: false } }, window.location.origin); } catch (_) {}
       } finally {
         setLoading(btn, false);
         channelExampleGuard.refreshUI();
@@ -4566,6 +4585,7 @@ sample-azure-test
       NAUi.toast('已刷新下载状态', 'ok', 1600);
     });
     window.addEventListener('message', (ev) => {
+      if (ev.origin !== window.location.origin) return;
       const data = ev.data || {};
       if (data.type === 'na-theme-change' && data.theme) NATheme.apply(data.theme);
     });

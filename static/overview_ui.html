@@ -393,7 +393,7 @@
     }
 
     function esc(v) {
-      return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      return NAUi.escapeHtml(v);
     }
 
     function usageLabel(row) {
@@ -692,7 +692,7 @@
         table.innerHTML = "";
         return;
       }
-      const body = entries.map(([name, rows]) => `<tr><td>${name}</td><td>${rows}</td></tr>`).join("");
+      const body = entries.map(([name, rows]) => `<tr><td>${esc(name)}</td><td>${esc(rows)}</td></tr>`).join("");
       table.innerHTML = "<tr><th>工作表</th><th>行数</th></tr>" + body;
       wrap.hidden = false;
     }
@@ -834,7 +834,7 @@
           row.className = `na-review-row ${item.status || "error"}`;
           const env = String(item.env || "站点").toUpperCase();
           const url = item.base_url || item.label || "";
-          row.innerHTML = `<strong>${env}</strong><span>${item.message || item.status || ""}${url ? ` · ${url}` : ""}</span>`;
+          row.innerHTML = `<strong>${esc(env)}</strong><span>${esc(`${item.message || item.status || ""}${url ? ` · ${url}` : ""}`)}</span>`;
           fields.appendChild(row);
         });
         modal.hidden = false;
@@ -871,7 +871,7 @@
         sites.forEach((site, idx) => {
           const env = (site.env || "").trim() || "站点";
           const label = document.createElement("label");
-          label.innerHTML = `${env.toUpperCase()} · ${site.base_url || site.label || ""}`
+          label.innerHTML = `${esc(env.toUpperCase())} · ${esc(site.base_url || site.label || "")}`
             + `<input type="text" autocomplete="one-time-code" maxlength="128" `
             + `placeholder="6 位码或 TOTP 原始密钥，回车确认" data-otp-idx="${idx}" />`;
           fields.appendChild(label);
@@ -1435,6 +1435,7 @@
     });
 
     window.addEventListener("message", (ev) => {
+      if (ev.origin !== location.origin) return;
       const data = ev.data || {};
       if (data.type === "na-theme-change" && data.theme) NATheme.apply(data.theme);
       if (data.type === "na-hygiene-select" && data.analysis) {

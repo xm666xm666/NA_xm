@@ -5,6 +5,16 @@
   const FLOW_KEY = "na_flow_progress";
   const ONBOARD_KEY = "na_onboarding_dismissed";
 
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[char]);
+  }
+
   function ensureToastStack() {
     let stack = document.getElementById("naToastStack");
     if (!stack) {
@@ -211,7 +221,7 @@
     };
     try {
       if (global.parent && global.parent !== global) {
-        global.parent.postMessage(payload, "*");
+        global.parent.postMessage(payload, global.location.origin);
       }
     } catch (_) { /* ignore */ }
   }
@@ -219,6 +229,7 @@
   function onArtifactsChanged(handler) {
     if (typeof handler !== "function") return;
     global.addEventListener("message", (ev) => {
+      if (ev.origin !== global.location.origin) return;
       const data = ev.data || {};
       if (data.type === ARTIFACTS_MSG) handler(data);
     });
@@ -227,12 +238,13 @@
   function broadcastToFrames(payload) {
     const frames = global.document ? global.document.querySelectorAll("iframe.na-iframe") : [];
     frames.forEach((frame) => {
-      try { frame.contentWindow?.postMessage(payload, "*"); } catch (_) { /* ignore */ }
+      try { frame.contentWindow?.postMessage(payload, global.location.origin); } catch (_) { /* ignore */ }
     });
   }
 
   function initArtifactBridge(onLocal) {
     global.addEventListener("message", (ev) => {
+      if (ev.origin !== global.location.origin) return;
       const data = ev.data || {};
       if (data.type !== ARTIFACTS_MSG) return;
       if (ev.source && ev.source !== global) broadcastToFrames(data);
@@ -241,6 +253,7 @@
   }
 
   global.NAUi = {
+    escapeHtml,
     toast,
     showBanner,
     hideBanner,

@@ -33,6 +33,7 @@ class JobEvent:
 @dataclass
 class AgentJob:
     id: str
+    owner_user_id: int | None = None
     status: str = "queued"
     scenario: str = "custom"
     goal: str = ""
@@ -140,9 +141,11 @@ class AgentJobStore:
         llm_config: dict[str, Any],
         channel_lines: str = "",
         scenario: str = "custom",
+        owner_user_id: int | None = None,
     ) -> AgentJob:
         job = AgentJob(
             id=uuid.uuid4().hex[:12],
+            owner_user_id=owner_user_id,
             scenario=str(scenario or "custom").strip()[:40] or "custom",
             goal=goal,
             raw_text=raw_text,
@@ -162,9 +165,34 @@ class AgentJobStore:
         with self._lock:
             return self._jobs.get(job_id)
 
-    def snapshot_jobs(self) -> list[dict[str, Any]]:
+    def get_for_owner(
+        self,
+        job_id: str,
+        *,
+        owner_user_id: int | None,
+        include_all: bool = False,
+    ) -> AgentJob | None:
+        job = self.get(job_id)
+        if not job:
+            return None
+        if include_all:
+            return job
+        if owner_user_id is None or job.owner_user_id != owner_user_id:
+            return None
+        return job
+
+    def snapshot_jobs(
+        self,
+        *,
+        owner_user_id: int | None = None,
+        include_all: bool = False,
+    ) -> list[dict[str, Any]]:
         with self._lock:
-            return [job.to_dict() for job in self._jobs.values()]
+            return [
+                job.to_dict()
+                for job in self._jobs.values()
+                if include_all or (owner_user_id is not None and job.owner_user_id == owner_user_id)
+            ]
 
     def list_summaries(
         self,
@@ -172,6 +200,8 @@ class AgentJobStore:
         status: str = "",
         search: str = "",
         limit: int = 30,
+        owner_user_id: int | None = None,
+        include_all: bool = False,
     ) -> list[dict[str, Any]]:
         status_key = str(status or "").strip().lower()
         query = str(search or "").strip().casefold()
@@ -180,6 +210,8 @@ class AgentJobStore:
             jobs = sorted(self._jobs.values(), key=lambda item: item.updated_at, reverse=True)
             summaries: list[dict[str, Any]] = []
             for job in jobs:
+                if not include_all and (owner_user_id is None or job.owner_user_id != owner_user_id):
+                    continue
                 if status_key == "active" and job.status not in ACTIVE:
                     continue
                 if status_key == "terminal" and job.status not in TERMINAL:
