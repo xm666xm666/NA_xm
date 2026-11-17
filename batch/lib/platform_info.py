@@ -99,7 +99,7 @@ def probe_capabilities(client: NewAPIClient, *, force_refresh: bool = False) -> 
     return capabilities
 
 
-def connected_client(base_url: str, auth: dict[str, Any]) -> NewAPIClient:
+def connected_client(base_url: str, auth: dict[str, Any], *, force_refresh: bool = False) -> NewAPIClient:
     """建立并复用已认证的管理端会话；同一站点凭据不重复登录。"""
     signature_payload = {
         "base_url": base_url,
@@ -115,6 +115,8 @@ def connected_client(base_url: str, auth: dict[str, Any]) -> NewAPIClient:
     ).hexdigest()
     now = time.time()
     with _CLIENT_CACHE_LOCK:
+        if force_refresh:
+            _CLIENT_CACHE.pop(signature, None)
         entry = _CLIENT_CACHE.get(signature)
         if entry:
             client, expires_at = entry

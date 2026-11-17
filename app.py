@@ -923,7 +923,7 @@ def api_env_sites():
     return jsonify({"success": True, **payload})
 
 
-def _platform_site_client(env: str, *, otp_code: str = ""):
+def _platform_site_client(env: str, *, otp_code: str = "", force_refresh: bool = False):
     """用指定环境的服务端凭据创建 ai-cloud 管理端会话。"""
     env_key = str(env or "").strip().lower()
     _ensure_batch()
@@ -942,8 +942,25 @@ def _platform_site_client(env: str, *, otp_code: str = ""):
     })
     if otp_code:
         auth["otp_code"] = str(otp_code).strip()
-    client = BATCH["platform_connected_client"](str(site["base_url"]), auth)
+    client = BATCH["platform_connected_client"](
+        str(site["base_url"]),
+        auth,
+        force_refresh=force_refresh,
+    )
     return env_key, site, client
+
+
+def _platform_read(env: str, operation, *args, **kwargs):
+    """只读请求遇到失效会话时强制重连，并且仅重试一次。"""
+    env_key, _site, client = _platform_site_client(env)
+    try:
+        data = operation(client, *args, **kwargs)
+    except requests.HTTPError as exc:
+        if exc.response is None or exc.response.status_code != 401:
+            raise
+        env_key, _site, client = _platform_site_client(env, force_refresh=True)
+        data = operation(client, *args, **kwargs)
+    return env_key, data
 
 
 @app.get("/api/platform/sites")
@@ -1037,8 +1054,8 @@ def api_platform_capabilities(env: str):
 @app.get("/api/platform/<env>/channels")
 def api_platform_channels(env: str):
     try:
-        env_key, _site, client = _platform_site_client(env)
-        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_channels"](client)})
+        env_key, data = _platform_read(env, BATCH["platform_list_channels"])
+        return jsonify({"success": True, "env": env_key, "data": data})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
@@ -1046,8 +1063,8 @@ def api_platform_channels(env: str):
 @app.get("/api/platform/<env>/groups")
 def api_platform_groups(env: str):
     try:
-        env_key, _site, client = _platform_site_client(env)
-        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_groups"](client)})
+        env_key, data = _platform_read(env, BATCH["platform_list_groups"])
+        return jsonify({"success": True, "env": env_key, "data": data})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
@@ -1055,8 +1072,8 @@ def api_platform_groups(env: str):
 @app.get("/api/platform/<env>/channels/<int:channel_id>")
 def api_platform_channel_detail(env: str, channel_id: int):
     try:
-        env_key, _site, client = _platform_site_client(env)
-        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_get_channel"](client, channel_id)})
+        env_key, data = _platform_read(env, BATCH["platform_get_channel"], channel_id)
+        return jsonify({"success": True, "env": env_key, "data": data})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
@@ -1121,8 +1138,8 @@ def api_platform_channel_delete(env: str, channel_id: int):
 @app.get("/api/platform/<env>/tokens")
 def api_platform_tokens(env: str):
     try:
-        env_key, _site, client = _platform_site_client(env)
-        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_list_tokens"](client)})
+        env_key, data = _platform_read(env, BATCH["platform_list_tokens"])
+        return jsonify({"success": True, "env": env_key, "data": data})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
@@ -1130,8 +1147,8 @@ def api_platform_tokens(env: str):
 @app.get("/api/platform/<env>/tokens/<int:token_id>")
 def api_platform_token_detail(env: str, token_id: int):
     try:
-        env_key, _site, client = _platform_site_client(env)
-        return jsonify({"success": True, "env": env_key, "data": BATCH["platform_get_token"](client, token_id)})
+        env_key, data = _platform_read(env, BATCH["platform_get_token"], token_id)
+        return jsonify({"success": True, "env": env_key, "data": data})
     except Exception as exc:  # noqa: BLE001
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
