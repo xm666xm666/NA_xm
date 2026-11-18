@@ -1181,6 +1181,63 @@ def api_platform_channel_test(env: str, channel_id: int):
         return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
 
 
+@app.post("/api/platform/<env>/channels/batch-test")
+def api_platform_channel_batch_test(env: str):
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify({"success": False, "message": "请提交有效的批量测试参数"}), 400
+    raw_ids = body.get("ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return jsonify({"success": False, "message": "请至少选择一个渠道"}), 400
+    if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in raw_ids):
+        return jsonify({"success": False, "message": "所选渠道包含无效 ID"}), 400
+    ids = list(dict.fromkeys(raw_ids))
+
+    try:
+        env_key, _site, client = _platform_site_client(env)
+        items = []
+        succeeded = 0
+        failed = 0
+        for channel_id in ids:
+            try:
+                result = BATCH["platform_test_channel"](client, channel_id, model="")
+                ok = isinstance(result, dict) and result.get("success") is True
+                if ok:
+                    succeeded += 1
+                    items.append({
+                        "id": channel_id,
+                        "success": True,
+                        "time": result.get("time"),
+                        "message": result.get("message"),
+                    })
+                else:
+                    failed += 1
+                    message = str((result or {}).get("message") or "").strip() if isinstance(result, dict) else ""
+                    items.append({"id": channel_id, "success": False, "message": message or "渠道测试失败"})
+            except Exception as exc:  # noqa: BLE001
+                failed += 1
+                items.append({"id": channel_id, "success": False, "message": _user_facing_error(exc)})
+
+        data = {
+            "total": len(ids),
+            "succeeded": succeeded,
+            "failed": failed,
+            "items": items,
+        }
+        IDENTITY.store.audit(
+            "platform.channel.batch_tested",
+            resource=f"{env_key}:channel:batch",
+            outcome="success" if not failed else "partial",
+            detail={"env": env_key, "ids": ids, "total": len(ids), "succeeded": succeeded, "failed": failed},
+        )
+        message = f"批量测试完成：成功 {succeeded} 项"
+        if failed:
+            message += f"，失败 {failed} 项"
+        return jsonify({"success": True, "env": env_key, "data": data, "message": message})
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"success": False, "message": _user_facing_error(exc)}), 400
+
+
 @app.put("/api/platform/<env>/channels/<int:channel_id>/status")
 def api_platform_channel_status(env: str, channel_id: int):
     body = request.get_json(silent=True) or {}

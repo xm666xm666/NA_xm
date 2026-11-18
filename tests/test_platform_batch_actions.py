@@ -41,6 +41,35 @@ def platform_client(monkeypatch):
     return client, audit
 
 
+def test_channel_batch_test_reports_per_channel_results(platform_client, monkeypatch):
+    _client, audit = platform_client
+    test_channel = MagicMock(side_effect=[
+        {"success": True, "time": 1.2345, "message": "测试成功"},
+        {"success": False, "message": "模型不可用"},
+    ])
+    monkeypatch.setitem(server.BATCH, "platform_test_channel", test_channel)
+
+    with server.app.test_request_context("/api/platform/test/channels/batch-test", method="POST", json={"ids": [9, 7, 9]}):
+        response = server.api_platform_channel_batch_test("test")
+    response, status = response if isinstance(response, tuple) else (response, response.status_code)
+    payload = response.get_json()
+
+    assert status == 200
+    assert payload["success"] is True
+    assert payload["message"] == "批量测试完成：成功 1 项，失败 1 项"
+    assert payload["data"]["total"] == 2
+    assert payload["data"]["succeeded"] == 1
+    assert payload["data"]["failed"] == 1
+    assert payload["data"]["items"] == [
+        {"id": 9, "success": True, "time": 1.2345, "message": "测试成功"},
+        {"id": 7, "success": False, "message": "模型不可用"},
+    ]
+    assert test_channel.call_args_list == [call(_client, 9, model=""), call(_client, 7, model="")]
+    assert audit.call_args.args[0] == "platform.channel.batch_tested"
+    assert audit.call_args.kwargs["outcome"] == "partial"
+    assert audit.call_args.kwargs["detail"]["ids"] == [9, 7]
+
+
 def test_channel_batch_enable_deduplicates_and_reports_item_failure(platform_client, monkeypatch):
     _client, audit = platform_client
     update_status = MagicMock(side_effect=[{}, RuntimeError("上游拒绝操作")])
@@ -128,6 +157,25 @@ def test_batch_action_rejects_invalid_parameters_before_connecting(monkeypatch, 
 
     status, payload = _invoke(kind, body)
 
+    assert status == 400
+    assert payload["success"] is False
+    connect.assert_not_called()
+
+
+@pytest.mark.parametrize("body", [
+    {},
+    {"ids": []},
+    {"ids": [1, "2"]},
+    {"ids": [True]},
+])
+def test_channel_batch_test_rejects_invalid_parameters_before_connecting(monkeypatch, body):
+    connect = MagicMock()
+    monkeypatch.setattr(server, "_platform_site_client", connect)
+
+    with server.app.test_request_context("/api/platform/test/channels/batch-test", method="POST", json=body):
+        result = server.api_platform_channel_batch_test("test")
+
+    status, payload = result[1], result[0].get_json()
     assert status == 400
     assert payload["success"] is False
     connect.assert_not_called()

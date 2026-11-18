@@ -320,6 +320,7 @@
     .platform-batch-disable { color: #f59e0b; }
     .platform-batch-delete { color: #fff; background: #dc2626; border-color: #dc2626; }
     .platform-batch-delete:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
+    .platform-batch-test { color: var(--na-accent); border-color: rgba(34, 211, 238, 0.35); }
     .platform-table .platform-select-cell { width: 42px; min-width: 42px; padding-left: 0.65rem; padding-right: 0.35rem; text-align: center; }
     .platform-select-checkbox { width: 16px; height: 16px; margin: 0; vertical-align: middle; accent-color: var(--na-accent); cursor: pointer; }
     .platform-select-checkbox:disabled { cursor: not-allowed; opacity: 0.45; }
@@ -572,6 +573,7 @@
         <button type="button" class="na-btn na-btn-secondary platform-batch-enable" id="batchEnableBtn" disabled>批量启用</button>
         <button type="button" class="na-btn na-btn-secondary platform-batch-disable" id="batchDisableBtn" disabled>批量禁用</button>
         <button type="button" class="na-btn na-btn-secondary platform-batch-delete" id="batchDeleteBtn" disabled>批量删除</button>
+        <button type="button" class="na-btn na-btn-secondary platform-batch-test" id="batchTestBtn" disabled>批量测试</button>
       </div>
       <div class="platform-meta platform-resource" id="tableMeta">选择已配置环境后读取列表。</div>
       <div class="platform-table-wrap platform-resource" id="resourceTable"><table class="platform-table"><thead id="tableHead"></thead><tbody id="tableBody"><tr><td><div class="platform-empty">正在读取环境配置…</div></td></tr></tbody></table></div>
@@ -841,7 +843,7 @@
       function updateBatchActions() {
         const count = state.selectedIds.size;
         const disabled = state.loading || state.batchBusy || count === 0;
-        ["batchEnableBtn", "batchDisableBtn", "batchDeleteBtn"].forEach((id) => { $(id).disabled = disabled; });
+        ["batchEnableBtn", "batchDisableBtn", "batchDeleteBtn", "batchTestBtn"].forEach((id) => { $(id).disabled = disabled; });
         $("refreshBtn").disabled = state.loading || state.batchBusy;
         const counter = $("selectionCount");
         counter.textContent = state.batchBusy ? "正在执行批量操作…" : (state.loading ? "正在读取列表…" : (count ? `已选择 ${count} 项` : "未选择记录"));
@@ -926,6 +928,7 @@
       function siteFor(env) { return state.sites.find((site) => site.env === env); }
       function syncResourceView() {
         const usersActive = state.kind === "users";
+        $("batchTestBtn").hidden = state.kind !== "channels";
         ["resourceFilters", "batchActions", "tableMeta", "resourceTable", "paginationBar"].forEach((id) => {
           $(id).hidden = usersActive;
         });
@@ -1640,6 +1643,48 @@
         setMeta(result.message, result.metaKind);
         NAUi.toast(result.message, result.toastKind);
       }
+      async function runBatchTest() {
+        const ids = [...state.selectedIds];
+        if (!ids.length || state.kind !== "channels" || state.loading || state.batchBusy) return;
+        const env = state.env;
+        state.batchBusy = true;
+        renderTable();
+        setMeta(`正在批量测试 ${ids.length} 个渠道…`);
+        let result;
+        try {
+          const payload = await request(`/api/platform/${encodeURIComponent(env)}/channels/batch-test`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+          });
+          const data = payload.data || {};
+          const items = Array.isArray(data.items) ? data.items : [];
+          items.forEach((item) => {
+            if (!item.success) return;
+            const time = Number(item.time || 0);
+            const record = state.rows.find((row) => validRecordId(row) === Number(item.id));
+            if (record && time > 0) record.response_time = Math.round(time * 1000);
+          });
+          const failed = Number(data.failed || 0);
+          const details = items
+            .filter((item) => !item.success && item.message)
+            .slice(0, 2)
+            .map((item) => `#${item.id}：${item.message}`)
+            .join("；");
+          result = {
+            message: `${payload.message || "批量测试完成"}${details ? `；${details}` : ""}`,
+            metaKind: failed ? "error" : "",
+            toastKind: failed ? "warn" : "ok",
+          };
+        } catch (error) {
+          result = { message: error.message, metaKind: "error", toastKind: "err" };
+        } finally {
+          state.batchBusy = false;
+          renderTable();
+        }
+        setMeta(result.message, result.metaKind);
+        NAUi.toast(result.message, result.toastKind);
+      }
       async function init() {
         try {
           const payload = await request("/api/platform/sites"); state.sites = Array.isArray(payload.data) ? payload.data : [];
@@ -1722,6 +1767,7 @@
       $("batchEnableBtn").addEventListener("click", () => runBatchAction("enable"));
       $("batchDisableBtn").addEventListener("click", () => runBatchAction("disable"));
       $("batchDeleteBtn").addEventListener("click", () => runBatchAction("delete"));
+      $("batchTestBtn").addEventListener("click", runBatchTest);
       $("siteConfigBtn").addEventListener("click", openSiteConfig);
       $("cancelSiteConfig").addEventListener("click", closeSiteConfig);
       $("saveSiteConfig").addEventListener("click", saveSiteConfig);
