@@ -359,7 +359,8 @@
     .platform-table td.name { max-width: 360px; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono, ui-monospace, monospace); }
     .platform-table td.activity { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .platform-table td.quota { font-variant-numeric: tabular-nums; }
-    .platform-activity { display: flex; align-items: center; gap: 0.35rem; max-width: 100%; min-width: 0; }
+    .platform-activity { display: flex; align-items: center; gap: 0.35rem; max-width: 100%; min-width: 0; cursor: copy; user-select: none; outline: none; }
+    .platform-activity:focus-visible { border-radius: 6px; box-shadow: 0 0 0 2px var(--na-accent); }
     .platform-activity-title {
       min-width: 0;
       overflow: hidden;
@@ -372,20 +373,18 @@
     .platform-activity-pills { display: flex; align-items: center; gap: 0.28rem; flex: 0 0 auto; }
     .platform-activity-pill {
       padding: 0.15rem 0.42rem;
-      border: 1px solid var(--na-border);
+      border: 1px solid color-mix(in srgb, #fff 24%, #000);
       border-radius: 999px;
-      background: rgba(2, 6, 23, 0.22);
-      color: var(--na-text-muted);
+      background: #000;
+      color: #fff;
       font-size: 0.68rem;
       font-weight: 750;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
+      transition: background 0.15s ease, border-color 0.15s ease;
     }
-    .platform-activity-pill.rpm { border-color: rgba(34, 211, 238, 0.28); color: var(--na-accent); }
-    .platform-activity-pill.tpm { border-color: rgba(139, 92, 246, 0.28); color: #a78bfa; }
-    .platform-activity-pill.peak-rpm { border-color: rgba(245, 158, 11, 0.26); color: #f59e0b; }
-    .platform-activity-pill.peak-tpm { border-color: rgba(239, 68, 68, 0.24); color: #f87171; }
-    .platform-activity-pill.count { border-color: rgba(52, 211, 153, 0.28); color: #34d399; }
+    .platform-activity:hover .platform-activity-pill, .platform-activity:focus-visible .platform-activity-pill { background: #181818; border-color: color-mix(in srgb, var(--na-accent) 55%, #fff); }
+    .platform-activity.copied .platform-activity-pill { border-color: var(--na-success); }
     .platform-table td.copyable {
       max-width: clamp(190px, 21vw, 320px);
       overflow: hidden;
@@ -794,8 +793,31 @@
       }
       function buildActivityCell(record) {
         const summary = activitySummary(record);
+        const details = activityDetailText(record);
         const wrap = document.createElement("div");
         wrap.className = "platform-activity";
+        wrap.title = `${details}\n\n双击复制全部信息`;
+        wrap.tabIndex = 0;
+        wrap.setAttribute("role", "button");
+        wrap.setAttribute("aria-label", "近一月活跃统计，双击复制全部信息");
+        let copiedTimer;
+        const copyDetails = async () => {
+          try {
+            await writeClipboard(details);
+            wrap.classList.add("copied");
+            clearTimeout(copiedTimer);
+            copiedTimer = setTimeout(() => wrap.classList.remove("copied"), 1200);
+            NAUi.toast("已复制近一月活跃统计全部信息", "ok");
+          } catch (error) {
+            NAUi.toast(error?.message || "复制失败", "err");
+          }
+        };
+        wrap.addEventListener("dblclick", (event) => { event.preventDefault(); void copyDetails(); });
+        wrap.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          void copyDetails();
+        });
         const title = document.createElement("span");
         title.className = "platform-activity-title";
         title.textContent = summary.text;
@@ -898,18 +920,7 @@
         const original = button.textContent;
         button.disabled = true;
         try {
-          if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(value);
-          } else {
-            const helper = document.createElement("textarea");
-            helper.value = value;
-            helper.style.position = "fixed";
-            helper.style.opacity = "0";
-            document.body.append(helper);
-            helper.select();
-            document.execCommand("copy");
-            helper.remove();
-          }
+          await writeClipboard(value);
           NAUi.toast("已复制", "ok");
           button.textContent = "已复制";
           setTimeout(() => { button.textContent = original; button.disabled = false; }, 1200);
@@ -917,6 +928,23 @@
           NAUi.toast(error?.message || "复制失败", "err");
           button.textContent = original;
           button.disabled = false;
+        }
+      }
+      async function writeClipboard(value) {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+          return;
+        }
+        const helper = document.createElement("textarea");
+        helper.value = value;
+        helper.style.position = "fixed";
+        helper.style.opacity = "0";
+        document.body.append(helper);
+        try {
+          helper.select();
+          if (!document.execCommand("copy")) throw new Error("复制失败");
+        } finally {
+          helper.remove();
         }
       }
       function makeCopyCell(display, value, className = "", title = value || display) {
@@ -1464,7 +1492,6 @@
               edit.addEventListener("click", () => openEditor(record)); td.append(edit);
             } else if (name === "近一月活跃统计") {
               td.classList.add("activity");
-              td.title = activityDetailText(record);
               td.append(buildActivityCell(record));
             } else {
               const output = value(record);
