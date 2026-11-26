@@ -370,20 +370,19 @@
       font-size: 0.74rem;
       font-weight: 700;
     }
-    .platform-activity-pills { display: flex; align-items: center; gap: 0.28rem; flex: 0 0 auto; }
+    .platform-activity-pills { display: flex; align-items: center; gap: 0.55rem; flex: 0 0 auto; }
     .platform-activity-pill {
-      padding: 0.15rem 0.42rem;
-      border: 1px solid color-mix(in srgb, #fff 24%, #000);
-      border-radius: 999px;
-      background: #000;
-      color: #fff;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
       font: inherit;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
-      transition: background 0.15s ease, border-color 0.15s ease;
+      transition: color 0.15s ease;
     }
-    .platform-activity:hover .platform-activity-pill, .platform-activity:focus-visible .platform-activity-pill { background: #181818; border-color: color-mix(in srgb, var(--na-accent) 55%, #fff); }
-    .platform-activity.copied .platform-activity-pill { border-color: var(--na-success); }
+    .platform-activity.copied { color: var(--na-success); }
     .platform-table td.copyable {
       max-width: clamp(190px, 21vw, 320px);
       overflow: hidden;
