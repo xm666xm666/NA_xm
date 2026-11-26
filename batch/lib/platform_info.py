@@ -196,9 +196,25 @@ def list_channels(client: NewAPIClient) -> list[dict[str, Any]]:
                 stat_map[(int(entry["channel_id"]), str(entry["model_name"]))] = entry
     for row in rows:
         row_id = int(row.get("id") or 0)
-        model_names = [m.strip() for m in str(row.get("models") or "").split(",") if m.strip()]
+        model_names = parse_channel_model_names(row)
         row["activity_stats_models"] = model_names
-        matched = [stat_map[(row_id, m)] for m in model_names if (row_id, m) in stat_map]
+        matched = []
+        for model_name in model_names:
+            stat = stat_map.get((row_id, model_name))
+            if stat:
+                matched.append(stat)
+                continue
+            matched.append({
+                "channel_id": row_id,
+                "model_name": model_name,
+                "active_minutes": 0,
+                "avg_rpm": 0,
+                "peak_rpm": 0,
+                "avg_tpm": 0,
+                "peak_tpm": 0,
+                "total_requests": 0,
+                "total_tokens": 0,
+            })
         row["activity_stats"] = matched if matched else None
     rows.sort(key=lambda row: int(row.get("id") or 0), reverse=True)
     return rows

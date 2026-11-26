@@ -359,6 +359,33 @@
     .platform-table td.name { max-width: 360px; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono, ui-monospace, monospace); }
     .platform-table td.activity { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .platform-table td.quota { font-variant-numeric: tabular-nums; }
+    .platform-activity { display: flex; align-items: center; gap: 0.35rem; max-width: 100%; min-width: 0; }
+    .platform-activity-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--na-text-muted);
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+    .platform-activity-pills { display: flex; align-items: center; gap: 0.28rem; flex: 0 0 auto; }
+    .platform-activity-pill {
+      padding: 0.15rem 0.42rem;
+      border: 1px solid var(--na-border);
+      border-radius: 999px;
+      background: rgba(2, 6, 23, 0.22);
+      color: var(--na-text-muted);
+      font-size: 0.68rem;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .platform-activity-pill.rpm { border-color: rgba(34, 211, 238, 0.28); color: var(--na-accent); }
+    .platform-activity-pill.tpm { border-color: rgba(139, 92, 246, 0.28); color: #a78bfa; }
+    .platform-activity-pill.peak-rpm { border-color: rgba(245, 158, 11, 0.26); color: #f59e0b; }
+    .platform-activity-pill.peak-tpm { border-color: rgba(239, 68, 68, 0.24); color: #f87171; }
+    .platform-activity-pill.count { border-color: rgba(52, 211, 153, 0.28); color: #34d399; }
     .platform-table td.copyable {
       max-width: clamp(190px, 21vw, 320px);
       overflow: hidden;
@@ -710,13 +737,87 @@
       };
       function channelTypeLabel(value) { return CHANNEL_TYPES[value] || (value ? String(value) : ""); }
       function activityText(record) {
-        const stats = record.activity_stats;
-        if (!Array.isArray(stats) || stats.length === 0) return "近一月无活跃数据";
-        if (stats.length === 1) {
-          const s = stats[0];
-          return `${s.model_name || ""} · 均 RPM ${Number(s.avg_rpm || 0).toFixed(2)} · 均 TPM ${Number(s.avg_tpm || 0).toFixed(2)}`;
+        return activitySummary(record).text;
+      }
+      function activityStats(record) { return Array.isArray(record?.activity_stats) ? record.activity_stats.filter((item) => item && typeof item === "object") : []; }
+      function activityNumber(value) {
+        const n = Number(value || 0);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+      }
+      function formatActivityNumber(value) {
+        return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(value || 0));
+      }
+      function activitySummary(record) {
+        const stats = activityStats(record);
+        const activeMinutes = Math.max(0, ...stats.map((item) => activityNumber(item.active_minutes)));
+        const totalRequests = stats.reduce((sum, item) => sum + activityNumber(item.total_requests), 0);
+        const totalTokens = stats.reduce((sum, item) => sum + activityNumber(item.total_tokens ?? item.total_token), 0);
+        const peakRpm = Math.max(0, ...stats.map((item) => activityNumber(item.peak_rpm)));
+        const peakTpm = Math.max(0, ...stats.map((item) => activityNumber(item.peak_tpm)));
+        const avgRpm = activeMinutes > 0 ? totalRequests / activeMinutes : 0;
+        const avgTpm = activeMinutes > 0 ? totalTokens / activeMinutes : 0;
+        if (!stats.length || (!activeMinutes && !totalRequests && !totalTokens)) {
+          return { stats, activeMinutes, totalRequests, totalTokens, peakRpm, peakTpm, avgRpm, avgTpm, text: "近一月无活跃数据" };
         }
-        return `共 ${stats.length} 个模型 · 均 RPM ${stats[0]?.avg_rpm?.toFixed(2) || "-"} · 均 TPM ${stats[0]?.avg_tpm?.toFixed(2) || "-"}`;
+        const title = stats.length === 1 ? (stats[0].model_name || "当前模型") : `共 ${stats.length} 个模型`;
+        const text = `${title} · 请求 ${formatActivityNumber(totalRequests)} · Token ${formatActivityNumber(totalTokens)}`;
+        return { stats, activeMinutes, totalRequests, totalTokens, peakRpm, peakTpm, avgRpm, avgTpm, text };
+      }
+      function activityDetailText(record) {
+        const summary = activitySummary(record);
+        if (!summary.stats.length) return "近一月无活跃数据";
+        const totals = [
+          `活跃分钟：${formatActivityNumber(summary.activeMinutes)}`,
+          `平均 RPM：${formatActivityNumber(summary.avgRpm)}`,
+          `峰值 RPM：${formatActivityNumber(summary.peakRpm)}`,
+          `平均 TPM：${formatActivityNumber(summary.avgTpm)}`,
+          `峰值 TPM：${formatActivityNumber(summary.peakTpm)}`,
+          `总请求：${formatActivityNumber(summary.totalRequests)}`,
+          `总Token：${formatActivityNumber(summary.totalTokens)}`,
+        ];
+        if (summary.stats.length === 1) return totals.join("\n");
+        return `汇总\n${totals.join("\n")}\n\n${summary.stats.map((item) => {
+          const minutes = activityNumber(item.active_minutes);
+          const requests = activityNumber(item.total_requests);
+          const tokens = activityNumber(item.total_tokens ?? item.total_token);
+          return [
+            `${item.model_name || "未命名模型"}`,
+            `活跃分钟：${formatActivityNumber(minutes)}`,
+            `平均 RPM：${formatActivityNumber(minutes ? requests / minutes : Number(item.avg_rpm || 0))}`,
+            `峰值 RPM：${formatActivityNumber(item.peak_rpm)}`,
+            `平均 TPM：${formatActivityNumber(minutes ? tokens / minutes : Number(item.avg_tpm || 0))}`,
+            `峰值 TPM：${formatActivityNumber(item.peak_tpm)}`,
+            `总请求：${formatActivityNumber(requests)}`,
+            `总Token：${formatActivityNumber(tokens)}`,
+          ].join("\n");
+        }).join("\n\n")}`;
+      }
+      function buildActivityCell(record) {
+        const summary = activitySummary(record);
+        const wrap = document.createElement("div");
+        wrap.className = "platform-activity";
+        const title = document.createElement("span");
+        title.className = "platform-activity-title";
+        title.textContent = summary.text;
+        wrap.append(title);
+        if (summary.activeMinutes || summary.totalRequests || summary.totalTokens) {
+          const pills = document.createElement("div");
+          pills.className = "platform-activity-pills";
+          [
+            ["rpm", "均RPM", summary.avgRpm],
+            ["tpm", "均TPM", summary.avgTpm],
+            ["peak-rpm", "峰RPM", summary.peakRpm],
+            ["peak-tpm", "峰TPM", summary.peakTpm],
+            ["count", "请求", summary.totalRequests],
+          ].forEach(([className, label, value]) => {
+            const pill = document.createElement("span");
+            pill.className = `platform-activity-pill ${className}`;
+            pill.textContent = `${label} ${formatActivityNumber(value)}`;
+            pills.append(pill);
+          });
+          wrap.append(pills);
+        }
+        return wrap;
       }
       function timestamp(value) {
         const n = Number(value || 0);
@@ -1361,13 +1462,17 @@
               }
               const edit = document.createElement("button"); edit.type = "button"; edit.className = "platform-edit"; edit.textContent = "编辑";
               edit.addEventListener("click", () => openEditor(record)); td.append(edit);
+            } else if (name === "近一月活跃统计") {
+              td.classList.add("activity");
+              td.title = activityDetailText(record);
+              td.append(buildActivityCell(record));
             } else {
               const output = value(record);
               if (output && typeof output === "object" && "label" in output) { const badge = document.createElement("span"); badge.className = `platform-state ${output.className}`; badge.textContent = output.label; td.append(badge); }
               else {
                 const text = safeText(output);
                 const copyColumns = state.kind === "channels"
-                  ? new Set(["名称", "分组", "类型", "近一月活跃统计", "已用/剩余"])
+                  ? new Set(["名称", "分组", "类型", "已用/剩余"])
                   : new Set(["名称", "分组", "密钥", "可用模型", "模型限流", "IP限制"]);
                 const isLongText = text.length >= 24 || /\s/.test(text.trim());
                 if (copyColumns.has(name) && (name === "密钥" || isLongText)) {
